@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Option D — forward</title>
+
+  <!--
+    OPTION D — FORWARD.
+
+    Three chevrons, the third in gold. No object, no landmark, no letter — just
+    direction and pace. This is the corporate end of the range: it would sit on
+    a rate card, an invoice and a fleet door sticker without arguing with any of
+    them, and it is the only one of the four that carries no baggage about what
+    kind of vehicle the business runs.
+
+    It is also the most legible of the four at 16px, because it is three strokes
+    and nothing else.
+
+    The risk, said out loud: chevrons are the default move in logistics, and
+    this is the least distinctive of the four. It earns its place on
+    scalability, not on originality.
+  -->
+
+  <defs>
+    <linearGradient id="dGround" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#17293B"/>
+      <stop offset="100%" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="dChev" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2E86F0"/>
+      <stop offset="100%" stop-color="#5AD6F7"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="32" cy="32" r="32" fill="url(#dGround)"/>
+  <circle cx="32" cy="32" r="28.6" fill="none" stroke="#D9C33A" stroke-width="2"/>
+
+  <g fill="none" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 19.5 41 L 28 32 L 19.5 23" stroke="url(#dChev)"/>
+    <path d="M 29.5 41 L 38 32 L 29.5 23" stroke="url(#dChev)"/>
+    <path d="M 40 37.5 L 45.5 32 L 40 26.5" stroke="#D9C33A"/>
+  </g>
+</svg>

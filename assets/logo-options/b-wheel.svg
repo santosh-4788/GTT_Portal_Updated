@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Option B — the chauffeur's wheel</title>
+
+  <!--
+    OPTION B — THE STEERING WHEEL.
+
+    The business says it plainly on its own FAQ: every vehicle goes out with one
+    of our own chauffeurs, and we do not rent self-drive cars. That is the
+    actual differentiator against Zoomcar and Revv, and a wheel is the one mark
+    that states it without a word.
+
+    Three spokes rather than four: it reads faster at 32px, and the gold hub
+    gives the centre something to be.
+
+    The risk, said out loud: wheels are common on driving-school and cab
+    signage. This is the least original of the four. It is here because it is
+    the most immediately understood, and because it is honest about the trade.
+  -->
+
+  <defs>
+    <linearGradient id="bGround" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#17293B"/>
+      <stop offset="100%" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="bRim" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#5AD6F7"/>
+      <stop offset="55%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#2E86F0"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="32" cy="32" r="32" fill="url(#bGround)"/>
+  <circle cx="32" cy="32" r="28.6" fill="none" stroke="#D9C33A" stroke-width="2"/>
+
+  <!-- rim -->
+  <circle cx="32" cy="32" r="15" fill="none" stroke="url(#bRim)" stroke-width="5"/>
+
+  <!-- three spokes: up, lower-left, lower-right -->
+  <g stroke="url(#bRim)" stroke-width="4.6" stroke-linecap="round">
+    <path d="M 32 27.6 V 17.5"/>
+    <path d="M 28.4 34.1 L 19.7 39.1"/>
+    <path d="M 35.6 34.1 L 44.3 39.1"/>
+  </g>
+
+  <!-- hub -->
+  <circle cx="32" cy="32" r="4.4" fill="#D9C33A"/>
+</svg>

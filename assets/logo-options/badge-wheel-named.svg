@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120"
+     role="img" aria-label="Gupta Tours &amp; Travels — 24x7 Mumbai">
+  <title>Gupta Tours &amp; Travels</title>
+
+  <!--
+    THE ROUND BADGE WITH THE NAME ON THE RIM — the same format as the existing
+    signboard, drawn properly.
+
+    Set at 120 units rather than 64, because rim text needs the room: the name
+    runs at 9.2 units on a 47-unit radius, which is legible from about 90px up.
+    BELOW THAT USE THE PLAIN MARK. Curved text at 44px is what made the old
+    signboard photograph unreadable in the site header, and shrinking this one
+    would repeat the mistake exactly.
+
+    FONT CAVEAT, same as the horizontal lockup: the two rim strings are live SVG
+    text, so they need Sora present. For a signwriter or a printer, open this in
+    Illustrator or Inkscape and convert text to outlines first.
+  -->
+
+  <defs>
+    <linearGradient id="wnGround" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#17293B"/>
+      <stop offset="100%" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="wnRim" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#5AD6F7"/>
+      <stop offset="55%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#2E86F0"/>
+    </linearGradient>
+
+    <!-- the name runs over the top, left to right -->
+    <path id="wnTop" d="M 13 60 A 47 47 0 0 1 107 60" fill="none"/>
+    <!-- the strapline runs under the bottom, right to left so it sits upright -->
+    <path id="wnBot" d="M 108 60 A 48 48 0 0 1 12 60" fill="none"/>
+  </defs>
+
+  <circle cx="60" cy="60" r="60" fill="url(#wnGround)"/>
+
+  <!-- two hairlines bracket the rim text, the way the sign's gold ring does -->
+  <circle cx="60" cy="60" r="56.5" fill="none" stroke="#D9C33A" stroke-width="1.8"/>
+  <circle cx="60" cy="60" r="38.5" fill="none" stroke="#D9C33A" stroke-width="0.9" opacity="0.55"/>
+
+  <text font-family="'Sora', 'Sora Variable', 'Segoe UI', system-ui, sans-serif"
+        font-size="9.2" font-weight="800" letter-spacing="1.5" fill="#D9C33A">
+    <textPath href="#wnTop" startOffset="50%" text-anchor="middle">GUPTA TOURS &amp; TRAVELS</textPath>
+  </text>
+
+  <text font-family="'Sora', 'Sora Variable', 'Segoe UI', system-ui, sans-serif"
+        font-size="7" font-weight="700" letter-spacing="2.2" fill="#5AD6F7">
+    <textPath href="#wnBot" startOffset="50%" text-anchor="middle">24×7 · MUMBAI</textPath>
+  </text>
+
+  <!-- the mark, scaled into the inner circle -->
+  <g transform="translate(60 60) scale(0.93) translate(-32 -32)">
+    <circle cx="32" cy="32" r="15" fill="none" stroke="url(#wnRim)" stroke-width="5"/>
+    <g stroke="url(#wnRim)" stroke-width="4.6" stroke-linecap="round">
+      <path d="M 32 27.6 V 17.5"/>
+      <path d="M 28.4 34.1 L 19.7 39.1"/>
+      <path d="M 35.6 34.1 L 44.3 39.1"/>
+    </g>
+    <circle cx="32" cy="32" r="4.4" fill="#D9C33A"/>
+  </g>
+</svg>

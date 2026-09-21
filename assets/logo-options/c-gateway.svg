@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Option C — the gateway arch</title>
+
+  <!--
+    OPTION C — THE ARCH.
+
+    The Gateway of India, abstracted to one arch and a base. The business is
+    Mumbai-rooted, the tours page opens with the Gateway, and an arch is what
+    you go through on the way somewhere — which is the whole idea of a travel
+    company.
+
+    Reduced to a silhouette on purpose. The real Gateway has flanking towers,
+    finials and lattice, and every one of those turns to mush below 44px. What
+    survives is the shape.
+
+    The risk, said out loud: Mumbai travel firms reach for the Gateway often.
+    This version at least commits to being a geometric mark rather than a
+    drawing of the monument.
+  -->
+
+  <defs>
+    <linearGradient id="cGround" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#17293B"/>
+      <stop offset="100%" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="cArch" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#5AD6F7"/>
+      <stop offset="55%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#2E86F0"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="32" cy="32" r="32" fill="url(#cGround)"/>
+  <circle cx="32" cy="32" r="28.6" fill="none" stroke="#D9C33A" stroke-width="2"/>
+
+  <!-- the arch: outer block with a rounded top, inner opening punched out -->
+  <path d="M 19 44 L 19 30 A 13 13 0 0 1 45 30 L 45 44 Z
+           M 26 44 L 26 31 A 6 6 0 0 1 38 31 L 38 44 Z"
+        fill="url(#cArch)" fill-rule="evenodd"/>
+
+  <!-- the ground it stands on -->
+  <rect x="16" y="45.6" width="32" height="3.4" rx="1.7" fill="#D9C33A"/>
+</svg>

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Gupta Tours &amp; Travels — navy ground, not charcoal</title>
+
+  <!--
+    YOUR SIGN, REDRAWN AS VECTOR. Variant: navy ground, not charcoal
+
+    Generated from one template so that the ONLY difference between this file
+    and its siblings is the thing named above. See scratchpad/gen.py.
+
+    The rim name wraps about 92% of the circle here, close to the sign's near
+    full wrap. The rim path is deliberately TWO semicircular arcs: a single arc
+    whose start and end are the same point is degenerate, and SVG collapses it,
+    which piles every glyph at the bottom of the badge.
+
+    Below about 90px the rim name is unreadable. That is true of the original
+    too, and it is why a mark-only version has to exist alongside this one.
+  -->
+
+  <defs>
+    <linearGradient id="rdGround" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#263C52"/>
+      <stop offset="100%" stop-color="#101C2B"/>
+    </linearGradient>
+    <linearGradient id="rdGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F7EC96"/>
+      <stop offset="45%" stop-color="#EFDF6B"/>
+      <stop offset="100%" stop-color="#C9B03A"/>
+    </linearGradient>
+    <linearGradient id="rdCyan" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#4FCBF2"/>
+      <stop offset="100%" stop-color="#1E9BD7"/>
+    </linearGradient>
+    <path id="rdRim" d="M 60 107 A 47 47 0 0 1 60 13 A 47 47 0 0 1 60 107" fill="none"/>
+  </defs>
+
+  <circle cx="60" cy="60" r="60" fill="url(#rdGround)"/>
+  <circle cx="60" cy="60" r="55.5" fill="none" stroke="url(#rdGold)" stroke-width="4"/>
+
+  <text font-family="'Sora', 'Sora Variable', 'Segoe UI', system-ui, sans-serif"
+        font-size="12.2" font-weight="800" letter-spacing="4.4" fill="url(#rdCyan)">
+    <textPath href="#rdRim" startOffset="50%" text-anchor="middle">GUPTA TOURS &amp; TRAVELS</textPath>
+  </text>
+
+  <g>
+    <g fill="url(#rdCyan)">
+      <rect x="28" y="62.8" width="7" height="2.4" rx="1.2" opacity="0.5"/>
+      <rect x="26" y="67.3" width="9" height="2.4" rx="1.2" opacity="0.75"/>
+      <rect x="29" y="71.8" width="6" height="2.4" rx="1.2" opacity="0.4"/>
+    </g>
+
+    <path d="M 90 74 L 90 70.8
+             C 90 69.2, 88.6 68.6, 86 67.9
+             C 80 66.3, 74 65.3, 70 64.8
+             L 62.5 60.8
+             C 57.5 58.9, 50.5 59.1, 45 61.1
+             C 39.5 63.1, 34.5 65.9, 32 68.4
+             C 30.8 69.6, 30 70.6, 30 71.6
+             L 30 74 Z"
+          fill="url(#rdCyan)"/>
+
+    <path d="M 46.3 63.7 C 50 61.8, 55.5 61.6, 59.5 63.4 L 61.3 64.6 L 44.9 64.6
+             C 45.1 64.3, 45.6 64, 46.3 63.7 Z"
+          fill="#16283A"/>
+
+    <circle cx="44" cy="74" r="7.4" fill="url(#rdGround)"/>
+    <circle cx="76" cy="74" r="7.4" fill="url(#rdGround)"/>
+    <circle cx="44" cy="74" r="5" fill="url(#rdCyan)"/>
+    <circle cx="76" cy="74" r="5" fill="url(#rdCyan)"/>
+    <circle cx="44" cy="74" r="1.8" fill="#16283A"/>
+    <circle cx="76" cy="74" r="1.8" fill="#16283A"/>
+  </g>
+</svg>

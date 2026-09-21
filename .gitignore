@@ -1,0 +1,46 @@
+# dependencies
+node_modules/
+
+# build output
+backend/dist/
+frontend/dist/
+frontend/dist-mobile/
+frontend/dist-customer/
+
+# environment — contains the JWT secret, never commit it
+.env
+.env.local
+
+# THE DATABASE — this is live business data, keep it out of version control
+database/*.db
+database/*.db-wal
+database/*.db-shm
+
+# A stray SQLite file created when DB_FILE was read with its separators
+# stripped ("E:\Portal\...\gtt.db" became one long name). Empty, unused, and
+# not the real database — but it is a .db and must not be committed either.
+backend/*.db
+backend/*.db-wal
+backend/*.db-shm
+
+# generated business documents
+data/invoices/
+data/backups/
+data/logs/
+uploads/
+
+# working copies of vendor invoice templates (the originals live in E:\Portal\InvoiceFormat)
+templates/*.xlsx
+templates/*.xls
+templates/*.xlsm
+templates/*.docx
+templates/*.doc
+templates/*.pdf
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.log

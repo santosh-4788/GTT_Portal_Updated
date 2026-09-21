@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Option G — the round trip</title>
+
+  <!--
+    OPTION G — NO CONTAINER AT ALL.
+
+    A loop between two points: out and back. That is the shape of most of what
+    this business sells — Mumbai to Lonavala and home again, hotel to venue and
+    back, the airport run in both directions. The two gold points are the two
+    ends; the cyan is the journey.
+
+    No disc, no tile, no frame. It sits on your website's pale ground as a mark
+    rather than a sticker, and it inverts cleanly to white for the footer and
+    the dark invoice header.
+
+    Three shapes total, which is why it still reads at 24px.
+  -->
+
+  <defs>
+    <linearGradient id="grLoop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5AD6F7"/>
+      <stop offset="50%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#2E86F0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the journey -->
+  <ellipse cx="32" cy="32" rx="21" ry="12.5"
+           fill="none" stroke="url(#grLoop)" stroke-width="7.4"/>
+
+  <!-- the two ends of it -->
+  <circle cx="11" cy="32" r="5.6" fill="#D9C33A"/>
+  <circle cx="53" cy="32" r="5.6" fill="#D9C33A"/>
+</svg>

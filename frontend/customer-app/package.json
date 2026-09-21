@@ -1,0 +1,6 @@
+{
+  "name": "gtt-customer-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor wrapper for the customer app. Shares the frontend's node_modules; the web bundle it packages is built by `npm run build:customer` one level up."
+}

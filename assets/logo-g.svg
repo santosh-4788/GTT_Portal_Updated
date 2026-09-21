@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours And Travels">
+  <title>Gupta Tours And Travels</title>
+
+  <!--
+    THE G — lifted straight out of the poster.
+
+    Same construction as the big composition: one ring, steel down the left,
+    gold down the right, and a gold bar at three o'clock that turns the ring
+    into a G. Skyline, road, car and lettering all stripped out, because none of
+    them survive below about 90px.
+
+    That gives one coherent pair rather than two unrelated logos:
+      · logo-poster.png / k-poster.svg   signage, brochure, WhatsApp profile
+      · this file                        site header, favicon, anywhere small
+
+    NO CONTAINER. It sits on the site's pale ground as a mark rather than a dark
+    sticker punched into the page, and it has the room a 32px icon needs — a
+    ring around the outside would eat half the pixels.
+
+    The steel is darkened from the poster's version and the gold deepened,
+    because the poster sits on near-black where light metal reads, and this sits
+    on #F5F8FC where it would wash out.
+  -->
+
+  <defs>
+    <linearGradient id="gSteel" x1="0.1" y1="0" x2="0.4" y2="1">
+      <stop offset="0%"   stop-color="#5E6B7A"/>
+      <stop offset="55%"  stop-color="#3A4450"/>
+      <stop offset="100%" stop-color="#1E2530"/>
+    </linearGradient>
+
+    <linearGradient id="gGold" x1="0.2" y1="0" x2="0.9" y2="1">
+      <stop offset="0%"   stop-color="#E9C25A"/>
+      <stop offset="45%"  stop-color="#D2A231"/>
+      <stop offset="100%" stop-color="#A87C18"/>
+    </linearGradient>
+  </defs>
+
+  <g fill="none" stroke-width="9" stroke-linecap="butt">
+    <!-- steel: from twelve, anticlockwise, round to six -->
+    <path d="M 32 7 A 25 25 0 0 0 32 57" stroke="url(#gSteel)"/>
+    <!-- gold: from twelve, clockwise, stopping short so the G stays open -->
+    <path d="M 32 7 A 25 25 0 0 1 51.2 48.1" stroke="url(#gGold)"/>
+  </g>
+
+  <!-- the bar that makes it a G, running in from the outer edge -->
+  <rect x="37" y="27.5" width="24.5" height="9" fill="url(#gGold)"/>
+</svg>

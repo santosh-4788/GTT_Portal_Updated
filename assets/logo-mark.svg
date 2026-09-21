@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Gupta Tours &amp; Travels</title>
+
+  <!--
+    THE MARK — a route arriving at its destination.
+
+    Two shapes and nothing else: one confident cyan stroke that reads as a road
+    climbing away from you, and a gold marker at the head of it, sitting on the
+    road rather than floating beside it. That is the business in two marks —
+    tell us where, we get you there — and it holds together at 32px, which is
+    the only test a logo really has to pass.
+
+    Everything inside stays within r=21 of centre, so nothing tangents the gold
+    ring. An earlier pass had the marker's edge 0.4 units off the ring and it
+    looked like a mistake at every size.
+
+    WHY NOT A LETTER. Two attempts at a geometric G came back reading as a C
+    and then as a lowercase e. Hand-writing letter anatomy in raw path data is
+    a bad trade when the wordmark beside the mark already says GUPTA in full.
+
+    WHY NOT A CAR. The old sign's low sports car speaks for a Dzire and
+    nothing else in a fleet that runs to 49-seat coaches, weddings and
+    corporate accounts. A route speaks for all of it.
+
+    KEPT FROM THE EXISTING SIGN: the cyan, the gold ring, the deep ground — so
+    it still reads as the same company.
+  -->
+
+  <defs>
+    <linearGradient id="gttGround" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#17293B"/>
+      <stop offset="100%" stop-color="#0A1420"/>
+    </linearGradient>
+
+    <!-- the site's own brand gradient, blue at the start of the road into cyan
+         at the destination, so the stroke reads as travelling somewhere -->
+    <linearGradient id="gttRoute" x1="0.15" y1="1" x2="0.85" y2="0">
+      <stop offset="0%" stop-color="#2E86F0"/>
+      <stop offset="55%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#5AD6F7"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="32" cy="32" r="32" fill="url(#gttGround)"/>
+
+  <!-- the gold ring he already has on the sign -->
+  <circle cx="32" cy="32" r="28.6" fill="none" stroke="#D9C33A" stroke-width="2"/>
+
+  <!-- the road, ending under the marker so the two read as one journey -->
+  <path d="M 21.4 43.3 C 24 32, 28.5 25.5, 43.5 22.4"
+        fill="none" stroke="url(#gttRoute)" stroke-width="7.2" stroke-linecap="round"/>
+
+  <!-- the destination: a gold marker with the ground showing through, so it
+       stays a marker rather than a blob at favicon size -->
+  <circle cx="43.5" cy="22.4" r="5.4" fill="#D9C33A"/>
+  <circle cx="43.5" cy="22.4" r="2" fill="#0A1420"/>
+</svg>

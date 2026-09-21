@@ -1,0 +1,118 @@
+PHOTO CREDITS - SERVICE CARD PHOTOGRAPHS
+Gupta Tours & Travels
+
+Straight photographs, not composites. Pasting a catalogue vehicle into a
+landscape was tried and abandoned: a car lit in a studio cannot be made to sit
+in a photographed street, and every one of them read as a cut-out. The cards
+that want a vehicle use the vehicle's own photograph; the rest show the place.
+
+Cards with no file here fall back to the `photo` set on the entry in
+frontend/src/site/catalog.ts - the destination photographs, credited in
+assets/places/CREDITS.txt, and our own fleet shots, which need no credit.
+
+Each card is cropped to 16:10 at 1080 x 675. Where a licence is share-alike
+(CC BY-SA), these versions are available under the same licence.
+
+---------------------------------------------------------------------------
+
+Airport Transfer  (airport.jpg)
+  Photographer : Innocentbunny
+  Licence      : CC BY-SA 3.0  <https://creativecommons.org/licenses/by-sa/3.0>
+  Source       : https://commons.wikimedia.org/wiki/File:Chhatrapati_Shivaji_International_Airport_3.jpg
+
+Hourly Rental  (hourly.jpg)   road, with a dial and a car drawn over it
+  Place        : Janitors / CC BY 2.0
+                 https://www.flickr.com/photos/65265630@N03/15795805372
+  Note         : Dial and car are drawn. The road is not in India.
+
+Corporate Travel  (corporate.jpg)
+  Photographer : paul bica
+  Licence      : CC BY 2.0  <https://creativecommons.org/licenses/by/2.0>
+  Source       : https://www.flickr.com/photos/99771506@N00/3146028811
+
+Events  (event.jpg)   photograph only - no vehicle
+  Photographer : LeWeb14
+  Licence      : CC BY 2.0  <https://creativecommons.org/licenses/by/2.0>
+  Source       : https://www.flickr.com/photos/86704644@N00/6477362585
+
+Wedding  (wedding.jpg, wedding-2.jpg, wedding-3.jpg - the card cycles them)
+  No people appear in any of the three.
+  wedding.jpg    Outdoor mandap with draped canopy
+                 Makarand Mane / CC0 1.0 - no attribution required
+                 https://wordpress.org/photos/photo/21265cdae9/
+  wedding-2.jpg  Decorated wedding car
+                 ustung / CC BY 2.0
+                 https://www.flickr.com/photos/126397594@N03/19113028098
+  wedding-3.jpg  Marigold and rose petals
+                 Kritzolina / CC BY-SA 4.0
+                 https://commons.wikimedia.org/wiki/File:Flower_decorations_at_a_wedding_in_India_06.jpg
+
+Mumbai Darshan  (darshan.jpg)
+  Three panels, all three already credited in assets/places/CREDITS.txt:
+  Siddhivinayak Temple, Marine Drive and Juhu Beach.
+
+---------------------------------------------------------------------------
+
+ROTATIONS ADDED LATER
+
+Places already credited in assets/places/CREDITS.txt:
+  local.jpg / -2          Marine Drive, Bandra
+  outstation-2 / -3        Khandala, Igatpuri
+  darshan-2 / -3           Gateway of India, Haji Ali
+  hourly-2 / -3            Marine Drive and Bandra, under the drawn dial
+
+Our own vehicles, no credit needed:
+  group.jpg                Force Urbania 17
+  group-2.jpg              Volvo 45-seat coach
+  group-3.jpg              Force Traveller 12
+
+New this round:
+  outstation.jpg   Malshej Ghat
+                   see assets/needs/source-notes for the Openverse record
+  airport-2.jpg    Airport concourse
+  airport-3.jpg    Air India Boeing 787-9 VT-AWA, flight AI131 Mumbai-London
+                   CC BY-SA 4.0 / JCSigma2000
+                   https://commons.wikimedia.org/wiki/File:VT-AWA_(AirIndia_Boeing787-9)_AI131_BOM-LHR.jpg
+  corporate-2.jpg  Raffles Place, a business district
+  event-2.jpg      Festival stage - Stefan Brending / CC BY-SA 3.0
+                   https://commons.wikimedia.org/wiki/File:2016_RiP_Heaven_Shall_Burn_-_by_2eight_-_8SC9722.jpg
+  event-3.jpg      Lecture hall - cogdogblog / CC BY 2.0
+                   https://www.flickr.com/photos/37996646802@N01/4952946111
+
+All were found through the Openverse and Wikimedia APIs with the filter set to
+licences permitting commercial reuse.
+
+WITHDRAWN
+  corporate-3   was CSMT & Fort. Taken off - a railway terminus is heritage
+                sightseeing, which the Mumbai Darshan card already covers, and
+                it said nothing about corporate travel. It is now the firm's
+                own Honda City, the executive sedan those accounts actually
+                ride in, which is also the "and cars" half of the brief.
+  group-2       was the Matheran hills. Taken off and replaced with the Volvo
+                coach, so Group Travel now shows the three vehicles it can
+                actually send: Urbania, coach, Traveller 12.
+  tour.jpg      Weekend Trips left the grid; its three frames were deleted.
+  airport-3     was a Singapore Airlines A330. Replaced on the brief
+                "show indian" - it is now an Air India 787-9 on the
+                Mumbai-London run.
+  local-3       was Colaba Causeway at night. Replaced with the
+                Bandra-Worli Sea Link - the card wanted a landmark,
+                and a shopfront street is not one.
+                CC BY-SA 4.0 / Devansh15
+                https://commons.wikimedia.org/wiki/File:Bandra-Worli_Sealink_21.jpg
+
+  corporate-3   was the Honda City on white. Replaced with an office building
+                in the Bandra Kurla Complex - the card is about corporate
+                travel, and a studio car said nothing about it.
+                PUBLIC DOMAIN, nothing to attribute
+                https://commons.wikimedia.org/wiki/File:Bandra-Kurla_complex_Bombay_3239.jpg
+
+  event-3       was an empty auditorium. Now Sunburn Festival, Goa - lights
+                over the crowd from behind, no face in frame.
+                CC BY 4.0 / Vyacheslav Argenberg
+  wedding-2     was a vintage VW Beetle with a garland - a European car at a
+                European wedding. Now a mandap in tikri mirror work.
+                CC BY-SA 4.0 / Megh Banthia
+  wedding-3     was two baskets of petals, then a rangoli with diyas - which
+                reads as Diwali as much as a wedding. Now varmala garlands.
+                CC BY 2.0 / McKay Savage

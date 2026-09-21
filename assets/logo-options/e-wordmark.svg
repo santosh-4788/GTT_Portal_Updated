@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 76" width="240" height="76"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Option E — the wordmark</title>
+
+  <!--
+    OPTION E — NO SYMBOL AT ALL.
+
+    The name IS the logo. One cyan rule holding it on the left, GUPTA set heavy,
+    TOURS & TRAVELS letterspaced underneath. Nothing to interpret, nothing that
+    can be mistaken for another company's icon, and nothing that stops working
+    when it shrinks.
+
+    This is what the premium end of this market actually does — Blacklane is a
+    wordmark, Uber is a wordmark. It is also the only direction that fits your
+    own website, which is a pale, airy, light-surfaced design that a heavy navy
+    disc has been fighting the whole time.
+
+    FONT: set in Sora, the face the site already loads. As live SVG text it
+    needs Sora present; convert to outlines before it goes to a printer.
+    FAVICON: a wordmark cannot be a 32px icon, so this direction still needs a
+    one-letter tile alongside it — say the word and I will draw it.
+  -->
+
+  <defs>
+    <linearGradient id="ewBar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5AD6F7"/>
+      <stop offset="100%" stop-color="#2E86F0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the only graphic element: a rule that holds the name -->
+  <rect x="0" y="7" width="5" height="60" rx="2.5" fill="url(#ewBar)"/>
+
+  <text x="21" y="43" font-family="'Sora', 'Sora Variable', 'Segoe UI', system-ui, sans-serif"
+        font-size="42" font-weight="800" letter-spacing="-1.2" fill="#101C2B">GUPTA</text>
+
+  <text x="23" y="64" font-family="'Sora', 'Sora Variable', 'Segoe UI', system-ui, sans-serif"
+        font-size="11.5" font-weight="700" letter-spacing="6.4" fill="#0E82B8">TOURS &amp; TRAVELS</text>
+</svg>

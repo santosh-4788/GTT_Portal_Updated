@@ -1,0 +1,279 @@
+/* ===========================================================================
+   Android app chrome.
+
+   The admin screens themselves are already responsive — they were built with
+   `grid-cols-2` on small screens and side-scrolling tables — so this file does
+   not restyle them. It handles the things a WebView needs and a browser tab
+   does not: the status bar and gesture area, the fixed tab bar, and the small
+   set of behaviours that otherwise make a web page feel like a web page
+   instead of an app.
+   =========================================================================== */
+
+/* The status bar and the gesture/navigation bar overlap the WebView, because
+   the app opts into drawing edge to edge. Without these the title sits under
+   the clock and the last tab row sits under the home indicator. */
+.app-header {
+  padding-top: env(safe-area-inset-top);
+}
+
+.app-tabbar {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.app-login {
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+
+.app-sheet {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* The tab bar is fixed, so the page must be able to scroll clear of it. 4.25rem
+   is the bar itself; the inset is whatever the phone adds below it. */
+.app-main {
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
+
+/* Sticky elements inside the shared screens offset from this. In the app the
+   header is the same 3.5rem plus however much of it the status bar takes. */
+:root {
+  --header-h: calc(3.5rem + env(safe-area-inset-top));
+}
+
+/* ---------------------------------------------------------------------------
+   Behaviour
+   --------------------------------------------------------------------------- */
+
+html {
+  /* Android widens text in narrow columns on its own, which breaks the table
+     layouts by making some columns wrap and others not. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  /* No rubber-band at the top of a list: in an app that reads as the screen
+     coming loose, and it competes with the pull gesture on scrollable tables. */
+  overscroll-behavior-y: none;
+}
+
+/* The grey flash on every tap. Buttons already have their own `active:` state,
+   which is faster and matches the design. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Long-pressing a label should not start a text selection — that is a desktop
+   affordance and on a phone it just gets in the way of scrolling. Anything
+   holding real data stays selectable, so an invoice number can still be copied. */
+button, .btn, nav, .app-header, .app-tabbar, label {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input, textarea, select, td, .tbl, .cell-code, p, h1, h2, h3 {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ---------------------------------------------------------------------------
+   Keeping the page exactly as wide as the phone
+
+   A grid or flex item is `min-width: auto` by default, which means it refuses
+   to shrink below its own content. The dashboard's vendor table is about 570px
+   wide, so its panel became 570px, then the grid did, then the page — and the
+   whole app scrolled sideways, taking the fixed tab bar's last tab off screen
+   with it. The table was already inside an `overflow-x-auto` wrapper; it just
+   never got the chance to use it.
+
+   Letting these shrink puts the scrolling back inside the table, where it was
+   designed to be, and leaves the page itself locked to the screen width.
+   --------------------------------------------------------------------------- */
+.app-main section,
+.app-main .section,
+.app-main .section-body,
+.app-main .card,
+.app-main .table-wrap,
+.app-main .table-scroll {
+  min-width: 0;
+}
+
+.app-main .table-wrap,
+.app-main .table-scroll {
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   Tables scroll, they do not squeeze
+
+   `.tbl` is `w-full`. On a desktop that fills the space; on a 390px phone it
+   told a nine-column table to fit in 390px, and the columns collapsed until a
+   booking code was rendering as
+
+       GTT-
+       EM-
+       2609-
+
+   one fragment per line down the cell. The wrapper around it was already set
+   up to scroll sideways and never got the chance, because the table had
+   obediently shrunk to fit.
+
+   Sizing the table to its content puts the overflow back in the wrapper, where
+   it belongs, and every column returns to its natural width.
+   --------------------------------------------------------------------------- */
+/* Every table, not just `.tbl` — the Trips screen uses a bare `.table` that is
+   not defined anywhere, so a rule naming the class would have missed the very
+   screen that showed the problem worst. */
+.app-main table {
+  min-width: max-content;
+}
+
+/* But not infinitely wide: one long address in one cell would otherwise set
+   the width of the whole table. Past this, a cell wraps as it always did. */
+.app-main table th,
+.app-main table td {
+  max-width: 15rem;
+}
+
+/* Single tokens. A trip ID, a rupee amount or a date broken across lines is
+   harder to read than one that scrolls. */
+.app-main table thead th,
+.app-main .cell-code,
+.app-main .td-num {
+  white-space: nowrap;
+}
+
+/* Side-scrolling tables get momentum and a snap-free glide, and their padding
+   comes in a little so one more column fits on a 360px screen. */
+.table-wrap, .table-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+.tbl thead th,
+.tbl tbody td {
+  @apply px-2.5 py-2;
+}
+
+/* Android Chrome does not zoom on focus, but a 16px field is still the smallest
+   that reads comfortably at arm's length, and it stops the layout shifting when
+   the keyboard opens. */
+input, select, textarea {
+  font-size: 16px;
+}
+
+/* Full-width action buttons are easier to hit than the desktop's inline row,
+   and modals on a phone should use the width they have. */
+.modal-card, .card {
+  max-width: 100%;
+}
+
+/* ===========================================================================
+   Motion
+
+   Everything below animates transform and opacity ONLY. Both are handled by the
+   compositor, so none of it triggers layout or paint and none of it competes
+   with React for the main thread — which is the difference between smooth on a
+   mid-range Android phone and smooth only on a desktop.
+
+   The easing is the one iOS uses for navigation: a fast start that settles
+   gently, rather than the symmetrical ease-in-out that makes web transitions
+   feel slow at both ends.
+
+   The reduced-motion rule at the foot of index.css turns all of it off.
+   =========================================================================== */
+
+:root {
+  --ease-ios: cubic-bezier(.32, .72, 0, 1);
+}
+
+/* --- page transitions ---------------------------------------------------- */
+
+@keyframes route-forward {
+  from { opacity: 0; transform: translate3d(20px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes route-back {
+  from { opacity: 0; transform: translate3d(-20px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes route-fade {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.route-forward,
+.route-back,
+.route-fade {
+  /* Promoted for the duration of the animation and released after, so the app
+     is not holding a compositor layer per screen for the whole session. */
+  will-change: transform, opacity;
+}
+
+.route-forward { animation: route-forward .30s var(--ease-ios) both; }
+.route-back    { animation: route-back    .30s var(--ease-ios) both; }
+.route-fade    { animation: route-fade    .22s var(--ease-ios) both; }
+
+/* --- sheets -------------------------------------------------------------- */
+
+@keyframes sheet-up {
+  from { transform: translate3d(0, 100%, 0); }
+  to   { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.app-sheet {
+  animation: sheet-up .32s var(--ease-ios) both;
+  will-change: transform;
+}
+
+/* The dimmed layer behind a sheet. Fading it in rather than snapping it on is
+   most of what makes a sheet feel attached to the screen rather than dropped
+   on top of it.
+
+   Carries its own class because the backdrop sits BEFORE the sheet in the DOM,
+   and CSS has no way to select a preceding sibling. */
+.app-backdrop {
+  animation: backdrop-in .32s var(--ease-ios) both;
+}
+
+/* --- touch response ------------------------------------------------------
+   A phone has no hover, so the press IS the feedback. These want to be fast:
+   anything over about 120ms reads as the app thinking rather than responding. */
+
+.app-tabbar a,
+.app-tabbar button {
+  transition: transform .12s var(--ease-ios), color .12s linear;
+}
+
+.app-tabbar a:active,
+.app-tabbar button:active {
+  transform: scale(.92);
+}
+
+.app-main .card,
+.app-main .tile {
+  transition: transform .16s var(--ease-ios), box-shadow .16s var(--ease-ios);
+}
+
+/* Only cards that DO something react to a press. A card that is just a panel
+   of numbers should sit still when brushed. */
+.app-main a.card:active,
+.app-main button.card:active,
+.app-main .card-hover:active {
+  transform: scale(.985);
+}
+
+/* --- scrolling ----------------------------------------------------------- */
+
+.app-main,
+.app-sheet {
+  /* Momentum, and a scroll that does not chain to the page behind it. */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Option A — the milestone</title>
+
+  <!--
+    OPTION A — THE HIGHWAY MILESTONE.
+
+    The rounded-top stone with a painted cap that stands every kilometre on the
+    road out of Mumbai. Anyone who has driven to Lonavala, Nashik or Shirdi
+    knows it on sight, and nothing else in this market uses it — every
+    competitor reaches for a car, a wheel or a swoosh.
+
+    It also says the right thing: a milestone is distance covered and distance
+    to go, which is what an outstation business sells. The two cyan bars are
+    where the distance is painted.
+
+    Geometrically simple, which is the point — a rectangle with a semicircular
+    cap survives 32px with no detail to lose.
+  -->
+
+  <defs>
+    <linearGradient id="aGround" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#17293B"/>
+      <stop offset="100%" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="aStone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#DCE6EF"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="32" cy="32" r="32" fill="url(#aGround)"/>
+  <circle cx="32" cy="32" r="28.6" fill="none" stroke="#D9C33A" stroke-width="2"/>
+
+  <!-- the stone -->
+  <path d="M 21 48 L 21 27 A 11 11 0 0 1 43 27 L 43 48 Z" fill="url(#aStone)"/>
+
+  <!-- the painted cap: gold, the way a national highway stone is banded -->
+  <path d="M 21 27 A 11 11 0 0 1 43 27 Z" fill="#D9C33A"/>
+
+  <!-- the distance, painted on -->
+  <rect x="25.5" y="32.4" width="13" height="3.6" rx="1.8" fill="#2E86F0"/>
+  <rect x="27.5" y="39.4" width="9"  height="3.6" rx="1.8" fill="#35C0EE"/>
+</svg>

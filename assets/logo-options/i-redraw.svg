@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Gupta Tours &amp; Travels</title>
+
+  <!--
+    YOUR CURRENT LOGO, REDRAWN AS VECTOR.
+
+    Same badge, same gold ring, same cyan name curved round the rim, same car.
+    Nothing reinvented — this is the sign you already have, rebuilt so it is
+    sharp at any size, has a transparent background, and can be printed,
+    stamped or embroidered.
+
+    WHAT CHANGED, AND ONLY THIS:
+      · the charcoal is a clean gradient instead of a photographed wall
+      · the letters are typeset instead of photographed, so they stay crisp
+      · the drop shadows are gone — they were the physical sign catching light,
+        and they turn to mud below about 60px
+      · the car sits on a clean baseline with real wheels
+      · the speed lines sit behind the car rather than in front of it
+
+    TWO THINGS THAT WENT WRONG ON THE FIRST PASS, FIXED HERE:
+
+    1. The rim path was one arc whose start and end were the same point. SVG
+       treats that as degenerate, so the arc collapsed and every glyph piled up
+       at the bottom of the badge instead of running round it. A full circle for
+       text has to be built from TWO arcs, which is what it is now.
+
+    2. The car came out as a tall bubble hatchback. The sign's car is a long low
+       wedge, so the roofline has dropped 5 units, the body has stretched, and
+       the windscreen rake is much faster.
+
+    Below about 90px the rim name is unreadable — true of the original too, and
+    why the mark-only version has to exist alongside this.
+  -->
+
+  <defs>
+    <linearGradient id="rdGround" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#3A3F44"/>
+      <stop offset="100%" stop-color="#22262A"/>
+    </linearGradient>
+
+    <linearGradient id="rdGold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F7EC96"/>
+      <stop offset="45%" stop-color="#EFDF6B"/>
+      <stop offset="100%" stop-color="#C9B03A"/>
+    </linearGradient>
+
+    <linearGradient id="rdCyan" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#4FCBF2"/>
+      <stop offset="100%" stop-color="#1E9BD7"/>
+    </linearGradient>
+
+    <!-- A full circle in TWO semicircular arcs, starting at six o'clock and
+         running clockwise: bottom, left, top, right. The midpoint of the path
+         therefore lands at twelve, so startOffset 50% centres the name over the
+         top and it reads left to right. -->
+    <path id="rdRim" d="M 60 107 A 47 47 0 0 1 60 13 A 47 47 0 0 1 60 107" fill="none"/>
+  </defs>
+
+  <circle cx="60" cy="60" r="60" fill="url(#rdGround)"/>
+  <circle cx="60" cy="60" r="55.5" fill="none" stroke="url(#rdGold)" stroke-width="4"/>
+
+  <text font-family="'Sora', 'Sora Variable', 'Segoe UI', system-ui, sans-serif"
+        font-size="12.4" font-weight="800" letter-spacing="3" fill="url(#rdCyan)">
+    <textPath href="#rdRim" startOffset="50%" text-anchor="middle">GUPTA TOURS &amp; TRAVELS</textPath>
+  </text>
+
+  <!-- ===================== the car: long, low, nose right ===================== -->
+  <g>
+    <!-- speed lines, behind it and pulled clear of the rim text -->
+    <g fill="url(#rdCyan)">
+      <rect x="28" y="62.6" width="7" height="2.4" rx="1.2" opacity="0.5"/>
+      <rect x="26" y="67.2" width="9" height="2.4" rx="1.2" opacity="0.75"/>
+      <rect x="29" y="71.8" width="6" height="2.4" rx="1.2" opacity="0.4"/>
+    </g>
+
+    <!-- body -->
+    <path d="M 87 74 L 87 70.6
+             C 87 68.9, 85.6 68.2, 83 67.4
+             C 78 65.9, 73 64.9, 69.5 64.4
+             L 62 60.3
+             C 57.5 58.6, 51.5 58.8, 46.5 60.6
+             C 41.5 62.4, 37 64.9, 34.6 67.3
+             C 33.4 68.5, 33 69.6, 33 70.8
+             L 33 74 Z"
+          fill="url(#rdCyan)"/>
+
+    <!-- glasshouse, shallow the way a low car's is -->
+    <path d="M 47.8 63.2 C 51.5 61.3, 56.5 61.1, 60.2 62.9 L 62 64.1 L 46.4 64.1
+             C 46.6 63.8, 47.1 63.5, 47.8 63.2 Z"
+          fill="#2A2E32"/>
+
+    <!-- wheel arches: the badge showing through -->
+    <circle cx="45" cy="74" r="7.4" fill="url(#rdGround)"/>
+    <circle cx="75" cy="74" r="7.4" fill="url(#rdGround)"/>
+
+    <!-- wheels -->
+    <circle cx="45" cy="74" r="5" fill="url(#rdCyan)"/>
+    <circle cx="75" cy="74" r="5" fill="url(#rdCyan)"/>
+    <circle cx="45" cy="74" r="1.8" fill="#2A2E32"/>
+    <circle cx="75" cy="74" r="1.8" fill="#2A2E32"/>
+  </g>
+</svg>

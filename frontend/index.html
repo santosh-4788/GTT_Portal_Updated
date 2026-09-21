@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/assets/art-car-line-bold.svg" />
+    <!-- PNG fallbacks for the browsers and OSes that still want raster -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+    <link rel="apple-touch-icon" href="/assets/logo-192.png" />
+    <!-- viewport-fit=cover opts into the notch and home-indicator areas. Without
+         it env(safe-area-inset-*) is always 0, and a sheet pinned to the bottom
+         of the screen puts its button under the home indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Gupta Tours &amp; Travels — Corporate Transport, Car Rental and Outstation travel in Mumbai. 24x7 service. Owned and managed by Vinay Gupta." />
+    <meta name="theme-color" content="#0B2C45" />
+
+    <!-- Installable on a phone's home screen, which is how iPhone users get
+         this as an app: Safari -> Share -> Add to Home Screen gives an icon and
+         a full-screen window with no browser bars. It is the only route to an
+         iOS app that needs neither a Mac nor a paid Apple account.
+         AdminLayout swaps the manifest for the staff one, so the portal can be
+         added as its own separate icon. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Gupta Tours" />
+    <title>Gupta Tours &amp; Travels — Corporate Transport, Car Rental &amp; Outstation</title>
+    <!-- Fonts are bundled locally (see src/main.tsx). Nothing is fetched from
+         an external host, so the portal works with no internet connection. -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

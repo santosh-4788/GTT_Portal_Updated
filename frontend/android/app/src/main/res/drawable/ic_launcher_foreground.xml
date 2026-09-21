@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An adaptive icon's foreground is a 108dp square of which only the middle
+     72dp is guaranteed visible - the launcher masks the rest to whatever shape
+     the device uses. The 18dp inset keeps the whole logo inside that safe zone
+     on a circle, a squircle and a rounded square alike. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:left="18dp" android:top="18dp" android:right="18dp" android:bottom="18dp">
+        <bitmap android:src="@drawable/gtt_logo" android:gravity="fill" />
+    </item>
+</layer-list>

@@ -1,0 +1,99 @@
+SOURCE RECORD - rotation images added in the last round
+
+outstation.jpg
+  NH222 Highway through Malshej Ghat Maharashtra India
+  BY-SA 2.0  by Aditya Patawari from Bangalore, In
+  https://commons.wikimedia.org/w/index.php?curid=35430199
+
+airport-2.jpg
+  Mumbai airport
+  BY 2.0  by Alex Graves
+  https://www.flickr.com/photos/87244355@N00/376781004
+
+airport-3.jpg
+  9V-STS Singapore Airlines Airbus A330-343
+  BY 2.0  by Prayitno / Thank you for (12 milli
+  https://www.flickr.com/photos/34128007@N04/11285209945
+
+corporate-2.jpg
+  Raffles Place by Day - a business district
+  BY 2.0  by rmlowe
+  https://www.flickr.com/photos/8143486@N04/4469414813
+  (the first pick was an aircraft museum - caught by writing this record)
+
+LATER CHANGES
+
+corporate-3.jpg and group-2.jpg are now our own vehicle photographs - the Honda
+City and the Volvo coach, fitted onto a 1080x675 white ground. Nothing to
+credit, and nothing that can be challenged.
+
+airport-3.jpg  REPLACED
+  Was a Singapore Airlines A330. Now:
+  VT-AWA (Air India Boeing 787-9) on AI131 BOM-LHR - the Mumbai-London rotation
+  CC BY-SA 4.0  by JCSigma2000
+  https://commons.wikimedia.org/wiki/File:VT-AWA_(AirIndia_Boeing787-9)_AI131_BOM-LHR.jpg
+  Found through the en.wikipedia.org API: commons.wikimedia.org and
+  api.openverse.org were both unreachable from this machine, but Wikipedia's
+  API resolves Commons files through the shared repository, so the airline
+  articles gave a licence-clean shortlist.
+  The source is 16:9 and the aircraft nearly spans it, so rather than crop the
+  nose and tail off, it was fitted by width and the two ~33px bands of leftover
+  sky filled by repeating the outermost row - featureless gradient there.
+
+local-3.jpg  REPLACED
+  Was Colaba Causeway at night - shopfronts and parked cars, no landmark in it.
+  Now the Bandra-Worli Sea Link, daylight, with the Mumbai skyline behind:
+  CC BY-SA 4.0  by Devansh15
+  https://commons.wikimedia.org/wiki/File:Bandra-Worli_Sealink_21.jpg
+  Right-aligned crop, so the cable-stayed pylons stay whole and the deck
+  sweeps in from the left edge.
+
+corporate-3.jpg  REPLACED (again)
+  Was the Honda City on a white ground - a studio car, not a corporate picture.
+  Now an office building in the Bandra Kurla Complex, Mumbai's own business
+  district:
+  Bandra-Kurla complex Bombay 3239.JPG
+  PUBLIC DOMAIN - no attribution obligation and no share-alike
+  https://commons.wikimedia.org/wiki/File:Bandra-Kurla_complex_Bombay_3239.jpg
+
+  Two better-looking candidates were turned down on purpose:
+  - the ICICI Bank tower in BKC is the handsomer photograph, but it is CC BY
+    with NO author recorded on the file page, so the attribution the licence
+    requires cannot honestly be written. Its sign would also have had to be
+    cropped out to avoid implying a client relationship we do not claim.
+  - BKC - panoramio.jpg carries a photographer's watermark.
+
+event-3, wedding-2, wedding-3  REPLACED
+  Out: an empty auditorium of red seats, a vintage VW Beetle with a garland,
+  and two baskets of marigolds and rose petals. The Beetle was a European
+  car at a European wedding, and the baskets were a close-up of nothing in
+  particular.
+
+  event-3.jpg   Sunburn Festival, Goa - stage lights over the crowd, shot from
+                behind, so no face is shown
+                CC BY 4.0  by Vyacheslav Argenberg
+                https://commons.wikimedia.org/wiki/File:Sunburn_Festival,_Goa,_Progressive_trance_music.jpg
+
+  wedding-2.jpg A mandap in tikri (mirror) work, by water
+                CC BY-SA 4.0  by Megh Banthia
+                https://commons.wikimedia.org/wiki/File:Wedding_Mandap_with_Tikri_Art.jpg
+
+  wedding-3.jpg A rangoli with diyas and floating flowers
+                CC BY 2.0  by Subharnab Majumdar
+                https://commons.wikimedia.org/wiki/File:The_Rangoli_of_Lights.jpg
+
+  No people in either wedding frame, and no face in the event one. Candidates
+  turned down for that reason: a haldi ceremony, a baraat with the groom on a
+  horse, a banquet hall full of guests, and a pair of mehndi-covered hands -
+  all good photographs, all with people in them.
+
+wedding-3.jpg  REPLACED (again)
+  The rangoli went out: rangoli is drawn for Diwali as much as for a wedding,
+  so the card read as a festival rather than a marriage.
+  Now the garlands - roses, marigolds, jasmine and betel leaf, made up as
+  varmala. Nothing says Indian wedding more plainly, and there is no one in
+  the frame.
+  India - Chennai - Colours - Heavy garlands for sale
+  CC BY 2.0  by McKay Savage from London, UK
+  https://commons.wikimedia.org/wiki/File:India_-_Chennai_-_Colours_-_Heavy_garlands_for_sale_(3058669185).jpg
+  Chennai, not Mumbai - the garlands are the subject, not the city.

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 362 64" width="362" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels — corporate transport, car rental, outstation">
+  <title>Gupta Tours &amp; Travels</title>
+
+  <!--
+    THE HORIZONTAL LOCKUP — letterhead, invoice header, email signature,
+    anywhere the mark needs the name beside it.
+
+    ONE CAVEAT, AND IT MATTERS FOR PRINT. The two lines of text below are live
+    SVG text, not outlines, so they render in Sora only where Sora is
+    installed or loaded; elsewhere they fall back down the stack to Segoe UI or
+    the system sans. On the website that is fine — the site already loads Sora.
+    For a printer, a signwriter or anyone outside this project, send them
+    `logo-512.png` plus the name set in their own copy of Sora, or open this
+    file in Illustrator/Inkscape and convert the text to outlines first
+    (Type > Create Outlines / Path > Object to Path). Converting text to paths
+    is the one step that needs a font toolchain this project does not have.
+
+    Clear space: keep at least the height of the mark's gold ring (about 8
+    units here, so a quarter of the mark's radius) free on every side. Do not
+    stretch it — scale both axes together.
+  -->
+
+  <defs>
+    <linearGradient id="lockGround" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#17293B"/>
+      <stop offset="100%" stop-color="#0A1420"/>
+    </linearGradient>
+    <linearGradient id="lockRoute" x1="0.15" y1="1" x2="0.85" y2="0">
+      <stop offset="0%" stop-color="#2E86F0"/>
+      <stop offset="55%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#5AD6F7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ============================ the mark ============================ -->
+  <g>
+    <circle cx="32" cy="32" r="32" fill="url(#lockGround)"/>
+    <circle cx="32" cy="32" r="28.6" fill="none" stroke="#D9C33A" stroke-width="2"/>
+    <path d="M 21.4 43.3 C 24 32, 28.5 25.5, 43.5 22.4"
+          fill="none" stroke="url(#lockRoute)" stroke-width="7.2" stroke-linecap="round"/>
+    <circle cx="43.5" cy="22.4" r="5.4" fill="#D9C33A"/>
+    <circle cx="43.5" cy="22.4" r="2" fill="#0A1420"/>
+  </g>
+
+  <!-- ========================== the wordmark ========================== -->
+  <text x="82" y="31" font-family="'Sora', 'Sora Variable', 'Segoe UI', system-ui, sans-serif"
+        font-size="25" font-weight="800" letter-spacing="-0.5" fill="#101C2B">Gupta Tours &amp; Travels</text>
+
+  <text x="83" y="47" font-family="'Sora', 'Sora Variable', 'Segoe UI', system-ui, sans-serif"
+        font-size="8" font-weight="700" letter-spacing="1.55" fill="#0E82B8">CORPORATE TRANSPORT · CAR RENTAL · OUTSTATION</text>
+</svg>

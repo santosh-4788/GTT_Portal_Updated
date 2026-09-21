@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Gupta Tours &amp; Travels</title>
+
+  <!--
+    THE ONE-COLOUR MARK — for a rubber stamp, a fax header, an embroidered
+    shirt pocket, a newspaper classified, or anywhere the gradient and the gold
+    cannot survive.
+
+    NOT simply the colour mark with the colour removed. In the colour version
+    the road runs under the marker, because gold on cyan separates them on its
+    own. At one ink that overlap collapses into a blob that reads as a comma —
+    so here the road stops short and a real gap does the work the colour was
+    doing. The stroke is a little thinner for the same reason: one flat ink at
+    7.2 units closes up the counter.
+
+    Everything is `currentColor`, so it takes the colour of whatever it sits in
+    when the SVG is inlined. Through an <img> tag it renders black, which is
+    what a stamp wants anyway.
+  -->
+
+  <g fill="none" stroke="currentColor">
+    <circle cx="32" cy="32" r="28.6" stroke-width="2"/>
+    <!-- road, stopping short of the marker to leave a visible gap -->
+    <path d="M 21.4 43.3 C 23.5 32.5, 27 26.8, 34 25.8"
+          stroke-width="6.4" stroke-linecap="round"/>
+  </g>
+
+  <!-- marker: filled ring with the hole punched, opened up so it survives one ink -->
+  <path d="M 43.5 22.4 m -5.4 0 a 5.4 5.4 0 1 0 10.8 0 a 5.4 5.4 0 1 0 -10.8 0
+           M 43.5 22.4 m -2.4 0 a 2.4 2.4 0 1 0 4.8 0 a 2.4 2.4 0 1 0 -4.8 0"
+        fill="currentColor" fill-rule="evenodd"/>
+</svg>

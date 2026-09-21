@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Option F — the app tile</title>
+
+  <!--
+    OPTION F — A TILE, NOT A BADGE, AND CYAN INSTEAD OF NAVY.
+
+    Rounded square, brand cyan as the ground rather than a dark disc, and the
+    road drawn the way you actually see it from the driver's seat — wide at your
+    feet, narrowing to the horizon, with the destination sitting on it.
+
+    Two deliberate breaks from everything so far: the container is a squared
+    tile, which reads as an app rather than a signboard, and the colour is
+    inverted so the mark is light instead of dark. On your pale website that is
+    a badge that adds colour rather than punching a hole in the page.
+
+    The perspective road is a shape none of the earlier attempts used, and it
+    holds at 32px because it is one solid form, not a stroke.
+  -->
+
+  <defs>
+    <linearGradient id="ftGround" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5AD6F7"/>
+      <stop offset="55%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#2073DC"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="64" height="64" rx="15" fill="url(#ftGround)"/>
+
+  <!-- the road, running away from you -->
+  <path d="M 16 53 L 48 53 L 37.5 24 L 26.5 24 Z" fill="#FFFFFF" opacity="0.94"/>
+
+  <!-- one centre line, chunky enough to survive being shrunk -->
+  <rect x="30.4" y="35" width="3.2" height="9" rx="1.6" fill="#2073DC" opacity="0.55"/>
+
+  <!-- the destination, on the horizon -->
+  <circle cx="32" cy="17" r="5.2" fill="#0A1420"/>
+  <circle cx="32" cy="17" r="2" fill="#D9C33A"/>
+</svg>

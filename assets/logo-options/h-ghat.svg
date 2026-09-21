@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Option H — the ghat bends</title>
+
+  <!--
+    OPTION H — THE GHAT.
+
+    Three hairpins stacked the way the road climbs out of the plain into
+    Lonavala, Khandala, Matheran and Mahabaleshwar, with the top of the ghat
+    marked in gold. Anyone who has driven up the expressway or the old Khopoli
+    road knows the shape without being told.
+
+    No container, and the mark is wide rather than round, so it behaves like a
+    piece of typography beside the name instead of a stamp on top of the page.
+
+    ONE PATH. Each hairpin is a real 180° turn — a semicircle whose start and
+    end sit one level apart, bulging right at the right-hand turns and left at
+    the left-hand ones. The first draft of this file had arcs that began and
+    ended on the same point, which SVG treats as nothing at all and silently
+    draws as a straight line.
+
+    It is the most place-specific thing I have drawn, which is both the argument
+    for it and against it: it says outstation and hill road loudly, and says
+    corporate airport transfer not at all.
+  -->
+
+  <defs>
+    <linearGradient id="ghRoad" x1="0" y1="1" x2="0.6" y2="0">
+      <stop offset="0%" stop-color="#2E86F0"/>
+      <stop offset="60%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#5AD6F7"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M 12 50 H 42 A 6 6 0 0 1 42 38 H 22 A 6 6 0 0 0 22 26 H 38"
+        fill="none" stroke="url(#ghRoad)" stroke-width="6.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- the top of the ghat -->
+  <circle cx="38" cy="26" r="5.6" fill="#D9C33A"/>
+</svg>
