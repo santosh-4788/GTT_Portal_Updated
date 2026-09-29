@@ -98,8 +98,9 @@ export function CustomerAuthProvider({ children }: { children: ReactNode }) {
     // asks the server even with no token in storage — but only once, and a
     // failure simply means "not signed in".
     try {
-      const { data } = await customerApi.get('/auth/me');
-      setUser(data.user);
+      const { data } = await customerApi.get('/auth/session');
+      if (!data.user) customerToken.clear();
+      setUser(data.user ?? null);
     } catch {
       customerToken.clear();
       setUser(null);

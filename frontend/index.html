@@ -11,8 +11,69 @@
          it env(safe-area-inset-*) is always 0, and a sheet pinned to the bottom
          of the screen puts its button under the home indicator. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Gupta Tours &amp; Travels — Corporate Transport, Car Rental and Outstation travel in Mumbai. 24x7 service. Owned and managed by Vinay Gupta." />
+    <meta name="description" content="Cab booking and car rental in Mumbai with a chauffeur: airport transfers, local hourly packages, outstation trips and corporate transport. 24x7, based in Goregaon (W)." />
     <meta name="theme-color" content="#0B2C45" />
+
+    <!-- Link-preview defaults (WhatsApp, Facebook, X). Each screen replaces
+         these at runtime (src/site/Seo.tsx); scrapers that do not run the app
+         see these. __SITE_URL__ is filled in at build time from VITE_SITE_URL
+         (see vite.config.ts) and is empty when that is not set. -->
+    <meta property="og:site_name" content="Gupta Tours &amp; Travels" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:title" content="Gupta Tours &amp; Travels | Cab and Car Rental in Mumbai, 24x7" />
+    <meta property="og:description" content="Airport transfers, local car rental, outstation cabs from Mumbai and corporate transport, all chauffeur-driven. 24x7 from Goregaon (W)." />
+    <meta property="og:url" content="__SITE_URL__/" />
+    <meta property="og:image" content="__SITE_URL__/assets/logo-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Gupta Tours &amp; Travels | Cab and Car Rental in Mumbai, 24x7" />
+    <meta name="twitter:description" content="Airport transfers, local car rental, outstation cabs from Mumbai and corporate transport, all chauffeur-driven. 24x7." />
+    <meta name="twitter:image" content="__SITE_URL__/assets/logo-512.png" />
+
+    <!-- The business, for search engines. The phone number is deliberately
+         left out: the site never prints it as text (see CallButton in
+         src/site/kit.tsx). -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        "@id": "__SITE_URL__/#business",
+        "name": "Gupta Tours & Travels",
+        "description": "Chauffeur-driven cab and car rental in Mumbai: airport transfers, local hourly hire, outstation trips and corporate transport, 24x7.",
+        "url": "__SITE_URL__/",
+        "logo": "__SITE_URL__/assets/logo-512.png",
+        "image": "__SITE_URL__/assets/logo-512.png",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "P-8, Building, New Aman CHS Ltd., Ajit Glass Garden Road, Goregaon (W)",
+          "addressLocality": "Mumbai",
+          "addressRegion": "Maharashtra",
+          "postalCode": "400104",
+          "addressCountry": "IN"
+        },
+        "openingHoursSpecification": {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+          "opens": "00:00",
+          "closes": "23:59"
+        },
+        "areaServed": [
+          { "@type": "City", "name": "Mumbai" },
+          { "@type": "City", "name": "Navi Mumbai" },
+          { "@type": "City", "name": "Thane" },
+          { "@type": "State", "name": "Maharashtra" }
+        ],
+        "makesOffer": {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "TaxiService",
+            "name": "Cab booking and car rental with chauffeur",
+            "areaServed": "Mumbai",
+            "provider": { "@id": "__SITE_URL__/#business" }
+          }
+        }
+      }
+    </script>
 
     <!-- Installable on a phone's home screen, which is how iPhone users get
          this as an app: Safari -> Share -> Add to Home Screen gives an icon and
@@ -25,7 +86,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Gupta Tours" />
-    <title>Gupta Tours &amp; Travels — Corporate Transport, Car Rental &amp; Outstation</title>
+    <title>Gupta Tours &amp; Travels | Cab and Car Rental in Mumbai, 24x7</title>
     <!-- Fonts are bundled locally (see src/main.tsx). Nothing is fetched from
          an external host, so the portal works with no internet connection. -->
   </head>

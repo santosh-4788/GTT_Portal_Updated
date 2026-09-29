@@ -15,6 +15,7 @@ import { Reveal } from '../components/Reveal';
 import PageHero from './PageHero';
 import { IconArrowRight, IconChevron, IconPin, IconSearch } from '../components/icons';
 import { IconSeat } from './SiteIcons';
+import { useSeo } from './Seo';
 
 const KIND_TONE: Record<SearchKind, string> = {
   Destination: 'bg-brand-50 text-brand-700',
@@ -50,6 +51,7 @@ function Row({ e }: { e: SearchEntry }) {
 }
 
 export default function SearchPage() {
+  useSeo({ title: 'Search', noindex: true });
   const [params, setParams] = useSearchParams();
   const { searches } = useCustomer();
   const [term, setTerm] = useState(params.get('q') ?? '');

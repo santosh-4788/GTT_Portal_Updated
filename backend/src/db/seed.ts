@@ -602,22 +602,51 @@ function seedSampleData() {
 
   const RETAIL: Array<[string, string, string, number, number, number, number, number, number, number, number]> = [
     // vehicle,               type,         label,        inclH, inclKm, base, extraHr, extraKm, perKm, minKm/day, driverAllow
-    ['Dzire',                 'LOCAL',      '4H/40KM',        4,  40,  1400, 150, 13,  0,   0,   0],
-    ['Dzire',                 'LOCAL',      '8H/80KM',        8,  80,  2400, 150, 13,  0,   0,   0],
+    // Hourly packages are the office's card. A vehicle with no 12-hour row is
+    // quoted on the website as its 8-hour package plus the extra hours and km.
+    ['Dzire',                 'LOCAL',      '4H/40KM',        4,  40,  1500, 150, 15,  0,   0,   0],
+    ['Dzire',                 'LOCAL',      '8H/80KM',        8,  80,  2400, 150, 15,  0,   0,   0],
+    ['Dzire',                 'LOCAL',      '12H/120KM',     12, 120,  3500, 150, 15,  0,   0,   0],
     ['Dzire',                 'AIRPORT',    'Airport transfer', 0, 0,  1800,   0,  0,  0,   0,   0],
-    ['Dzire',                 'OUTSTATION', 'Per km',         0,   0,     0,   0,  0, 15, 300, 400],
     // The second sedan cab prices the same as the first; a rate row named for
     // one model never matches the other, so the Aura needs its own rows.
-    ['Hyundai Aura',          'LOCAL',      '4H/40KM',        4,  40,  1400, 150, 13,  0,   0,   0],
-    ['Hyundai Aura',          'LOCAL',      '8H/80KM',        8,  80,  2400, 150, 13,  0,   0,   0],
+    ['Hyundai Aura',          'LOCAL',      '4H/40KM',        4,  40,  1500, 150, 15,  0,   0,   0],
+    ['Hyundai Aura',          'LOCAL',      '8H/80KM',        8,  80,  2400, 150, 15,  0,   0,   0],
+    ['Hyundai Aura',          'LOCAL',      '12H/120KM',     12, 120,  3500, 150, 15,  0,   0,   0],
     ['Hyundai Aura',          'AIRPORT',    'Airport transfer', 0, 0,  1800,   0,  0,  0,   0,   0],
-    ['Hyundai Aura',          'OUTSTATION', 'Per km',         0,   0,     0,   0,  0, 15, 300, 400],
-    ['Ertiga',                'LOCAL',      '8H/80KM',        8,  80,  2800, 180, 16,  0,   0,   0],
+    ['Ertiga',                'LOCAL',      '4H/40KM',        4,  40,  2000, 175, 17,  0,   0,   0],
+    ['Ertiga',                'LOCAL',      '8H/80KM',        8,  80,  3000, 175, 17,  0,   0,   0],
+    ['Ertiga',                'LOCAL',      '12H/120KM',     12, 120,  4500, 175, 17,  0,   0,   0],
     ['Ertiga',                'AIRPORT',    'Airport transfer', 0, 0,  2200,   0,  0,  0,   0,   0],
-    ['Ertiga',                'OUTSTATION', 'Per km',         0,   0,     0,   0,  0, 18, 300, 400],
-    ['Toyota Innova Crysta',  'LOCAL',      '8H/80KM',        8,  80,  3600, 220, 20,  0,   0,   0],
-    ['Toyota Innova Crysta',  'AIRPORT',    'Airport transfer', 0, 0,  3000,   0,  0,  0,   0,   0],
-    ['Toyota Innova Crysta',  'OUTSTATION', 'Per km',         0,   0,     0,   0,  0, 22, 300, 500],
+    // Not "Toyota Innova Crysta": "toyota" is a word of the Rumion's name, so
+    // that row priced the Rumion as a Crysta.
+    ['Honda City',            'LOCAL',      '4H/40KM',        4,  40,  1700, 175, 17,  0,   0,   0],
+    ['Honda City',            'LOCAL',      '8H/80KM',        8,  80,  2800, 175, 17,  0,   0,   0],
+    ['Ciaz',                  'LOCAL',      '4H/40KM',        4,  40,  1700, 175, 17,  0,   0,   0],
+    ['Ciaz',                  'LOCAL',      '8H/80KM',        8,  80,  2800, 175, 17,  0,   0,   0],
+    // The three six-seat SUVs price the same.
+    ['XL6',                   'LOCAL',      '4H/40KM',        4,  40,  2000, 175, 17,  0,   0,   0],
+    ['XL6',                   'LOCAL',      '8H/80KM',        8,  80,  3000, 175, 17,  0,   0,   0],
+    ['XL6',                   'LOCAL',      '12H/120KM',     12, 120,  4500, 175, 17,  0,   0,   0],
+    ['Rumion',                'LOCAL',      '4H/40KM',        4,  40,  2000, 175, 17,  0,   0,   0],
+    ['Rumion',                'LOCAL',      '8H/80KM',        8,  80,  3000, 175, 17,  0,   0,   0],
+    ['Rumion',                'LOCAL',      '12H/120KM',     12, 120,  4500, 175, 17,  0,   0,   0],
+    ['Kia Carens',            'LOCAL',      '4H/40KM',        4,  40,  2000, 200, 18,  0,   0,   0],
+    ['Kia Carens',            'LOCAL',      '8H/80KM',        8,  80,  3200, 200, 18,  0,   0,   0],
+    ['Innova Crysta',         'LOCAL',      '4H/40KM',        4,  40,  2300, 250, 22,  0,   0,   0],
+    ['Innova Crysta',         'LOCAL',      '8H/80KM',        8,  80,  3599, 250, 22,  0,   0,   0],
+    ['Innova Crysta',         'LOCAL',      '12H/120KM',     12, 120,  5500, 250, 22,  0,   0,   0],
+    ['Innova Crysta',         'AIRPORT',    'Airport transfer', 0, 0,  3000,   0,  0,  0,   0,   0],
+    // Outstation: 300 km a day minimum, DA 500 a day, the per-km rate beyond.
+    ['Dzire',                   'OUTSTATION', 'Per km',         0,   0,     0,   0, 14, 14, 300, 500],
+    ['Hyundai Aura',            'OUTSTATION', 'Per km',         0,   0,     0,   0, 14, 14, 300, 500],
+    ['Honda City',              'OUTSTATION', 'Per km',         0,   0,     0,   0, 17, 17, 300, 500],
+    ['Ciaz',                    'OUTSTATION', 'Per km',         0,   0,     0,   0, 17, 17, 300, 500],
+    ['Ertiga',                  'OUTSTATION', 'Per km',         0,   0,     0,   0, 16, 16, 300, 500],
+    ['XL6',                     'OUTSTATION', 'Per km',         0,   0,     0,   0, 16, 16, 300, 500],
+    ['Rumion',                  'OUTSTATION', 'Per km',         0,   0,     0,   0, 16, 16, 300, 500],
+    ['Kia Carens',              'OUTSTATION', 'Per km',         0,   0,     0,   0, 18, 18, 300, 500],
+    ['Innova Crysta',           'OUTSTATION', 'Per km',         0,   0,     0,   0, 22, 22, 300, 500],
     ['Force Traveller 12',    'LOCAL',      '8H/80KM',        8,  80,  5500, 350, 32,  0,   0,   0],
     ['Force Traveller 12',    'OUTSTATION', 'Per km',         0,   0,     0,   0,  0, 30, 250, 600],
   ];

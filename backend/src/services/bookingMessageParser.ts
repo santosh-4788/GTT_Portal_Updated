@@ -15,6 +15,8 @@
  * before saving.
  */
 
+import { inferAirportDirection } from './airport';
+
 export interface ParsedBooking {
   vendorBookingRef?: string;
   passengerName?: string;
@@ -22,6 +24,8 @@ export interface ParsedBooking {
   vehicleType?: string;
   dutyType?: string;
   tripType?: string;
+  /** AIRPORT only: TO the airport (drop) or FROM it (pickup), when it can be told. */
+  airportDirection?: 'TO' | 'FROM';
   packageLabel?: string;      // e.g. "4H40KMS" once LOCAL/TRANSFER is stripped
   city?: string;
   travelDate?: string;        // ISO yyyy-mm-dd when confidently parsed
@@ -303,6 +307,12 @@ export function parseBookingMessage(message: string): ParseResult {
   const blob = `${fields.pickupAddress ?? ''} ${fields.dropAddress ?? ''} ${fields.remarks ?? ''}`;
   if (!fields.tripType || fields.tripType === 'TRANSFER') {
     if (AIRPORT_HINT.test(blob)) fields.tripType = 'AIRPORT';
+  }
+  // Which way: whichever end names the airport, else the flight line - an ETD
+  // is a departure the passenger is being taken to, an ETA one they come off.
+  if (fields.tripType === 'AIRPORT') {
+    fields.airportDirection = inferAirportDirection(fields.pickupAddress, fields.dropAddress)
+      ?? (/\bETD\b/i.test(fields.flightTime ?? '') ? 'TO' : /\bETA\b/i.test(fields.flightTime ?? '') ? 'FROM' : undefined);
   }
 
   if (fields.travelDateRaw) {

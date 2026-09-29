@@ -18,6 +18,7 @@ import PageHero from './PageHero';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconBookings, IconCheck, IconPhone, IconSteering, IconWarning } from '../components/icons';
 import { IconSeat } from './SiteIcons';
+import { useSeo } from './Seo';
 
 const CATEGORIES: Note['category'][] = ['Booking', 'Trip', 'Driver', 'Offers', 'Important'];
 
@@ -38,6 +39,7 @@ const TONE: Record<Note['category'], string> = {
 };
 
 export default function Notifications() {
+  useSeo({ title: 'Notifications', noindex: true });
   const { notes } = useCustomer();
   const [filter, setFilter] = useState<Note['category'] | 'all'>('all');
 

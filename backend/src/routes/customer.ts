@@ -15,13 +15,14 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
+import { airportDirectionField } from '../services/airport';
 import { q, getDb } from '../db';
 import { config } from '../config';
 import { validateBody, optionalMobile, requiredMobile } from '../utils/validate';
 import { limiter } from '../utils/limiter';
 import {
   requireCustomer, signCustomerToken, loadCustomer,
-  CUSTOMER_COOKIE, customerCookieOptions,
+  CUSTOMER_COOKIE, customerCookieOptions, currentCustomer,
 } from '../middleware/customerAuth';
 import {
   createInquiryTrip, linkCustomerTrips, portalUrl, publicTrip, tripEvents, tripRow,
@@ -302,6 +303,11 @@ router.post('/auth/logout', (_req, res) => {
   res.json({ ok: true });
 });
 
+/** "Am I signed in?" - 200 either way, so a signed-out visit logs no error. */
+router.get('/auth/session', (req, res) => {
+  res.json({ user: currentCustomer(req) });
+});
+
 router.get('/auth/me', requireCustomer, (req, res) => {
   res.json({ user: req.customer });
 });
@@ -434,6 +440,8 @@ const bookSchema = z.object({
   travelDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose the journey date.'),
   travelTime: z.string().trim().regex(/^([01]?\d|2[0-3]):[0-5]\d$|^$/, 'Time must be HH:MM.').optional().default(''),
   tripType: z.enum(['LOCAL', 'TRANSFER', 'OUTSTATION', 'AIRPORT', 'ROUND_TRIP', 'PACKAGE']).optional().default('LOCAL'),
+  /** AIRPORT only: TO the airport or FROM it. */
+  airportDirection: airportDirectionField,
   vehicleType: z.string().trim().max(80).optional().default(''),
   passengers: z.coerce.number().int().min(0).max(60).optional().default(1),
   message: z.string().trim().max(1000).optional().default(''),
@@ -458,6 +466,7 @@ router.post('/trips', requireCustomer, validateBody(bookSchema), async (req, res
     travelDate: b.travelDate,
     journeyTime: b.travelTime,
     tripType: b.tripType,
+    airportDirection: b.airportDirection,
     vehicleType: b.vehicleType,
     paxCount: b.passengers,
     message: b.message,

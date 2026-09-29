@@ -24,6 +24,8 @@ const page = (load: () => Promise<{ default: ComponentType<any> }>) => lazy(load
 
 const Dashboard = page(() => import('../admin/Dashboard'));
 const Trips = page(() => import('../admin/Trips'));
+const Feedback = page(() => import('../admin/Feedback'));
+const ChatbotKnowledge = page(() => import('../admin/ChatbotKnowledge'));
 const Bookings = page(() => import('../admin/Bookings'));
 const BookingForm = page(() => import('../admin/BookingForm'));
 const CustomerBooking = page(() => import('../admin/CustomerBooking'));
@@ -86,6 +88,8 @@ export default function MobileApp() {
               wrong address here is the reason the rest cannot load. */}
           <Route path="server" element={<ServerScreen />} />
           <Route path="trips" element={<Trips />} />
+          <Route path="feedback" element={<Feedback />} />
+          <Route path="chatbot" element={<ChatbotKnowledge />} />
           <Route path="bookings" element={<Bookings />} />
           <Route path="bookings/new" element={<BookingForm />} />
           <Route path="bookings/:id/edit" element={<BookingForm />} />

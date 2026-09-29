@@ -28,6 +28,7 @@ import { CompareTray } from './VehicleCard';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck } from '../components/icons';
 import { IconSeat, IconLuggage } from './SiteIcons';
+import { useSeo } from './Seo';
 
 const STEPS = ['People', 'Luggage', 'Where', 'How long'];
 
@@ -72,6 +73,11 @@ const lengthLabel = (scope: Scope, key: Length) =>
   LENGTHS_BY_SCOPE[scope].find((l) => l.key === key)?.label ?? key;
 
 export default function HelpMeChoose() {
+  useSeo({
+    title: 'Which Car Should I Book?',
+    path: '/help-me-choose',
+    description: 'Answer four quick questions - people, luggage, local or outstation, trip length - and we suggest the right car or cab to hire in Mumbai.',
+  });
   const [at, setAt] = useState(0);
   const [done, setDone] = useState(false);
   const book = useRates();
@@ -123,7 +129,6 @@ export default function HelpMeChoose() {
   );
 
   const next = () => (at === STEPS.length - 1 ? setDone(true) : setAt((i) => i + 1));
-  const back = () => (at === 0 ? undefined : setAt((i) => i - 1));
 
   /** One step back means the previous question, not the previous page. */
   const stepBack = (): boolean => {
@@ -444,14 +449,9 @@ export default function HelpMeChoose() {
               </div>
             )}
 
-            <div className="mt-8 flex items-center justify-between gap-3">
-              <button
-                onClick={back}
-                disabled={at === 0}
-                className="btn h-11 rounded-full px-5 text-md text-ink-600 hover:bg-ink-50 disabled:opacity-40"
-              >
-                Back
-              </button>
+            {/* One Back only: the one at the top of the page already steps back
+                through the questions before it leaves. */}
+            <div className="mt-8 flex items-center justify-end gap-3">
               <button
                 onClick={next}
                 className="grad-brand btn h-12 rounded-full px-7 text-md font-semibold text-white shadow-lg shadow-brand-500/25 hover:brightness-[1.06]"

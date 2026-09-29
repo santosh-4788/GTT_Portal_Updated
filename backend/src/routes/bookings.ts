@@ -9,6 +9,9 @@ import { parseBookingMessage } from '../services/bookingMessageParser';
 import { ensureDirectVendor } from '../services/directCustomer';
 import { nextTripId } from '../services/tripId';
 import { recordTripEvent } from '../services/tripFlow';
+import { airportDirectionField, resolveAirportDirection } from '../services/airport';
+import { requestFeedback } from '../services/feedback';
+import { requestOrigin } from '../utils/origin';
 
 const router = Router();
 router.use(requireAuth);
@@ -126,6 +129,8 @@ const bookingSchema = z.object({
   reportingTime: z.string().trim().regex(/^([01]?\d|2[0-3]):[0-5]\d$|^$/, 'Time must be HH:MM.').optional().default(''),
 
   tripType: z.enum(['LOCAL', 'TRANSFER', 'OUTSTATION', 'AIRPORT', 'ROUND_TRIP', 'PACKAGE']).default('LOCAL'),
+  /** AIRPORT only: TO or FROM the airport. Inferred from the addresses when left blank. */
+  airportDirection: airportDirectionField,
   dutyType: z.string().trim().optional().default(''),
   city: z.string().trim().optional().default('Mumbai'),
   pickupLocation: z.string().trim().min(1, 'Pickup location is required.'),
@@ -340,6 +345,11 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
   }
   b.vendorId = vendor.id;
 
+  const airportDirection = resolveAirportDirection(b.tripType, b.airportDirection, b.pickupLocation, b.dropLocation);
+  if (b.tripType === 'AIRPORT' && !airportDirection) {
+    return res.status(400).json({ error: 'Choose the direction first: to the airport, or from the airport.' });
+  }
+
   if (b.vendorBookingRef) {
     const dup = q.get<any>(
       'SELECT booking_code FROM bookings WHERE vendor_id = @v AND vendor_booking_ref = @r',
@@ -372,7 +382,7 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
 
     const info = q.run(
       `INSERT INTO bookings (booking_code, vendor_id, vendor_booking_ref, booking_date, travel_date,
-          travel_date_to, reporting_time, trip_type, duty_type, city, pickup_location, pickup_address,
+          travel_date_to, reporting_time, trip_type, airport_direction, duty_type, city, pickup_location, pickup_address,
           drop_location, drop_address, flight_train_no, flight_sector, flight_time,
           trip_distance_km, trip_duration_hrs,
           passenger_id, passenger_name, passenger_mobile, passenger_email, pax_count, bag_count,
@@ -382,7 +392,7 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
           trip_id, inquiry_source, customer_id,
           created_by, updated_by)
        VALUES (@code, @vendorId, @ref, @bookingDate, @travelDate, @travelDateTo, @reportingTime,
-          @tripType, @dutyType, @city, @pickupLocation, @pickupAddress, @dropLocation, @dropAddress,
+          @tripType, @airportDirection, @dutyType, @city, @pickupLocation, @pickupAddress, @dropLocation, @dropAddress,
           @flightTrainNo, @flightSector, @flightTime, @tripDistanceKm, @tripDurationHrs,
           @passengerId, @passengerName,
           @passengerMobile, @passengerEmail, @paxCount, @bagCount, @vehicleId, @vehicleType,
@@ -400,6 +410,7 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
         travelDateTo: b.travelDateTo || null,
         reportingTime: b.reportingTime,
         tripType: b.tripType,
+        airportDirection,
         dutyType: b.dutyType,
         city: b.city,
         pickupLocation: b.pickupLocation,
@@ -493,7 +504,7 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
 });
 
 // ---------------------------------------------------------------------------
-router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSchema), (req, res) => {
+router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSchema), async (req, res) => {
   const id = Number(req.params.id);
   const existing = q.get<any>('SELECT * FROM bookings WHERE id = @id', { id });
   if (!existing) return res.status(404).json({ error: 'Booking not found.' });
@@ -510,6 +521,12 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSch
     : q.get<any>('SELECT * FROM vendors WHERE id = @id', { id: b.vendorId });
   if (!vendor) return res.status(400).json({ error: 'The selected vendor no longer exists.' });
   b.vendorId = vendor.id;
+
+  const airportDirection = resolveAirportDirection(b.tripType, b.airportDirection, b.pickupLocation, b.dropLocation);
+  if (b.tripType === 'AIRPORT' && !airportDirection) {
+    return res.status(400).json({ error: 'Choose the direction first: to the airport, or from the airport.' });
+  }
+  const completing = b.bookingStatus === 'COMPLETED' && existing.booking_status !== 'COMPLETED';
 
   if (b.vendorBookingRef) {
     const dup = q.get<any>(
@@ -529,6 +546,7 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSch
     q.run(
       `UPDATE bookings SET vendor_id=@vendorId, vendor_booking_ref=@ref, travel_date=@travelDate,
           travel_date_to=@travelDateTo, reporting_time=@reportingTime, trip_type=@tripType,
+          airport_direction=@airportDirection,
           duty_type=@dutyType, city=@city, pickup_location=@pickupLocation, pickup_address=@pickupAddress,
           drop_location=@dropLocation, drop_address=@dropAddress, flight_train_no=@flightTrainNo,
           flight_sector=@flightSector, flight_time=@flightTime, booking_source=@bookingSource,
@@ -539,11 +557,14 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSch
           pax_count=@paxCount, bag_count=@bagCount, vehicle_id=@vehicleId, vehicle_type=@vehicleType,
           vehicle_number=@vehicleNumber, driver_name=@driverName, driver_mobile=@driverMobile,
           special_instructions=@specialInstructions, remarks=@remarks, booking_status=@bookingStatus,
-          billing_status=@billingStatus, updated_at=datetime('now'), updated_by=@uid
+          billing_status=@billingStatus,
+          completed_at = CASE WHEN @completing = 1 THEN datetime('now') ELSE completed_at END,
+          updated_at=datetime('now'), updated_by=@uid
         WHERE id=@id`,
       {
         id, vendorId: b.vendorId, ref: b.vendorBookingRef || null, travelDate: b.travelDate,
         travelDateTo: b.travelDateTo || null, reportingTime: b.reportingTime, tripType: b.tripType,
+        airportDirection, completing: completing ? 1 : 0,
         dutyType: b.dutyType, city: b.city, pickupLocation: b.pickupLocation,
         pickupAddress: b.pickupAddress || b.pickupLocation, dropLocation: b.dropLocation,
         dropAddress: b.dropAddress || b.dropLocation, flightTrainNo: b.flightTrainNo,
@@ -598,7 +619,19 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSch
     entityType: 'booking', entityId: id,
     description: `${existing.booking_code} updated`,
   });
-  res.json({ data: q.get('SELECT * FROM bookings WHERE id = @id', { id }), charges: c });
+
+  // Saving the booking as Completed is the same act as the trip screen's
+  // "Mark Trip as Completed", so it asks the customer for feedback the same
+  // way - once. Re-saving an already-completed booking does nothing here.
+  let feedback: Awaited<ReturnType<typeof requestFeedback>> | null = null;
+  if (completing) {
+    recordTripEvent({
+      bookingId: id, tripId: existing.trip_id, status: 'COMPLETED', title: 'Trip completed',
+      userId: req.user!.id,
+    });
+    feedback = await requestFeedback(id, { userId: req.user!.id, baseUrl: requestOrigin(req) });
+  }
+  res.json({ data: q.get('SELECT * FROM bookings WHERE id = @id', { id }), charges: c, feedback });
 });
 
 // ---------------------------------------------------------------------------

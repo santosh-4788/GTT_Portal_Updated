@@ -64,6 +64,7 @@ export function estimateFare(
   taxRate: number
 ): FareEstimate {
   const lines: FareLine[] = [];
+  let note: string | undefined;
 
   if (rate.plan_type === 'OUTSTATION') {
     const days = Math.max(1, Math.round(n(input.days) || 1));
@@ -74,24 +75,25 @@ export function estimateFare(
     const billedKm = Math.max(asked, floor);
 
     lines.push({
-      label: `${billedKm} km @ ${rate.per_km_rate}/km`,
-      detail: days > 1 ? `${days} days` : undefined,
+      label: `${billedKm} km × ₹${rate.per_km_rate}/km`,
+      detail: `Minimum ${rate.min_km_per_day} km a day${days > 1 ? ` × ${days} days` : ''}`,
       amount: round2(billedKm * rate.per_km_rate),
     });
 
-    // The allowance is per night away, so a single-day return trip has none.
-    const nights = days - 1;
-    if (nights > 0 && rate.driver_allowance > 0) {
+    // The office charges the allowance per day out, so a one-day trip has it too.
+    if (rate.driver_allowance > 0) {
       lines.push({
-        label: 'Driver allowance',
-        detail: `${nights} night${nights > 1 ? 's' : ''}`,
-        amount: round2(nights * rate.driver_allowance),
+        label: 'Driver allowance (DA)',
+        detail: `${days} day${days > 1 ? 's' : ''} × ₹${rate.driver_allowance}`,
+        amount: round2(days * rate.driver_allowance),
       });
     }
 
-    var note = asked > 0 && asked < floor
+    note = asked > 0 && asked < floor
       ? `${days === 1 ? 'A day is' : 'Days are'} billed at a minimum of ${rate.min_km_per_day} km, so ${billedKm} km is used here.`
-      : undefined;
+      : asked > floor
+        ? `Worked out on ${billedKm} km. The bill follows the actual km driven.`
+        : `Worked out on the minimum of ${rate.min_km_per_day} km a day. Km beyond that are ₹${rate.per_km_rate}/km.`;
   } else {
     lines.push({
       label: rate.plan_label,
@@ -130,7 +132,7 @@ export function estimateFare(
     taxLabel: rate_ ? `GST ${rate_}%` : 'GST',
     tax,
     total: round2(subtotal + tax),
-    note: typeof note === 'undefined' ? undefined : note,
+    note,
   };
 }
 

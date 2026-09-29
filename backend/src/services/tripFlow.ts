@@ -16,6 +16,7 @@
 import { q, getDb } from '../db';
 import { ensureDirectVendor } from './directCustomer';
 import { nextTripId, type InquirySource, SOURCE_LABEL } from './tripId';
+import { resolveAirportDirection } from './airport';
 
 /* ==========================================================================
    Status vocabulary
@@ -130,6 +131,8 @@ export interface InquiryInput {
   journeyTime?: string;    // HH:MM
   vehicleType?: string;
   tripType?: string;
+  /** AIRPORT only: TO or FROM the airport. Inferred from the addresses when blank. */
+  airportDirection?: string;
   paxCount?: number;
   message?: string;
   serviceLabel?: string;
@@ -188,14 +191,14 @@ export function createInquiryTrip(input: InquiryInput): { bookingId: number; tri
       `INSERT INTO bookings (
           booking_code, trip_id, inquiry_source, vendor_id, booking_source, customer_id,
           booking_date, travel_date, travel_date_to, reporting_time,
-          trip_type, city, pickup_location, pickup_address, drop_location, drop_address,
+          trip_type, airport_direction, city, pickup_location, pickup_address, drop_location, drop_address,
           passenger_name, passenger_mobile, passenger_email, pax_count,
           customer_name, customer_mobile, customer_email,
           vehicle_type, inquiry_message, booking_status, billing_status)
        VALUES (
           @code, @tripId, @source, @vendorId, 'DIRECT', @customerId,
           date('now'), @travelDate, @travelDateTo, @time,
-          @tripType, 'Mumbai', @pickup, @pickupAddress, @drop, @dropAddress,
+          @tripType, @airportDirection, 'Mumbai', @pickup, @pickupAddress, @drop, @dropAddress,
           @name, @mobile, @email, @pax,
           @name, @mobile, @email,
           @vehicleType, @message, @status, 'PENDING')`,
@@ -209,6 +212,7 @@ export function createInquiryTrip(input: InquiryInput): { bookingId: number; tri
         travelDateTo: input.travelDateTo || null,
         time: input.journeyTime ?? '',
         tripType: input.tripType ?? 'LOCAL',
+        airportDirection: resolveAirportDirection(input.tripType, input.airportDirection, input.pickup, input.drop),
         pickup: input.pickup,
         pickupAddress: input.pickupAddress || input.pickup,
         drop: input.drop ?? '',
@@ -301,6 +305,7 @@ export function publicTrip(b: any) {
     travelDateTo: b.travel_date_to,
     journeyTime: b.reporting_time,
     tripType: b.trip_type,
+    airportDirection: b.airport_direction ?? null,
     pickup: b.pickup_address || b.pickup_location,
     drop: b.drop_address || b.drop_location,
     passengers: b.pax_count,

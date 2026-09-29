@@ -27,8 +27,10 @@ import {
 } from '../components/icons';
 import { useCustomerAuth } from '../lib/customerAuth';
 import { useToast } from '../components/Toast';
+import { useSeo } from './Seo';
 
 export default function Profile() {
+  useSeo({ title: 'Your profile', noindex: true });
   const { customer, places, passengers, prefs, trips } = useCustomer();
   const { user } = useCustomerAuth();
 

@@ -15,6 +15,7 @@ import { VehiclePhoto } from '../components/VehiclePhoto';
 import { HeroJourney } from '../components/HeroJourney';
 import { FareCalculator } from './FareCalculator';
 import { IconPhone, IconArrowRight, IconCheck, IconPin } from '../components/icons';
+import { useSeo } from './Seo';
 
 /* ==========================================================================
    Home.
@@ -63,6 +64,12 @@ const PLANNERS = [
 ];
 
 export default function Home() {
+  useSeo({
+    title: 'Gupta Tours & Travels | Cab Booking & Car Rental in Mumbai, 24x7',
+    rawTitle: true,
+    path: '/',
+    description: 'Book a cab in Mumbai with a professional chauffeur: airport pickups and drops, local hourly car rental, outstation trips to Pune, Lonavala, Nashik and beyond, and corporate transport. 24x7 from Goregaon (W).',
+  });
   return (
     <div className="page-bg">
 
@@ -112,8 +119,9 @@ export default function Home() {
               className="mt-6 max-w-lg text-md leading-[1.75] text-ink-600 animate-fade-up sm:text-lg"
               style={{ animationDelay: '120ms' }}
             >
-              From local Mumbai travel to outstation trips, corporate transport, weddings and large events — find the
-              right vehicle and the right arrangement in one place, with the rate agreed before anything moves.
+              Cab booking and car rental in Mumbai, from local travel and airport transfers to outstation trips,
+              corporate transport, weddings and large events — the right vehicle and the right arrangement in one
+              place, with the rate agreed before anything moves.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3 animate-fade-up" style={{ animationDelay: '180ms' }}>
@@ -270,7 +278,6 @@ export default function Home() {
                     </span>
                     <div className="absolute inset-x-4 bottom-3">
                       <h3 className="font-display text-lg font-bold leading-tight text-white">{v.name}</h3>
-                      <p className="mt-0.5 truncate text-2xs text-white/75">{v.examples}</p>
                     </div>
                   </div>
 
@@ -351,53 +358,62 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ============================== PLANNERS ============================== */}
+      {/* ============================== PLANNERS ==============================
+          Same shape as every other section on the page: the standard header,
+          then four equal cards across, then one slim strip with the headcount
+          examples. */}
       <section className="pt-20 sm:pt-24 lg:pt-28">
         <div className="shell">
-          <Reveal className="mb-9">
+          <Reveal className="mb-8">
             <SectionHead
               eyebrow="Bigger than one car"
               title="Tell us what you need — we work out the rest"
-              sub="Group sizes, fleets, weddings and corporate accounts each get their own planner rather than a contact form and a wait."
+              sub="Groups, fleets, weddings and corporate accounts each have their own planner, not a contact form and a wait."
             />
           </Reveal>
 
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {PLANNERS.map((p, i) => (
-              <Reveal key={p.to} delay={(i % 4) * 70}>
-                <Link to={p.to} className="tile tile-lift group flex h-full flex-col p-6">
-                  <span className="grad-soft grid h-12 w-12 place-items-center rounded-2xl text-xl" aria-hidden="true">{p.emoji}</span>
-                  <h3 className="mt-4 font-display text-sm font-bold text-ink-900">{p.title}</h3>
-                  <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-500">{p.body}</p>
-                  <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-brand-700">
-                    {p.cta}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {PLANNERS.map((pl, i) => (
+              <Reveal key={pl.to} delay={(i % 4) * 60}>
+                <Link to={pl.to} className="tile tile-lift group flex h-full gap-4 p-4 sm:flex-col sm:gap-0 sm:p-5">
+                  <span className="grad-soft grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xl" aria-hidden="true">{pl.emoji}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                  <h3 className="font-display text-md font-bold text-ink-900 sm:mt-4">{pl.title}</h3>
+                  <p className="mt-1 flex-1 text-sm leading-relaxed text-ink-500 sm:mt-1.5">{pl.body}</p>
+                  <span className="mt-2.5 inline-flex sm:mt-4 items-center gap-1 text-xs font-bold text-brand-700">
+                    {pl.cta}
                     <IconArrowRight className="h-3 w-3 transition-transform duration-200 group-hover:translate-x-0.5" />
+                  </span>
                   </span>
                 </Link>
               </Reveal>
             ))}
           </div>
 
-          {/* the group calculation, shown rather than described */}
-          <Reveal className="tile mt-6 p-6 sm:p-7">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h3 className="font-display text-md font-bold text-ink-900">How a headcount turns into vehicles</h3>
-              <Link to="/group-travel" className="text-xs font-bold text-brand-700 hover:text-brand-800">
-                Try your own number →
+          <Reveal className="tile mt-4 flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:gap-6">
+            <div className="shrink-0 lg:w-56">
+              <p className="font-display text-sm font-bold text-ink-900">How a headcount becomes vehicles</p>
+              <Link to="/group-travel" className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-brand-700 hover:text-brand-800">
+                Try your own number <IconArrowRight className="h-3 w-3" />
               </Link>
             </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+            <ul className="grid flex-1 gap-3 sm:grid-cols-3">
               {GROUP_EXAMPLES.map((ex) => (
-                <div key={ex.pax} className="rounded-2xl bg-ink-50/70 p-4">
-                  <p className="font-display text-xl font-extrabold leading-none text-ink-900">{ex.pax}</p>
-                  <p className="mt-1 text-2xs font-bold uppercase tracking-[0.14em] text-ink-400">passengers</p>
-                  <p className="mt-3 text-sm font-bold text-brand-700">{ex.plan.headline}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-ink-500">
-                    {ex.plan.legs.map((l) => `${l.count > 1 ? `${l.count} × ` : ''}${l.vehicle.name}`).join(' + ')}
-                  </p>
-                </div>
+                <li key={ex.pax} className="flex items-center gap-3 rounded-2xl bg-ink-50/70 px-4 py-3">
+                  <span className="text-center">
+                    <span className="block font-display text-xl font-extrabold leading-none text-ink-900">{ex.pax}</span>
+                    <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-ink-400">people</span>
+                  </span>
+                  <IconArrowRight className="h-4 w-4 shrink-0 text-ink-300" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-brand-700">{ex.plan.headline}</span>
+                    <span className="block text-xs leading-snug text-ink-500">
+                      {ex.plan.legs.map((l) => `${l.count > 1 ? `${l.count} × ` : ''}${l.vehicle.name}`).join(' + ')}
+                    </span>
+                  </span>
+                </li>
               ))}
-            </div>
+            </ul>
           </Reveal>
         </div>
       </section>
@@ -443,23 +459,25 @@ export default function Home() {
       {/* ============================== WHY US ============================== */}
       <section className="pt-20 sm:pt-24 lg:pt-28">
         <div className="shell">
-          <Reveal className="mb-10 max-w-2xl">
-            <span className="lead">Why choose us</span>
-            <h2 className="h-sec">The details that decide whether you book again</h2>
-            <p className="mt-4 text-md leading-[1.7] text-ink-500">
-              Anyone can send a car. These are the things that make the second booking easy.
-            </p>
+          <Reveal className="mb-8">
+            <SectionHead
+              eyebrow="Why choose us"
+              title="The details that decide whether you book again"
+              sub="Anyone can send a car. These are the things that make the second booking easy."
+            />
           </Reveal>
 
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {WHY_US.map((w, i) => (
-              <Reveal key={w.title} delay={(i % 3) * 70}>
-                <div className="tile tile-lift h-full p-6">
-                  <span className="grad-soft grid h-11 w-11 place-items-center rounded-2xl text-brand-600">
-                    <BenefitIcon title={w.title} />
-                  </span>
-                  <h3 className="mt-4 font-display text-sm font-bold text-ink-900">{w.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-ink-500">{w.body}</p>
+              <Reveal key={w.title} delay={(i % 3) * 60}>
+                <div className="tile h-full p-4 sm:p-5">
+                  <div className="flex items-center gap-3">
+                    <span className="grad-soft grid h-10 w-10 shrink-0 place-items-center rounded-xl text-brand-600">
+                      <BenefitIcon title={w.title} />
+                    </span>
+                    <h3 className="font-display text-md font-bold text-ink-900">{w.title}</h3>
+                  </div>
+                  <p className="mt-2.5 text-[13px] leading-relaxed text-ink-500 sm:mt-3 sm:text-sm">{w.body}</p>
                 </div>
               </Reveal>
             ))}
@@ -478,16 +496,16 @@ export default function Home() {
             />
           </Reveal>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
             {ROUTES.map((r, i) => {
               const known = DESTINATIONS.find((d) => d.name === r.to);
               return (
                 <Reveal key={r.to} delay={(i % 4) * 55}>
                   <Link
                     to={known ? `/destinations/${known.slug}` : `/vehicles?tab=OUTSTATION&from=Mumbai&to=${encodeURIComponent(r.to)}`}
-                    className="tile tile-lift group flex w-full items-center gap-3.5 p-4 text-left"
+                    className="tile tile-lift group flex w-full items-center gap-2.5 p-3 text-left sm:gap-3.5 sm:p-4"
                   >
-                    <span className="grad-soft grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-brand-600 transition-colors duration-300 group-hover:text-brand-700">
+                    <span className="grad-soft hidden h-11 w-11 shrink-0 place-items-center rounded-2xl text-brand-600 transition-colors duration-300 group-hover:text-brand-700 sm:grid">
                       <IconPin className="h-5 w-5" />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -535,55 +553,48 @@ export default function Home() {
       {/* ============================== INCLUDED ============================== */}
       <section className="pt-20 sm:pt-24 lg:pt-28">
         <div className="shell">
-          <Reveal className="mb-10 max-w-2xl">
-            <span className="lead">No surprises</span>
-            <h2 className="h-sec">What the fare covers</h2>
-            <p className="mt-4 text-md leading-[1.7] text-ink-500">
-              You are told the number before the car is assigned. These are the only things that can appear on top of
-              it, and each one is a real cost passed through at what it cost.
-            </p>
+          <Reveal className="mb-8">
+            <SectionHead
+              eyebrow="No surprises"
+              title="What the fare covers"
+              sub="You are told the number before the car is assigned. These are the only things that can appear on top of it."
+              action={
+                <Link to="/policies#terms" className="btn-ghost btn-sm text-brand-700 hover:bg-white">
+                  Estimate vs quote <IconArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              }
+            />
           </Reveal>
 
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Reveal>
-              <div className="tile h-full p-7">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-ok-50 text-ok-600">
-                    <IconCheck className="h-5 w-5" />
-                  </span>
-                  <h3 className="font-display text-md font-bold text-ink-900">Included in the quoted fare</h3>
-                </div>
-                <ul className="mt-5 space-y-3">
-                  {INCLUDED.map((item) => (
-                    <li key={item} className="flex gap-2.5 text-sm leading-relaxed text-ink-600">
-                      <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok-500" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Reveal className="tile h-full p-6">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-ok-50 text-ok-600"><IconCheck className="h-5 w-5" /></span>
+                <h3 className="font-display text-md font-bold text-ink-900">Included in the quoted fare</h3>
               </div>
+              <ul className="mt-5 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                {INCLUDED.map((item) => (
+                  <li key={item} className="flex gap-2.5 text-sm leading-snug text-ink-600">
+                    <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok-500" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
             </Reveal>
 
-            <Reveal delay={90}>
-              <div className="tile h-full p-7">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-warn-50 text-warn-600">
-                    <span className="text-md font-bold leading-none">+</span>
-                  </span>
-                  <h3 className="font-display text-md font-bold text-ink-900">Billed on top, at actuals</h3>
-                </div>
-                <dl className="mt-5 space-y-4">
-                  {CHARGED_SEPARATELY.map(([label, note]) => (
-                    <div key={label}>
-                      <dt className="text-sm font-semibold text-ink-800">{label}</dt>
-                      <dd className="mt-0.5 text-sm leading-relaxed text-ink-500">{note}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <Link to="/policies#terms" className="mt-6 inline-flex items-center gap-1 text-xs font-bold text-brand-700 hover:text-brand-800">
-                  Estimate, quote and confirmed rate — the difference <IconArrowRight className="h-3 w-3" />
-                </Link>
+            <Reveal delay={80} className="tile h-full p-6">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-warn-50 text-lg font-bold text-warn-600">+</span>
+                <h3 className="font-display text-md font-bold text-ink-900">Billed on top, at actuals</h3>
               </div>
+              <dl className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                {CHARGED_SEPARATELY.map(([label, note]) => (
+                  <div key={label} className="border-l-2 border-warn-200 pl-3">
+                    <dt className="text-sm font-semibold text-ink-900">{label}</dt>
+                    <dd className="mt-0.5 text-xs leading-relaxed text-ink-500">{note}</dd>
+                  </div>
+                ))}
+              </dl>
             </Reveal>
           </div>
         </div>

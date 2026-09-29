@@ -5,6 +5,7 @@ import { VehiclePhoto } from '../components/VehiclePhoto';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck, IconPhone, IconShield, IconSteering } from '../components/icons';
 import { ContactRow, SectionHead, TrustRow } from './kit';
+import { useSeo } from './Seo';
 
 const CARE = [
   { Icon: IconCheck, title: 'Cleaned before every duty', body: 'Interior vacuumed and wiped, exterior washed before the vehicle is dispatched.' },
@@ -13,6 +14,11 @@ const CARE = [
 ];
 
 export default function Fleet() {
+  useSeo({
+    title: 'Our Fleet - Sedans, SUVs, Tempo Travellers and Buses',
+    path: '/fleet',
+    description: 'The cars we run in Mumbai: Dzire, Aura, Honda City, Ertiga, XL6, Innova Crysta, Kia Carens, Force Traveller, Urbania and coaches - all chauffeur-driven.',
+  });
   return (
     <>
       <PageHero
@@ -41,7 +47,6 @@ export default function Fleet() {
                 </div>
                 <div className="p-6">
                   <h2 className="text-xl font-bold text-ink-900">{v.name}</h2>
-                  <p className="mt-1 text-sm text-ink-500">{v.examples}</p>
 
                   <dl className="mt-5 grid grid-cols-2 gap-4">
                     <div className="rounded-lg bg-ink-50 p-3.5">

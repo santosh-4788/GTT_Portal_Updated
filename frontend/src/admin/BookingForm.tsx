@@ -6,6 +6,8 @@ import { Field, Loading, Modal, Spinner, StatusBadge } from '../components/ui';
 import { IconPaste } from '../components/icons';
 import { useToast } from '../components/Toast';
 import { DateField, TimeField } from '../components/DateTimeField';
+import { GST_TYPES, gstRateOptions, gstSummary, type GstType } from './gst';
+import { AirportDirectionPicker, airportEnds, inferAirportDir, type AirportDir } from './airport';
 
 const TRIP_TYPES = [
   ['LOCAL', 'Local'], ['TRANSFER', 'Transfer'], ['AIRPORT', 'Airport'],
@@ -19,7 +21,7 @@ const WALKIN = 'WALKIN';
 
 const EMPTY = {
   vendorId: '', vendorBookingRef: '', bookingDate: todayIso(), travelDate: todayIso(),
-  travelDateTo: '', reportingTime: '', tripType: 'LOCAL', dutyType: '', city: 'Mumbai',
+  travelDateTo: '', reportingTime: '', tripType: 'LOCAL', airportDirection: '' as AirportDir, dutyType: '', city: 'Mumbai',
   pickupLocation: '', pickupAddress: '', dropLocation: '', dropAddress: '', flightTrainNo: '',
   tripDistanceKm: '', tripDurationHrs: '',
   customerName: '', customerMobile: '', customerEmail: '', customerAddress: '', customerGstin: '',
@@ -32,7 +34,8 @@ const EMPTY = {
    * reach the same total, when in practice the fare is agreed as a single number
    * before the trip.
    */
-  charges: { amount: '', gst: 'WITH' as 'WITH' | 'WITHOUT', tollParking: '', advance: '' },
+  // gst / gstRate: '' follows the vendor's own setting until one is picked.
+  charges: { amount: '', gst: '' as GstType | '', gstRate: '', tollParking: '', advance: '' },
 };
 type FormState = typeof EMPTY;
 
@@ -54,7 +57,7 @@ function computeLocal(charges: FormState['charges'], taxMode: string, taxRate: n
   const taxable = Math.max(0, round2(num(charges.amount)));
   const nonTaxable = Math.max(0, round2(num(charges.tollParking)));
 
-  const withGst = charges.gst === 'WITH' && taxMode !== 'NONE';
+  const withGst = taxMode !== 'NONE' && taxRate > 0;
   const rate = withGst ? taxRate : 0;
   const tax = round2((taxable * rate) / 100);
   const cgst = withGst && taxMode === 'CGST_SGST' ? round2(tax / 2) : 0;
@@ -169,8 +172,10 @@ export default function BookingForm() {
    *  of as a vendor, so it must not appear twice in the dropdown. */
   const vendorOptions = useMemo(() => vendors.filter((v) => v.code !== 'DIRECT'), [vendors]);
 
-  const taxMode: string = vendor?.tax_mode ?? 'IGST';
-  const taxRate = Number(vendor?.tax_rate ?? 5);
+  const vendorRate = Number(vendor?.tax_rate) > 0 ? Number(vendor.tax_rate) : 5;
+  // Walk-in fares are quoted without GST, so a walk-in bill starts at No GST.
+  const taxMode: string = form.charges.gst || (isWalkIn ? 'NONE' : vendor?.tax_mode ?? 'IGST');
+  const taxRate = form.charges.gstRate ? num(form.charges.gstRate) : vendorRate;
   const totals = useMemo(() => computeLocal(form.charges, taxMode, taxRate), [form.charges, taxMode, taxRate]);
 
   /** Itemised charges from a booking saved before this form billed one amount.
@@ -199,7 +204,9 @@ export default function BookingForm() {
             vendorId: b.booking_source === 'DIRECT' ? WALKIN : String(b.vendor_id),
             vendorBookingRef: b.vendor_booking_ref ?? '',
             bookingDate: b.booking_date, travelDate: b.travel_date, travelDateTo: b.travel_date_to ?? '',
-            reportingTime: b.reporting_time ?? '', tripType: b.trip_type, dutyType: b.duty_type ?? '',
+            reportingTime: b.reporting_time ?? '', tripType: b.trip_type,
+            airportDirection: (b.airport_direction ?? inferAirportDir(b.pickup_location, b.drop_location)) as AirportDir,
+            dutyType: b.duty_type ?? '',
             city: b.city ?? 'Mumbai', pickupLocation: b.pickup_location ?? '', pickupAddress: b.pickup_address ?? '',
             dropLocation: b.drop_location ?? '', dropAddress: b.drop_address ?? '',
             flightTrainNo: b.flight_train_no ?? '',
@@ -220,7 +227,8 @@ export default function BookingForm() {
               // from. Where a vendor taxes toll & parking it is inside that
               // figure already, so take it back out before showing the fare.
               amount: taxable ? String(round2(taxable - (tollTaxed ? tollParking : 0))) : '',
-              gst: c.tax_mode && c.tax_mode !== 'NONE' && Number(c.tax_rate) > 0 ? 'WITH' : 'WITHOUT',
+              gst: !c.tax_mode ? '' : c.tax_mode === 'NONE' || !(Number(c.tax_rate) > 0) ? 'NONE' : c.tax_mode,
+              gstRate: Number(c.tax_rate) > 0 ? String(c.tax_rate) : '',
               tollParking: tollParking ? String(round2(tollParking)) : '',
               advance: c.advance ? String(c.advance) : '',
             },
@@ -294,6 +302,7 @@ export default function BookingForm() {
       travelDateTo: f.travelDateTo ?? prev.travelDateTo,
       reportingTime: f.reportingTime ?? prev.reportingTime,
       tripType: f.tripType ?? prev.tripType,
+      airportDirection: (f.airportDirection ?? prev.airportDirection) as AirportDir,
       dutyType: f.dutyType?.trim() ?? prev.dutyType,
       city: f.city ?? prev.city,
       pickupLocation: f.pickupAddress ?? prev.pickupLocation,
@@ -319,6 +328,9 @@ export default function BookingForm() {
     toast.success('Fields filled from the message', 'Check the highlighted values, then enter the amount.');
   };
 
+  const airport = form.tripType === 'AIRPORT';
+  const ends = airportEnds(form.airportDirection);
+
   // ---- save ---------------------------------------------------------------
   const validate = () => {
     const e: Record<string, string> = {};
@@ -332,6 +344,9 @@ export default function BookingForm() {
     if (num(form.charges.amount) <= 0) e.amount = 'Enter the amount to bill for this trip.';
     if (!form.travelDate) e.travelDate = 'Travel date is required.';
     if (form.travelDateTo && form.travelDateTo < form.travelDate) e.travelDateTo = 'End date cannot be before the travel date.';
+    if (form.tripType === 'AIRPORT' && !form.airportDirection) {
+      e.airportDirection = 'Choose the direction first: to the airport, or from the airport.';
+    }
     if (!form.pickupLocation.trim()) e.pickupLocation = 'Pickup location is required.';
     if (!form.passengerName.trim()) e.passengerName = 'Passenger name is required.';
     if (form.passengerMobile && !/^[6-9]\d{9}$/.test(form.passengerMobile.replace(/\D/g, '').replace(/^91/, ''))) {
@@ -369,9 +384,10 @@ export default function BookingForm() {
       driverAllowance: 0, permit: 0, nightCharge: 0,
       otherCharges: 0, otherChargesNote: '', discount: 0,
       advance: num(form.charges.advance),
-      // "Without GST" has to beat the vendor's default, and toll & parking is
-      // always the after-tax line this form shows it as.
-      taxModeOverride: totals.withGst ? undefined : 'NONE',
+      // The GST type and rate picked here beat the vendor's default, and toll &
+      // parking is always the after-tax line this form shows it as.
+      taxModeOverride: totals.withGst ? taxMode : 'NONE',
+      taxRateOverride: totals.withGst ? taxRate : 0,
       tollParkingTaxableOverride: false,
     },
   });
@@ -394,7 +410,7 @@ export default function BookingForm() {
           vendorId: form.vendorId,
           bookingDate: form.bookingDate,
           travelDate: form.travelDate,
-          charges: { ...EMPTY.charges, gst: form.charges.gst },
+          charges: { ...EMPTY.charges, gst: form.charges.gst, gstRate: form.charges.gstRate },
         });
         setLegacy([]);
         setErrors({});
@@ -577,22 +593,41 @@ export default function BookingForm() {
             </select>
           </Field>
 
-          <Field label="Pickup location" required error={errors.pickupLocation} className="lg:col-span-2">
-            <Suggest
-              value={form.pickupLocation}
-              onChange={(v) => setForm((f) => ({ ...f, pickupLocation: v }))}
-              fetchUrl="/bookings/lookup/locations"
-              placeholder="e.g. Terminal 2, Mumbai Airport"
-            />
-          </Field>
-          <Field label="Drop location" className="lg:col-span-2">
-            <Suggest
-              value={form.dropLocation}
-              onChange={(v) => setForm((f) => ({ ...f, dropLocation: v }))}
-              fetchUrl="/bookings/lookup/locations"
-              placeholder="e.g. Lower Parel, Mumbai"
-            />
-          </Field>
+          {/* An airport trip says which way it goes before either address:
+              the direction decides which end is the airport. */}
+          {airport && (
+            <Field label="Direction" required error={errors.airportDirection} className="lg:col-span-2">
+              <AirportDirectionPicker
+                value={form.airportDirection}
+                onChange={(v) => { setForm((f) => ({ ...f, airportDirection: v })); setErrors((x) => ({ ...x, airportDirection: '' })); }}
+              />
+            </Field>
+          )}
+
+          {airport && !form.airportDirection ? (
+            <p className="self-end pb-2 text-sm text-ink-500 lg:col-span-2">
+              Choose <strong className="text-ink-700">To airport</strong> or <strong className="text-ink-700">From airport</strong> to enter the addresses.
+            </p>
+          ) : (
+            <>
+              <Field label={airport ? ends.pickup : 'Pickup location'} required error={errors.pickupLocation} className="lg:col-span-2">
+                <Suggest
+                  value={form.pickupLocation}
+                  onChange={(v) => setForm((f) => ({ ...f, pickupLocation: v }))}
+                  fetchUrl="/bookings/lookup/locations"
+                  placeholder={airport ? ends.pickupHint : 'e.g. Terminal 2, Mumbai Airport'}
+                />
+              </Field>
+              <Field label={airport ? ends.drop : 'Drop location'} required={airport} className="lg:col-span-2">
+                <Suggest
+                  value={form.dropLocation}
+                  onChange={(v) => setForm((f) => ({ ...f, dropLocation: v }))}
+                  fetchUrl="/bookings/lookup/locations"
+                  placeholder={airport ? ends.dropHint : 'e.g. Lower Parel, Mumbai'}
+                />
+              </Field>
+            </>
+          )}
 
           <Field label="Duty type / package" hint="e.g. 4H40KMS, 8H80KMS">
             <input className="input" value={form.dutyType} onChange={set('dutyType')} />
@@ -643,9 +678,9 @@ export default function BookingForm() {
         sub={
           !form.vendorId
             ? 'Choose a vendor or Walk-in customer first, so the right GST rate applies.'
-            : taxMode === 'NONE'
-              ? `${isWalkIn ? 'Counter bookings are' : `${vendor?.vendor_name ?? 'This vendor'} is`} set up without GST, so no tax is added.`
-              : `GST is charged at ${taxRate}% (${taxMode.replace('_', ' + ')}) on the amount${isWalkIn ? '' : ` for ${vendor?.vendor_name ?? 'this vendor'}`}.`
+            : !totals.withGst
+              ? 'No GST on this bill. Pick a GST type below if the customer wants a GST bill.'
+              : `${gstSummary(taxMode, taxRate)} is added on the amount. Change the type or rate below for this bill.`
         }
       >
         <div className="grid gap-5 lg:grid-cols-[1.6fr,1fr]">
@@ -660,15 +695,18 @@ export default function BookingForm() {
               />
             </Field>
 
-            <Field label="GST" hint={taxMode === 'NONE' ? 'This account is not set up for GST' : undefined}>
+            <Field label="GST type" hint="CGST + SGST for a customer in our state, IGST for another state">
+              <select className="input" value={taxMode} onChange={setCharge('gst')}>
+                {GST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </Field>
+
+            <Field label="GST rate" hint={totals.withGst ? gstSummary(taxMode, taxRate) : 'Not charged'}>
               <select
-                className="input"
-                value={taxMode === 'NONE' ? 'WITHOUT' : form.charges.gst}
-                disabled={taxMode === 'NONE'}
-                onChange={setCharge('gst')}
+                className="input" value={String(taxRate)} disabled={taxMode === 'NONE'}
+                onChange={setCharge('gstRate')}
               >
-                <option value="WITH">With GST{taxMode === 'NONE' ? '' : ` — ${taxRate}%`}</option>
-                <option value="WITHOUT">Without GST</option>
+                {gstRateOptions(taxRate).map((r) => <option key={r} value={String(r)}>{r}%</option>)}
               </select>
             </Field>
 

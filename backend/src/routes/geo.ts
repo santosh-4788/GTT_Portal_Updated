@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { q } from '../db';
 import { limiter } from '../utils/limiter';
 import { validateBody } from '../utils/validate';
-import { geoUsage, resolvePoint, routeDistance, searchPlaces, type GeoPlace } from '../services/geo';
+import { cachedPlaces, geoUsage, resolvePoint, routeDistance, searchPlaces, type GeoPlace } from '../services/geo';
 
 const router = Router();
 
@@ -42,7 +42,14 @@ router.get('/search', lookupLimiter, async (req, res) => {
   // Our own list is enough for a short or obviously local query.
   if (term.length < 3) return res.json({ places: own, capped: false });
 
-  const { places, capped } = await searchPlaces(term);
+  /*
+   * The public OpenStreetMap search forbids search-as-you-type. So while the
+   * customer is typing (no `map=1`) only our own points and earlier cached
+   * searches are offered; the map service is asked only when they press
+   * "Search the map" - one deliberate request, not one per keystroke.
+   */
+  const fromMap = req.query.map === '1';
+  const { places, capped } = fromMap ? await searchPlaces(term) : { places: cachedPlaces(term), capped: false };
   const seen = new Set(own.map((o) => o.label.toLowerCase()));
   const remote = (places as GeoPlace[])
     .filter((p) => !seen.has(p.label.toLowerCase()))

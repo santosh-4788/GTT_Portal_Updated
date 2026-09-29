@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import { todayIso } from '../lib/format';
 import { COMPANY } from './siteData';
 import { fleetPlan, GROUP_EXAMPLES, BAG_LABEL, type Bags } from './recommend';
-import { estimateFor, useRates, PlaceInput, Counter, ChoiceCard, ContactFields, EstimatePanel, SectionHead, SubmitButton, TrustRow, Callout, useContactDetails, useSendRequirement } from './kit';
+import { estimateFor, useRates, PlaceInput, Counter, ChoiceCard, ContactFields, EstimatePanel, SectionHead, SubmitButton, TrustRow, Callout, useContactDetails, useSendRequirement, emailError } from './kit';
 import { lookupDistance } from './places';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { Reveal } from '../components/Reveal';
@@ -19,8 +19,14 @@ import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconPhone, IconPlus, IconTrash } from '../components/icons';
 import { IconSeat, IconLuggage } from './SiteIcons';
 import { DateField } from '../components/DateTimeField';
+import { useSeo } from './Seo';
 
 export default function GroupTravel() {
+  useSeo({
+    title: 'Tempo Traveller and Bus Hire in Mumbai',
+    path: '/group-travel',
+    description: 'Group travel from Mumbai in Force Traveller, Urbania and full-size coaches. Tell us the head count and luggage and we plan the right mix of vehicles.',
+  });
   const book = useRates();
   const { send, busy, error } = useSendRequirement();
 
@@ -67,6 +73,7 @@ export default function GroupTravel() {
     const errs: Record<string, string> = {};
     if (contact.name.trim().length < 2) errs.name = 'Please enter your name.';
     if (!/^[6-9]\d{9}$/.test(contact.mobile.replace(/\D/g, '').replace(/^91/, ''))) errs.mobile = 'Enter a valid 10-digit mobile number.';
+    Object.assign(errs, emailError(contact));
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -89,7 +96,7 @@ export default function GroupTravel() {
       ].filter(Boolean).join('. '),
       name: contact.name,
       mobile: contact.mobile,
-      email: contact.email,
+      email: contact.noEmail ? '' : contact.email,
       company: contact.company,
     });
   };

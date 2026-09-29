@@ -296,7 +296,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: 'How do I book a vehicle?',
-    a: 'Call Vinay Gupta on the number at the top of the page, or send an enquiry from the Contact page. Tell us the date, reporting time, pickup, drop and the vehicle you want. You get the package and the rate confirmed before the car is assigned.',
+    a: 'Use the booking bar on the home page: choose Local, Airport, Outstation or Hourly, fill in the trip and pick a vehicle, then send it as an enquiry or on WhatsApp - you get a Trip ID straight away. You can also tap Call at the top of any page. The rate is confirmed before the car is assigned.',
     keywords: ['book', 'booking', 'reserve', 'hire', 'arrange', 'order', 'how'],
   },
   {
@@ -306,18 +306,18 @@ export const FAQS: Faq[] = [
   },
   {
     q: 'What do you charge?',
-    a: 'There is a fare calculator on the home page — pick the trip and the vehicle and it works out an indicative figure from our standard rates. Toll, parking and any state permit are extra at actuals. Corporate accounts are different: they get a negotiated rate card agreed before the first trip, so call us for those.',
+    a: 'Local, airport and hourly trips show an indicative fare from our standard rates when you search, with toll, parking and any state permit extra at actuals. One-way outstation trips from Mumbai to our popular destinations (Pune, Lonavala, Nashik, Shirdi and more) have fixed fares shown on the Outstation page, toll included where it says so; any other route is quoted on request. Corporate accounts get a negotiated rate card agreed before the first trip.',
     keywords: ['rate', 'rates', 'price', 'prices', 'pricing', 'cost', 'charge', 'charges', 'fare', 'quote',
       'quotation', 'much', 'expensive', 'cheap', 'budget', 'calculator', 'calculate', 'estimate', 'tariff'],
   },
   {
     q: 'Are toll and parking extra?',
-    a: 'Yes. Toll and parking are passed through at actuals, each on its own line of the invoice, and are never marked up. On outstation runs that cross a state border, the permit is itemised the same way.',
+    a: 'On local, airport and hourly trips, toll and parking are passed through at actuals, each on its own line of the invoice, and are never marked up. The fixed outstation fares on our Outstation page say "Toll included" where the toll is already in the price. On runs that cross a state border, the permit is itemised separately.',
     keywords: ['toll', 'parking', 'permit', 'extra', 'hidden', 'additional', 'actuals', 'reimburse'],
   },
   {
     q: 'Do you charge GST, and can I claim it?',
-    a: 'Yes. We are registered under GSTIN 27ALRPG8019M1ZH and every invoice is GST-compliant, so your accounts team can claim input credit. Give us your GSTIN when you book and it goes on the invoice.',
+    a: 'Yes. We are GST registered and every invoice is GST-compliant, so your accounts team can claim input credit. Give us your GSTIN when you book and it goes on the invoice.',
     keywords: ['gst', 'gstin', 'tax', 'invoice', 'bill', 'billing', 'input', 'credit', 'itc', 'registered', 'compliant'],
   },
   {
@@ -327,12 +327,12 @@ export const FAQS: Faq[] = [
   },
   {
     q: 'Do you handle airport pickups with flight tracking?',
-    a: 'Yes, at Terminal 1 and Terminal 2. Give us the flight number and the chauffeur adjusts to the actual landing time, so a delayed flight does not cost you the car. Meet-and-greet at arrivals is available on request.',
+    a: 'Yes - at Mumbai CSMIA Terminal 1 and Terminal 2, Navi Mumbai International and Pune Airport. Give us the flight number and the chauffeur adjusts to the actual landing time, so a delayed flight does not cost you the car. Meet-and-greet at arrivals is available on request.',
     keywords: ['airport', 'flight', 'terminal', 't1', 't2', 'pickup', 'arrival', 'departure', 'delay', 'delayed', 'track', 'tracking', 'meet', 'greet'],
   },
   {
     q: 'What happens if my plans change?',
-    a: 'Tell us as early as you can and we will move the booking rather than cancel it wherever possible. If a change close to the reporting time does attract a charge, you are told at the time — it is never added quietly to the invoice.',
+    a: 'Cancelling up to 1 hour before the pickup time is free; a cancellation within 1 hour of pickup is chargeable. Tell us as early as you can and we will move the booking rather than cancel it wherever possible. If a change close to the reporting time does attract a charge, you are told at the time — it is never added quietly to the invoice.',
     keywords: ['cancel', 'cancellation', 'change', 'reschedule', 'postpone', 'refund', 'plans', 'amend'],
   },
   {
@@ -360,7 +360,7 @@ export const FAQS: Faq[] = [
 export const MORE_FAQS: Faq[] = [
   {
     q: 'Can I get a vehicle for a full day, or only point to point?',
-    a: 'Both. The usual packages are 4 hours / 40 km for half a day and 8 hours / 80 km for a full working day, with the car and chauffeur with you throughout and as many stops as you need. Airport transfers are priced point to point instead.',
+    a: 'Both. The hourly packages are 4 hours / 40 km, 8 hours / 80 km and 12 hours / 120 km, with the car and chauffeur with you throughout and as many stops as you need. Airport transfers are priced point to point instead.',
     keywords: ['full', 'day', 'half', 'hourly', 'package', '4h', '8h', '4hr', '8hr', '4hrs', '8hrs', '40', '80', 'disposal', 'whole', 'multiple', 'stop', 'stops', 'wait', 'waiting', 'duration', 'slab'],
   },
   {
@@ -370,7 +370,7 @@ export const MORE_FAQS: Faq[] = [
   },
   {
     q: 'Is there a minimum booking, or a minimum number of hours?',
-    a: 'No minimum for a city transfer — a single airport drop is a normal booking. Outstation runs are quoted per day, so a one-way drop to Pune and a three-day itinerary are priced differently.',
+    a: 'No minimum for a city transfer - a single airport drop is a normal booking. A one-way drop to one of our popular outstation destinations has a fixed fare; multi-day outstation trips and other routes are quoted for the trip.',
     keywords: ['minimum', 'least', 'small', 'single', 'one', 'short', 'limit'],
   },
   {
@@ -395,7 +395,7 @@ export const MORE_FAQS: Faq[] = [
   },
   {
     q: 'Do you do one-way drops to another city?',
-    a: 'Yes. A one-way drop is priced differently from a round trip because the vehicle returns empty, so tell us which one you need and the quote will reflect it.',
+    a: 'Yes. Choose Outstation, then One way, and pick your destination - Pune, Lonavala, Nashik, Alibaug, Shirdi, Mahabaleshwar, Satara, Kolhapur, Surat, Ahmedabad or Vapi have fixed fares. For anywhere else choose Other and we quote the route. Return trips are priced separately.',
     keywords: ['one', 'way', 'oneway', 'drop', 'single', 'return', 'round', 'back'],
   },
   {
@@ -420,7 +420,7 @@ export const MORE_FAQS: Faq[] = [
   },
   {
     q: 'What is your GST number?',
-    a: 'GSTIN 27ALRPG8019M1ZH, registered in Maharashtra. It appears on every invoice we raise.',
+    a: 'We are registered for GST in Maharashtra. The GSTIN is printed on every invoice we raise and shown on our About page.',
     keywords: ['gstin', 'gst', 'number', 'registration', 'tin', 'pan', 'tax', 'detail'],
   },
   {
@@ -435,7 +435,7 @@ export const MORE_FAQS: Faq[] = [
   },
   {
     q: 'Where does the driver meet me at the airport?',
-    a: 'At the pickup point outside arrivals at Terminal 1 or Terminal 2, and the chauffeur calls you as you land. Meet-and-greet inside the arrivals hall with a name board is available on request.',
+    a: 'At the pickup point outside arrivals at your terminal, and the chauffeur calls you as you land. Meet-and-greet inside the arrivals hall with a name board is available on request.',
     keywords: ['meet', 'where', 'arrival', 'terminal', 'greet', 'board', 'placard', 'find', 'gate', 'exit', 'airport'],
   },
   {
@@ -519,7 +519,7 @@ export const WHY_US = [
   },
   {
     icon: '📄', title: 'GST-Compliant Invoices',
-    body: 'Registered under GSTIN 27ALRPG8019M1ZH. Invoices are raised in the format each account requires, so your accounts team can process them without going back and forth.',
+    body: 'Registered for GST. Invoices are raised in the format each account requires, so your accounts team can process them without going back and forth.',
   },
   {
     icon: '📞', title: 'One Point of Contact',

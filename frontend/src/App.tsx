@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { Loading } from './components/ui';
 
@@ -18,6 +18,17 @@ import Home from './site/Home';
    ========================================================================== */
 const page = (load: () => Promise<{ default: ComponentType<any> }>) => lazy(load);
 
+/**
+ * Outstation is sold at fixed route fares on its own screen. Older links still
+ * send ?tab=OUTSTATION to /vehicles, so they are forwarded rather than priced
+ * per kilometre there.
+ */
+function VehiclesRoute() {
+  const [params] = useSearchParams();
+  if (params.get('tab') === 'OUTSTATION') return <Navigate to={`/outstation?${params.toString()}`} replace />;
+  return <Vehicles />;
+}
+
 /* ---------- the rest of the public site ---------- */
 const About = page(() => import('./site/About'));
 const Services = page(() => import('./site/Services'));
@@ -32,6 +43,9 @@ const Login = page(() => import('./site/Login'));
 const Book = page(() => import('./site/Book'));
 const HelpMeChoose = page(() => import('./site/HelpMeChoose'));
 const Vehicles = page(() => import('./site/Vehicles'));
+const OutstationPage = page(() => import('./site/OutstationPage'));
+const NotFound = page(() => import('./site/NotFound'));
+const RouteLanding = page(() => import('./site/RouteLanding'));
 const VehicleDetail = page(() => import('./site/VehicleDetail'));
 const CompareVehicles = page(() => import('./site/CompareVehicles'));
 
@@ -59,6 +73,7 @@ const AccountAuth = page(() => import('./site/AccountAuth'));
 const TripDetail = page(() => import('./site/TripDetail'));
 const TrackTrip = page(() => import('./site/TrackTrip'));
 const TrackLookup = page(() => import('./site/TrackLookup'));
+const FeedbackPage = page(() => import('./site/FeedbackPage'));
 const Profile = page(() => import('./site/Profile'));
 const Notifications = page(() => import('./site/Notifications'));
 
@@ -76,6 +91,10 @@ const Trips = page(() => import('./admin/Trips'));
 const BookingForm = page(() => import('./admin/BookingForm'));
 const CustomerBooking = page(() => import('./admin/CustomerBooking'));
 const Master = page(() => import('./admin/Master'));
+const OutstationFares = page(() => import('./admin/OutstationFares'));
+const ChatHistory = page(() => import('./admin/ChatHistory'));
+const Feedback = page(() => import('./admin/Feedback'));
+const ChatbotKnowledge = page(() => import('./admin/ChatbotKnowledge'));
 const Vendors = page(() => import('./admin/Vendors'));
 const VendorForm = page(() => import('./admin/VendorForm'));
 const Billing = page(() => import('./admin/Billing'));
@@ -131,7 +150,10 @@ export default function App() {
           {/* booking and vehicles */}
           <Route path="/book" element={<Book />} />
           <Route path="/help-me-choose" element={<HelpMeChoose />} />
-          <Route path="/vehicles" element={<Vehicles />} />
+          <Route path="/vehicles" element={<VehiclesRoute />} />
+          <Route path="/outstation" element={<OutstationPage />} />
+          {/* One landing page per fixed-fare route: /cabs/mumbai-to-pune. */}
+          <Route path="/cabs/:slug" element={<RouteLanding />} />
           <Route path="/vehicles/compare" element={<CompareVehicles />} />
           <Route path="/vehicles/:slug" element={<VehicleDetail />} />
           {/* The brochure view of the same twelve vehicles. Still linked from
@@ -166,6 +188,8 @@ export default function App() {
           <Route path="/trips/:ref" element={<TripDetail />} />
           <Route path="/trips/:ref/track" element={<TrackTrip />} />
           <Route path="/track" element={<TrackLookup />} />
+          {/* The link in the feedback email sent when a trip is completed. */}
+          <Route path="/feedback/:token" element={<FeedbackPage />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/notifications" element={<Notifications />} />
 
@@ -174,6 +198,9 @@ export default function App() {
           <Route path="/faq" element={<Faq />} />
           <Route path="/reviews" element={<Reviews />} />
           <Route path="/search" element={<SearchPage />} />
+          {/* An address we do not have: say so, inside the site's own header
+              and footer, rather than quietly showing the home page. */}
+          <Route path="*" element={<NotFound />} />
         </Route>
 
         <Route path="/login" element={<Login />} />
@@ -188,6 +215,10 @@ export default function App() {
           <Route path="bookings/:id/edit" element={<BookingForm />} />
           <Route path="customer-booking" element={<CustomerBooking />} />
           <Route path="master" element={<Master />} />
+          <Route path="outstation-fares" element={<OutstationFares />} />
+          <Route path="chats" element={<ChatHistory />} />
+          <Route path="feedback" element={<Feedback />} />
+          <Route path="chatbot" element={<ChatbotKnowledge />} />
           <Route path="vendors" element={<Vendors />} />
           <Route path="vendors/new" element={<VendorForm />} />
           <Route path="vendors/:id/edit" element={<VendorForm />} />
@@ -202,7 +233,6 @@ export default function App() {
           <Route path="audit" element={<AuditLog />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   );

@@ -31,8 +31,10 @@ import { useCustomerAuth } from '../lib/customerAuth';
 import { useTrip } from './accountApi';
 import AccountTripDetail from './AccountTripDetail';
 import { Loading } from '../components/ui';
+import { useSeo } from './Seo';
 
 export default function TripDetail() {
+  useSeo({ title: 'Trip details', noindex: true });
   const { ref } = useParams();
   const { user, loading: authLoading } = useCustomerAuth();
 

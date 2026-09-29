@@ -18,6 +18,7 @@ import { COMPANY } from './siteData';
 import { BackLink, CallButton, TrustRow } from './kit';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck } from '../components/icons';
+import { useSeo } from './Seo';
 
 /**
  * The booking bar and the old planner both used `?tab=` and `?kind=` to say
@@ -55,6 +56,11 @@ export default function EnquirePage() {
   const category: NeedKey = isCategoryKey(slug) ? slug : (fromQuery ?? 'local');
 
   const cat = CATEGORIES[category];
+  useSeo({
+    title: `${cat.title} - Send an Enquiry`,
+    path: `/enquire/${category}`,
+    description: `${cat.blurb} Gupta Tours & Travels, Mumbai - 24x7.`,
+  });
 
   /* Anything the visitor already told a previous screen comes through the URL,
      so the same trip does not get typed twice. */

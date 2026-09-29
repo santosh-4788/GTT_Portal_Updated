@@ -31,6 +31,10 @@ export interface TripParams {
   /** AIRPORT: which airport, and which way. */
   airport: string;
   direction: 'TO' | 'FROM';
+  /** OUTSTATION: days the vehicle is out, when set on the results page. 0 = from the dates. */
+  days: number;
+  /** OUTSTATION: the customer's own estimate of the total km. 0 = look it up. */
+  km: number;
 }
 
 export function readTrip(params: URLSearchParams): TripParams {
@@ -49,6 +53,8 @@ export function readTrip(params: URLSearchParams): TripParams {
     stops: (params.get('stops') ?? '').split('|').map((s) => s.trim()).filter(Boolean),
     airport: params.get('airport') ?? '',
     direction: params.get('dir') === 'FROM' ? 'FROM' : 'TO',
+    days: Math.max(0, Math.min(30, Math.round(Number(params.get('days')) || 0))),
+    km: Math.max(0, Math.round(Number(params.get('km')) || 0)),
   };
 }
 
@@ -72,6 +78,8 @@ export function tripQuery(t: Partial<TripParams>): string {
   if (t.stops?.length) q.set('stops', t.stops.join(' | '));
   if (t.airport) q.set('airport', t.airport);
   if (t.direction === 'FROM') q.set('dir', 'FROM');
+  if (t.days) q.set('days', String(t.days));
+  if (t.km) q.set('km', String(t.km));
   return q.toString();
 }
 
@@ -89,6 +97,25 @@ export function daysBetween(a: string, b: string): number {
   return Math.max(1, Math.round(ms / 86_400_000) + 1);
 }
 
+/** Days an outstation trip keeps the vehicle: set on the results page, or from the dates. */
+export function tripDays(trip: Pick<TripParams, 'date' | 'returnDate'> & Partial<Pick<TripParams, 'days'>>): number {
+  return trip.days && trip.days > 0 ? trip.days : daysBetween(trip.date, trip.returnDate);
+}
+
+/**
+ * Total km for an outstation trip: the customer's own figure if they gave one,
+ * else the published distance (both ways for a round trip), else unknown — and
+ * the fare then falls back to the daily minimum.
+ */
+export function tripKm(
+  trip: Pick<TripParams, 'to' | 'returnDate'> & Partial<Pick<TripParams, 'km' | 'leg'>>
+): number | undefined {
+  if (trip.km && trip.km > 0) return trip.km;
+  const oneWay = lookupDistance(trip.to);
+  const both = trip.leg === 'RETURN' || !!trip.returnDate;
+  return oneWay ? oneWay * (both ? 2 : 1) : undefined;
+}
+
 /**
  * What the estimate is worked out against.
  *
@@ -98,19 +125,18 @@ export function daysBetween(a: string, b: string): number {
  */
 export function estimateInputFor(
   trip: Pick<TripParams, 'tab' | 'to' | 'date' | 'returnDate' | 'plan'>
+    & Partial<Pick<TripParams, 'days' | 'km' | 'leg'>>
 ): EstimateInput {
   const plan = PLAN_FOR[trip.tab];
 
   if (plan === 'OUTSTATION') {
-    const oneWay = lookupDistance(trip.to);
-    const days = daysBetween(trip.date, trip.returnDate);
-    return { plan, days, distanceKm: oneWay ? oneWay * (trip.returnDate ? 2 : 1) : undefined };
+    return { plan, days: tripDays(trip), distanceKm: tripKm(trip) };
   }
 
   if (trip.tab === 'HOURLY') {
     const pkg = HOURLY_PACKAGES.find((p) => p.key === trip.plan);
-    // The 12-hour package is quoted as the 8-hour one plus the extra hours.
-    return { plan, extraHours: pkg && pkg.hours > 8 ? pkg.hours - 8 : 0 };
+    // Each package has its own rate row; estimateFor picks it by the hours.
+    return { plan, hours: pkg?.hours, km: pkg?.km };
   }
 
   return { plan };
@@ -120,9 +146,12 @@ export function estimateInputFor(
 export function tripSummary(t: TripParams): string[] {
   const pkg = HOURLY_PACKAGES.find((p) => p.key === t.plan);
   return [
+    t.tab === 'AIRPORT' ? (t.direction === 'FROM' ? 'From the airport' : 'To the airport') : '',
     t.date || '',
     t.time || '',
     t.returnDate ? `Return ${t.returnDate}` : '',
+    t.days > 1 ? `${t.days} days` : '',
+    t.km ? `About ${t.km} km` : '',
     `${t.pax} ${t.pax === 1 ? 'passenger' : 'passengers'}`,
     pkg?.label ?? '',
     t.flight ? `Flight ${t.flight}` : '',
@@ -141,11 +170,15 @@ export function tripPrefill(t: TripParams, vehicle?: string) {
   // Only what the sheet has no field of its own for. The passenger count used
   // to be listed here too and then appeared twice — once in its own box and
   // once as a note saying the same thing.
+  const airport = t.tab === 'AIRPORT';
   const extras = [
+    airport ? `${t.direction === 'FROM' ? 'From airport' : 'To airport'}${t.airport ? `: ${t.airport}` : ''}` : '',
     t.stops.length ? `Also stopping at: ${t.stops.join(', ')}` : '',
     t.flight ? `Flight ${t.flight}` : '',
     t.plan ? HOURLY_PACKAGES.find((p) => p.key === t.plan)?.label ?? '' : '',
     t.returnDate ? `Returning ${dmySlash(t.returnDate)}` : '',
+    t.days > 1 ? `${t.days} days` : '',
+    t.km ? `About ${t.km} km in total` : '',
   ].filter(Boolean);
 
   return {
@@ -156,5 +189,8 @@ export function tripPrefill(t: TripParams, vehicle?: string) {
     vehicleType: vehicle,
     passengers: t.pax,
     message: extras.join('\n'),
+    // A vehicle card opens the sheet without a category, so the trip carries
+    // its own kind - an airport transfer must not be filed as local travel.
+    ...(airport ? { tripType: 'AIRPORT' as const, category: 'Airport transfer', airportDirection: t.direction } : {}),
   };
 }

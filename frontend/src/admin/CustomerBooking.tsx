@@ -6,6 +6,8 @@ import { Field, Loading, Modal, Spinner, SectionCard, PageHeader } from '../comp
 import { IconPaste, IconInvoices, IconCheck } from '../components/icons';
 import { useToast } from '../components/Toast';
 import { DateField, TimeField } from '../components/DateTimeField';
+import { GST_TYPES, gstRateOptions, gstSummary, type GstType } from './gst';
+import { AirportDirectionPicker, airportEnds, type AirportDir } from './airport';
 
 /* ==========================================================================
    Counter booking.
@@ -23,13 +25,17 @@ const EMPTY = {
   bookingSource: 'DIRECT',
   customerName: '', customerMobile: '', customerEmail: '', customerAddress: '', customerGstin: '',
   travelDate: todayIso(), travelDateTo: '', reportingTime: '',
-  tripType: 'LOCAL', dutyType: '', city: 'Mumbai',
+  tripType: 'LOCAL', airportDirection: '' as AirportDir, dutyType: '', city: 'Mumbai',
   pickupLocation: '', dropLocation: '', flightTrainNo: '',
   tripDistanceKm: '', tripDurationHrs: '',
   passengerName: '', passengerMobile: '', paxCount: '1', bagCount: '0',
   vehicleId: '', vehicleType: '', vehicleNumber: '', driverName: '', driverMobile: '',
   remarks: '', specialInstructions: '', rawMessage: '',
   bookingStatus: 'CONFIRMED',
+  // Walk-in fares are quoted without GST; it goes on only when the customer
+  // asks for a GST bill, at the type and rate picked here.
+  gstType: 'NONE' as GstType,
+  gstRate: '',
   charges: {
     baseFare: '', extraKm: '', extraKmRate: '', extraHours: '', extraHourRate: '',
     toll: '', parking: '', driverAllowance: '', permit: '', nightCharge: '',
@@ -100,8 +106,8 @@ export default function CustomerBooking() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const taxMode = directVendor?.tax_mode ?? 'IGST';
-  const taxRate = Number(directVendor?.tax_rate ?? 5);
+  const taxMode: string = form.gstType;
+  const taxRate = form.gstRate ? num(form.gstRate) : Number(directVendor?.tax_rate) > 0 ? Number(directVendor.tax_rate) : 5;
   const totals = useMemo(
     () => price(form.charges, taxMode, taxRate, !!directVendor?.toll_parking_taxable),
     [form.charges, taxMode, taxRate, directVendor]
@@ -143,6 +149,7 @@ export default function CustomerBooking() {
         travelDate: f.travelDate ?? p.travelDate,
         reportingTime: f.reportingTime ?? p.reportingTime,
         tripType: f.tripType ?? p.tripType,
+        airportDirection: (f.airportDirection ?? p.airportDirection) as AirportDir,
         dutyType: f.dutyType ? String(f.dutyType).trim() : p.dutyType,
         city: f.city ?? p.city,
         pickupLocation: f.pickupAddress ?? p.pickupLocation,
@@ -178,6 +185,9 @@ export default function CustomerBooking() {
     if (form.customerGstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(form.customerGstin.toUpperCase())) {
       e.customerGstin = 'GSTIN must be 15 characters, e.g. 27AAACS0764L1Z6.';
     }
+    if (form.tripType === 'AIRPORT' && !form.airportDirection) {
+      e.airportDirection = 'Choose the direction first: to the airport, or from the airport.';
+    }
     if (!form.pickupLocation.trim()) e.pickupLocation = 'Pickup location is required.';
     if (!form.travelDate) e.travelDate = 'Travel date is required.';
     if (totals.total <= 0) e.baseFare = 'Enter the fare — an invoice cannot be raised for zero.';
@@ -196,9 +206,14 @@ export default function CustomerBooking() {
     tripDurationHrs: num(form.tripDurationHrs),
     vehicleId: form.vehicleId ? Number(form.vehicleId) : null,
     travelDateTo: form.travelDateTo || undefined,
-    charges: Object.fromEntries(
-      Object.entries(form.charges).map(([k, v]) => [k, k === 'otherChargesNote' ? v : num(v)])
-    ),
+    gstType: undefined, gstRate: undefined,
+    charges: {
+      ...Object.fromEntries(
+        Object.entries(form.charges).map(([k, v]) => [k, k === 'otherChargesNote' ? v : num(v)])
+      ),
+      taxModeOverride: taxMode,
+      taxRateOverride: taxMode === 'NONE' ? 0 : taxRate,
+    },
   });
 
   const save = async (andInvoice: boolean) => {
@@ -300,14 +315,32 @@ export default function CustomerBooking() {
             </select>
           </Field>
 
-          <Field label="Pickup" required error={errors.pickupLocation} className="lg:col-span-2">
-            <input className={`input ${errors.pickupLocation ? 'input-error' : ''}`}
-              value={form.pickupLocation} onChange={set('pickupLocation')} placeholder="e.g. New Panvel" />
-          </Field>
-          <Field label="Drop" className="lg:col-span-2">
-            <input className="input" value={form.dropLocation} onChange={set('dropLocation')}
-              placeholder="e.g. Navi Mumbai Airport" />
-          </Field>
+          {/* Airport: which way first, then the two ends named for it. */}
+          {form.tripType === 'AIRPORT' && (
+            <Field label="Direction" required error={errors.airportDirection} className="lg:col-span-2">
+              <AirportDirectionPicker
+                value={form.airportDirection}
+                onChange={(v) => { setForm((f) => ({ ...f, airportDirection: v })); setErrors((x) => ({ ...x, airportDirection: '' })); }}
+              />
+            </Field>
+          )}
+          {form.tripType === 'AIRPORT' && !form.airportDirection ? (
+            <p className="self-end pb-2 text-sm text-ink-500 lg:col-span-2">
+              Choose <strong className="text-ink-700">To airport</strong> or <strong className="text-ink-700">From airport</strong> to enter the addresses.
+            </p>
+          ) : (
+            <>
+              <Field label={form.tripType === 'AIRPORT' ? airportEnds(form.airportDirection).pickup : 'Pickup'} required error={errors.pickupLocation} className="lg:col-span-2">
+                <input className={`input ${errors.pickupLocation ? 'input-error' : ''}`}
+                  value={form.pickupLocation} onChange={set('pickupLocation')}
+                  placeholder={form.tripType === 'AIRPORT' ? airportEnds(form.airportDirection).pickupHint : 'e.g. New Panvel'} />
+              </Field>
+              <Field label={form.tripType === 'AIRPORT' ? airportEnds(form.airportDirection).drop : 'Drop'} className="lg:col-span-2">
+                <input className="input" value={form.dropLocation} onChange={set('dropLocation')}
+                  placeholder={form.tripType === 'AIRPORT' ? airportEnds(form.airportDirection).dropHint : 'e.g. Navi Mumbai Airport'} />
+              </Field>
+            </>
+          )}
 
           <Field label="Duty type / package" hint="e.g. 4H40KMS">
             <input className="input" value={form.dutyType} onChange={set('dutyType')} />
@@ -352,10 +385,21 @@ export default function CustomerBooking() {
 
       <SectionCard
         title="Fare"
-        subtitle={`${taxMode === 'NONE' ? 'No tax' : `${taxMode.replace('_', ' + ')} at ${taxRate}%`} · toll and parking are added after tax.`}
+        subtitle={`${gstSummary(taxMode, taxRate)} · toll and parking are added after tax.`}
       >
         <div className="grid gap-5 lg:grid-cols-[1.6fr,1fr]">
           <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="GST bill" hint="Only when the customer asks for a GST bill">
+              <select className="input" value={form.gstType} onChange={set('gstType')}>
+                {GST_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </Field>
+            <Field label="GST rate" hint={gstSummary(taxMode, taxRate)}>
+              <select className="input" value={String(taxRate)} disabled={taxMode === 'NONE'} onChange={set('gstRate')}>
+                {gstRateOptions(taxRate).map((r) => <option key={r} value={String(r)}>{r}%</option>)}
+              </select>
+            </Field>
+            <div className="hidden sm:block" />
             {money('Base fare', 'baseFare')}
             <div className="grid grid-cols-2 gap-3 sm:col-span-2">
               {money('Extra KM', 'extraKm')}

@@ -35,6 +35,7 @@ import {
 } from '../components/icons';
 import { IconSeat, IconLuggage } from './SiteIcons';
 import { useToast } from '../components/Toast';
+import { useSeo } from './Seo';
 
 type Tab = 'upcoming' | 'active' | 'completed' | 'cancelled';
 
@@ -292,6 +293,7 @@ const text = (...parts: (string | null | undefined | number)[]) =>
   parts.filter(Boolean).join(' ').toLowerCase();
 
 export default function MyTrips() {
+  useSeo({ title: 'My trips', noindex: true });
   const { user, loading: authLoading } = useCustomerAuth();
   const { trips: localTrips } = useCustomer();
   const { trips: serverTrips, loading, error, reload } = useMyTrips(!!user);

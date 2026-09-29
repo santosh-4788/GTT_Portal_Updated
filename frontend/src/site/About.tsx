@@ -3,8 +3,14 @@ import PageHero from './PageHero';
 import { BenefitIcon } from './SiteIcons';
 import { COMPANY, WHY_US } from './siteData';
 import { IconPhone } from '../components/icons';
+import { useSeo } from './Seo';
 
 export default function About() {
+  useSeo({
+    title: 'About Us - Tours and Travels in Goregaon, Mumbai',
+    path: '/about',
+    description: 'Gupta Tours & Travels is a Mumbai cab and car rental company in Goregaon (W), owned and run by Vinay Gupta, serving families and companies 24x7.',
+  });
   return (
     <>
       <PageHero

@@ -21,6 +21,9 @@ import { computeCharges, type TaxMode } from '../services/billing';
 import { ensureDirectVendor } from '../services/directCustomer';
 import { issueTripInvoice } from '../services/invoiceIssue';
 import { sendMail, mailConfig } from '../services/mailer';
+import { feedbackForBooking, requestFeedback } from '../services/feedback';
+import { airportDirectionField, resolveAirportDirection } from '../services/airport';
+import { requestOrigin } from '../utils/origin';
 import { inquiryCustomerEmail, invoiceEmail, tripDetailsEmail } from '../services/emailTemplates';
 import { ALL_SOURCES, SOURCE_LABEL, type InquirySource } from '../services/tripId';
 import {
@@ -181,6 +184,7 @@ router.get('/:id', requirePermission('bookings.view'), (req, res) => {
     trip: publicTrip(b),
     timeline: tripEvents(b.id, false),
     nextStatuses: allowedNext(b.booking_status).map((s) => ({ value: s, label: STATUS_LABEL[s] })),
+    feedback: feedbackSummary(b.id),
     emails: q.all<any>(
       `SELECT id, kind, to_address, from_address, subject, status, error, sent_at, created_at
          FROM email_log WHERE booking_id = @id ORDER BY id DESC LIMIT 25`,
@@ -206,6 +210,8 @@ const manualSchema = z.object({
   travelDateTo: z.union([isoDate, z.literal('')]).optional().default(''),
   journeyTime: z.string().trim().regex(/^([01]?\d|2[0-3]):[0-5]\d$|^$/, 'Time must be HH:MM.').optional().default(''),
   tripType: z.enum(['LOCAL', 'TRANSFER', 'OUTSTATION', 'AIRPORT', 'ROUND_TRIP', 'PACKAGE']).default('LOCAL'),
+  /** AIRPORT only, and then required: TO the airport or FROM it. */
+  airportDirection: airportDirectionField,
   vehicleType: z.string().trim().max(80).optional().default(''),
   passengers: z.coerce.number().int().min(0).max(60).optional().default(1),
   message: z.string().trim().max(1000).optional().default(''),
@@ -217,6 +223,9 @@ const manualSchema = z.object({
 
 router.post('/', requirePermission('bookings.create'), validateBody(manualSchema), async (req, res) => {
   const b = req.body as z.infer<typeof manualSchema>;
+  if (b.tripType === 'AIRPORT' && !b.airportDirection) {
+    return res.status(400).json({ error: 'Choose the direction first: to the airport, or from the airport.' });
+  }
 
   // Link the trip to an existing account when the email already has one, so it
   // appears in that customer's dashboard without them having to claim it.
@@ -237,6 +246,7 @@ router.post('/', requirePermission('bookings.create'), validateBody(manualSchema
     travelDateTo: b.travelDateTo,
     journeyTime: b.journeyTime,
     tripType: b.tripType,
+    airportDirection: b.airportDirection,
     vehicleType: b.vehicleType,
     paxCount: b.passengers,
     message: b.message,
@@ -294,6 +304,13 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(editSchema
   const trip = findTrip(String(req.params.id));
   if (!trip) return res.status(404).json({ error: 'That trip could not be found.' });
   const b = req.body as z.infer<typeof editSchema>;
+  const tripType = b.tripType ?? trip.trip_type ?? 'LOCAL';
+  const airportDirection = resolveAirportDirection(
+    tripType, b.airportDirection || trip.airport_direction, b.pickup, b.dropOff ?? trip.drop_location,
+  );
+  if (tripType === 'AIRPORT' && !airportDirection) {
+    return res.status(400).json({ error: 'Choose the direction first: to the airport, or from the airport.' });
+  }
 
   q.run(
     `UPDATE bookings SET
@@ -302,7 +319,7 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(editSchema
         pickup_location = @pickup, pickup_address = @pickupAddress,
         drop_location = @drop, drop_address = @dropAddress,
         travel_date = @travelDate, travel_date_to = @travelDateTo, reporting_time = @time,
-        trip_type = @tripType, vehicle_type = COALESCE(NULLIF(@vehicleType,''), vehicle_type),
+        trip_type = @tripType, airport_direction = @airportDirection, vehicle_type = COALESCE(NULLIF(@vehicleType,''), vehicle_type),
         pax_count = @pax, inquiry_message = @message,
         updated_at = datetime('now'), updated_by = @uid
       WHERE id = @id`,
@@ -318,7 +335,8 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(editSchema
       travelDate: b.travelDate,
       travelDateTo: b.travelDateTo || null,
       time: b.journeyTime ?? trip.reporting_time ?? '',
-      tripType: b.tripType ?? trip.trip_type ?? 'LOCAL',
+      tripType,
+      airportDirection,
       vehicleType: b.vehicleType ?? '',
       pax: b.passengers ?? trip.pax_count ?? 1,
       message: b.message ?? trip.inquiry_message ?? null,
@@ -530,7 +548,7 @@ const statusSchema = z.object({
   note: z.string().trim().max(400).optional().default(''),
 });
 
-router.post('/:id/status', requirePermission('bookings.update'), validateBody(statusSchema), (req, res) => {
+router.post('/:id/status', requirePermission('bookings.update'), validateBody(statusSchema), async (req, res) => {
   const trip = findTrip(String(req.params.id));
   if (!trip) return res.status(404).json({ error: 'That trip could not be found.' });
   const b = req.body as z.infer<typeof statusSchema>;
@@ -579,12 +597,41 @@ router.post('/:id/status', requirePermission('bookings.update'), validateBody(st
     description: `${trip.trip_id}: ${trip.booking_status} -> ${b.status}${b.note ? ` (${b.note})` : ''}`,
   });
 
+  // Marking the trip completed is what asks the customer for feedback. Only
+  // on the move INTO completed, and requestFeedback itself refuses a second
+  // request for the same booking, so re-saving never emails twice.
+  let feedback: Awaited<ReturnType<typeof requestFeedback>> | null = null;
+  if (b.status === 'COMPLETED' && trip.booking_status !== 'COMPLETED') {
+    feedback = await requestFeedback(trip.id, { userId: req.user!.id, baseUrl: requestOrigin(req) });
+  }
+
   res.json({
     ok: true,
     data: tripRow('id', trip.id),
-    message: `${trip.trip_id} marked "${STATUS_LABEL[b.status]}".`,
+    feedback,
+    message: `${trip.trip_id} marked "${STATUS_LABEL[b.status]}".` + (feedback ? ` ${feedback.message}` : ''),
   });
 });
+
+/** What the trip drawer shows about the feedback request, without the token. */
+function feedbackSummary(bookingId: number) {
+  const f = feedbackForBooking(bookingId);
+  if (!f) return null;
+  return {
+    id: f.id,
+    status: f.status,
+    emailStatus: f.email_status,
+    sentTo: f.sent_to,
+    requestedAt: f.requested_at,
+    submittedAt: f.submitted_at,
+    allowResubmit: !!f.allow_resubmit,
+    driverRating: f.driver_rating,
+    serviceRating: f.service_rating,
+    vehicleRating: f.vehicle_rating,
+    overallRating: f.overall_rating,
+    comments: f.comments,
+  };
+}
 
 /* ==========================================================================
    The agreed fare

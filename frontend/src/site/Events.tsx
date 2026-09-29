@@ -14,6 +14,7 @@ import { SectionHead, TrustRow, ContactRow } from './kit';
 import { Reveal } from '../components/Reveal';
 import PageHero from './PageHero';
 import { IconArrowRight, IconCheck } from '../components/icons';
+import { useSeo } from './Seo';
 
 const HOW = [
   ['One coordinator', 'You get one number for the whole movement, not a driver per vehicle to chase.'],
@@ -25,11 +26,16 @@ const HOW = [
 ];
 
 export default function Events() {
+  useSeo({
+    title: 'Event Transport in Mumbai',
+    path: '/events',
+    description: 'Transport for corporate events, conferences, concerts, college trips and shoots in Mumbai - cars, tempo travellers and coaches with staggered pickups and standby.',
+  });
   return (
     <div className="page-bg pb-24">
       <PageHero
         eyebrow="Events"
-        title="Event transportation"
+        title="Event transportation in Mumbai"
         sub="Multiple vehicles, several pickup points and a timetable that has to hold. We have run conferences, weddings, shoots and match days — the coordination is the job, not the cars."
         crumbs={[{ label: 'Events' }]}
       />

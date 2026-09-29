@@ -203,6 +203,16 @@ async function getJson(url: string): Promise<any | null> {
 const normalise = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
 /**
+ * What an earlier map search for exactly this text found, or nothing.
+ * Never calls the map service - safe to use on every keystroke.
+ */
+export function cachedPlaces(term: string): GeoPlace[] {
+  const hit = q.get<{ payload: string }>('SELECT payload FROM geo_places WHERE query = @k', { k: normalise(term) });
+  if (!hit) return [];
+  try { return JSON.parse(hit.payload) as GeoPlace[]; } catch { return []; }
+}
+
+/**
  * Places matching what the customer typed.
  *
  * Answers from our own cache for ever after the first time. India only — this

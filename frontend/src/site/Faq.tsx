@@ -15,6 +15,7 @@ import PageHero from './PageHero';
 import { IconArrowRight, IconChevron, IconPhone } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
 import { WhatsAppButton } from './EnquirySheet';
+import { useSeo, faqLd } from './Seo';
 
 const ALL: FaqItem[] = [...FAQS, ...MORE_FAQS];
 
@@ -33,6 +34,12 @@ const GROUPED: Record<string, FaqItem[]> = FAQ_GROUPS.reduce((acc, g) => {
 }, {} as Record<string, FaqItem[]>);
 
 export default function Faq() {
+  useSeo({
+    title: 'FAQs - Cab and Car Rental in Mumbai',
+    path: '/faq',
+    description: 'Answers on booking a cab in Mumbai: areas covered, fares, tolls and parking, waiting time, outstation trips, payment and invoices.',
+    jsonLd: faqLd(FAQS),
+  });
   const [group, setGroup] = useState<string>('all');
   const [term, setTerm] = useState('');
 

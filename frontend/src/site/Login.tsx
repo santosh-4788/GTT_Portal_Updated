@@ -9,6 +9,7 @@ import {
   IconShield, IconLock, IconKey, IconWarning, IconUsers, IconClock, IconArrowRight,
   IconMap, IconPhone, IconMail,
 } from '../components/icons';
+import { useSeo } from './Seo';
 
 /* ==========================================================================
    Staff sign-in.
@@ -209,6 +210,7 @@ const BACKDROP = [
 ] as const;
 
 export default function Login() {
+  useSeo({ title: 'Staff sign in', noindex: true });
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');

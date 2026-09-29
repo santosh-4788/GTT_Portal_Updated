@@ -18,6 +18,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { api } from '../lib/api';
 import type { Destination, Spot } from './places';
 import { TINT_CLASS, type Need } from './catalog';
 import { IconArrowRight, IconCheck, IconClock, IconPin } from '../components/icons';
@@ -55,6 +56,21 @@ function siblings(photo: string, extras = 2): string[] {
 export const ASSET_V = '15';
 const versioned = (src: string) => (src.includes('?') ? src : `${src}?v=${ASSET_V}`);
 
+/**
+ * The photographs actually on disk, from /public/photos. Asked once per visit.
+ * `null` when the list could not be had - then the old probing takes over.
+ */
+let manifest: Promise<Set<string> | null> | null = null;
+const onDisk = () => {
+  if (!manifest) {
+    manifest = api.get('/public/photos')
+      .then(({ data }) => (data?.files ? new Set<string>(data.files) : null))
+      .catch(() => null);
+  }
+  return manifest;
+};
+const bare = (src: string) => src.split('?')[0];
+
 const load = (src: string) =>
   new Promise<boolean>((resolve) => {
     const im = new window.Image();
@@ -83,9 +99,11 @@ export function usePhotoSet(photo: string, index = 0, rotate = true) {
   useEffect(() => {
     let alive = true;
     (async () => {
+      const known = await onDisk();
       const good: string[] = [];
       for (const src of wanted) {
-        if (!(await load(src))) break;
+        // With the list, a missing file is never requested at all.
+        if (known ? !known.has(bare(src)) : !(await load(src))) break;
         good.push(src);
       }
       if (alive) setFound(good);

@@ -18,8 +18,10 @@ import { Reveal } from '../components/Reveal';
 import { useCustomerAuth } from '../lib/customerAuth';
 import { IconArrowRight, IconCheck, IconClock, IconPhone } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
+import { useSeo } from './Seo';
 
 export default function RequestSubmitted() {
+  useSeo({ title: 'Request received', noindex: true });
   const { ref } = useParams();
   const { trips } = useCustomer();
   const [sharing, setSharing] = useState(false);

@@ -9,6 +9,8 @@
  */
 interface ImportMetaEnv {
   readonly VITE_SERVER_URL?: string;
+  /** Public website address for canonical / og:url (e.g. https://example.com). Optional. */
+  readonly VITE_SITE_URL?: string;
 }
 
 interface ImportMeta {

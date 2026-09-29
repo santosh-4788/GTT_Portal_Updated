@@ -23,7 +23,7 @@ import {
   BackLink, BottomSheet, Callout, ChoiceCard, ContactFields, Counter, EstimatePanel, JourneyLine,
   PlaceInput, SegTabs, Stepper, SubmitButton, TrustRow, estimateFor, useContactDetails,
   useRates, useSendRequirement, CompareProvider, CallButton,
-  DistanceNote, useRouteDistance, type PlacePick,
+  DistanceNote, useRouteDistance, type PlacePick, emailError,
 } from './kit';
 import { IconArrowRight, IconCheck, IconChevron, IconPin, IconPlus, IconTrash } from '../components/icons';
 import { IconSeat, IconLuggage } from './SiteIcons';
@@ -168,6 +168,7 @@ export default function BuildTrip() {
     const errs: Record<string, string> = {};
     if (contact.name.trim().length < 2) errs.name = 'Please enter your name.';
     if (!/^[6-9]\d{9}$/.test(contact.mobile.replace(/\D/g, '').replace(/^91/, ''))) errs.mobile = 'Enter a valid 10-digit mobile number.';
+    Object.assign(errs, emailError(contact));
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -189,7 +190,7 @@ export default function BuildTrip() {
       ].filter(Boolean).join('. '),
       name: contact.name,
       mobile: contact.mobile,
-      email: contact.email,
+      email: contact.noEmail ? '' : contact.email,
       company: contact.company,
     });
   };

@@ -37,8 +37,8 @@ import { api, errorMessage } from '../lib/api';
 import { COMPANY, whatsappLink } from './siteData';
 import { VEHICLES, type NeedKey } from './catalog';
 import {
-  AIRPORTS, CATEGORIES, CORPORATE_NEEDS, DARSHAN_PLANS, EVENT_TYPES, HOURLY_PLANS,
-  type FieldKey,
+  AIRPORT_DIRECTION, AIRPORT_PLACE, AIRPORT_WAYS, AIRPORTS, isAirportWay, type AirportWay, CATEGORIES, CORPORATE_NEEDS, DARSHAN_PLANS,
+  EVENT_TYPES, HOURLY_PLANS, TRIP_LEGS, shapeFor, type FieldKey,
 } from './enquiryCategories';
 import { dmy, todayIso } from '../lib/format';
 import {
@@ -71,6 +71,44 @@ export interface EnquiryPrefill {
   time?: string;
   vehicleType?: string;
   passengers?: number;
+  /** Any other answers the previous screen already has, by field. */
+  fields?: Partial<Record<FieldKey, string>>;
+  /**
+   * An enquiry about a published outstation route fare. The server prices it
+   * from the master and writes the fare on the trip for the office.
+   */
+  outstation?: { routeKey: string; category: string; leg: 'ONE_WAY' | 'RETURN' };
+  /** "₹3,199 · toll included", shown on the thank-you with the Trip ID. */
+  fareText?: string;
+  /** How the trip is filed when the sheet opens without a category (a vehicle card). */
+  tripType?: 'LOCAL' | 'AIRPORT' | 'OUTSTATION' | 'ROUND_TRIP';
+  category?: string;
+  /** AIRPORT: which way, already chosen on the booking bar. */
+  airportDirection?: 'TO' | 'FROM';
+}
+
+/**
+ * A trip that is already decided - route, date, vehicle and fare - and only
+ * needs who is travelling. The outstation fixed-fare flow ends here: the form
+ * asks for the customer's details and confirms, instead of asking the trip
+ * questions a second time.
+ */
+export interface FixedBooking {
+  pickup: string;
+  drop: string;
+  date: string;
+  time: string;
+  returnDate?: string;
+  returnTime?: string;
+  vehicle: string;
+  passengers: number;
+  tripType: 'OUTSTATION' | 'ROUND_TRIP';
+  /** The requirement line the office sees. */
+  label: string;
+  /** Which fare this is; the server prices it from the master. */
+  outstation: { routeKey: string; category: string; leg: 'ONE_WAY' | 'RETURN' };
+  /** "₹3,199 · toll included", for the thank-you. */
+  fareText: string;
 }
 
 /** Kept as the old name so the screens that import it need no change. */
@@ -82,13 +120,15 @@ interface Values {
   mobile: string;
   whatsapp: string;
   sameNumber: boolean;
+  /** Ticked "I don't have an email ID": no email route, WhatsApp and Call only. */
+  noEmail: boolean;
   message: string;
   /** Everything the category asked for, keyed by field. */
   fields: Partial<Record<FieldKey, string>>;
 }
 
 const BLANK: Values = {
-  name: '', email: '', mobile: '', whatsapp: '', sameNumber: true, message: '', fields: {},
+  name: '', email: '', mobile: '', whatsapp: '', sameNumber: true, noEmail: false, message: '', fields: {},
 };
 
 /* ==========================================================================
@@ -154,11 +194,11 @@ function Field({
  * way the operating system's locale happens to be set.
  */
 function PickerField({
-  label, icon, type, value, onChange, min, error,
+  label, icon, type, value, onChange, min, error, required,
 }: {
   label: string; icon?: ReactNode; type: 'date' | 'time';
   value: string; onChange: (v: string) => void;
-  min?: string; error?: string;
+  min?: string; error?: string; required?: boolean;
 }) {
   const shared = {
     value, onChange, ariaLabel: label,
@@ -171,6 +211,7 @@ function PickerField({
         <span className={LABEL}>
           {icon && <span className="text-brand-500">{icon}</span>}
           {label}
+          {required && <span className="text-danger-500" aria-hidden="true">*</span>}
         </span>
         {type === 'date'
           ? <DateField {...shared} min={min} placeholder="Choose a date" />
@@ -192,11 +233,14 @@ function SectionTitle({ children }: { children: ReactNode }) {
 
 /** A two-way choice as a pair of pills — clearer at a glance than a select. */
 function Toggle({
-  label, options, value, onChange,
+  label, options, value, onChange, noDefault = false, error,
 }: {
   label: string; options: [string, string]; value: string; onChange: (v: string) => void;
+  /** Show neither option as chosen until the customer taps one. */
+  noDefault?: boolean;
+  error?: string;
 }) {
-  const current = value || options[0];
+  const current = noDefault ? value : value || options[0];
   return (
     <div className={CELL}>
       <span className={LABEL}>{label}</span>
@@ -212,6 +256,7 @@ function Toggle({
           </button>
         ))}
       </div>
+      {error && <p className="mt-1 text-xs font-medium text-danger-600">{error}</p>}
     </div>
   );
 }
@@ -234,6 +279,7 @@ function saveContact(v: Values) {
   try {
     localStorage.setItem(CONTACT_KEY, JSON.stringify({
       name: v.name, email: v.email, mobile: v.mobile, whatsapp: v.whatsapp, sameNumber: v.sameNumber,
+      noEmail: v.noEmail,
     }));
   } catch { /* private browsing */ }
 }
@@ -271,8 +317,6 @@ const HAS_OWN_COLUMN: FieldKey[] = ['pickup', 'drop', 'date', 'time', 'carType',
 /** Read better side by side on a wide screen. */
 const PAIRED: FieldKey[] = ['date', 'time', 'returnDate', 'endDate', 'passengers', 'vehicles'];
 
-const DEFAULT_FIELDS: FieldKey[] = ['pickup', 'drop', 'date', 'time', 'carType', 'passengers'];
-
 /* ==========================================================================
    The form
    ========================================================================== */
@@ -299,10 +343,38 @@ interface Sent {
   route: string;
   when: string;
   vehicle: string;
+  /** Set for a fixed-fare booking. */
+  fare?: string;
+  /** wa.me link to the CUSTOMER's own WhatsApp, pre-filled with their details. */
+  selfLink: string;
+}
+
+/**
+ * The customer's own copy of the enquiry, for their WhatsApp.
+ *
+ * wa.me opens a chat with any number, including the customer's own ("Message
+ * yourself"), so this is a free way to put the Trip ID and trip in their
+ * WhatsApp - no WhatsApp API, nothing sent by us. Only what they need.
+ */
+function selfCopy(d: {
+  tripId: string; service: string; pickup: string; drop: string; when: string; vehicle: string; fare?: string;
+}): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return [
+    `${COMPANY.name} - my enquiry`,
+    `Trip ID: ${d.tripId}`,
+    d.service && `Service: ${d.service}`,
+    d.pickup && `Pickup: ${d.pickup}`,
+    d.drop && `Drop: ${d.drop}`,
+    d.when && `Date/time: ${d.when}`,
+    d.vehicle && `Vehicle: ${d.vehicle}`,
+    d.fare && `Fare: ${d.fare}`,
+    origin && `Track it: ${origin}/track`,
+  ].filter(Boolean).join('\n');
 }
 
 export function EnquiryForm({
-  channel = 'email', category, prefill, onDone, onBusy, variant = 'sheet',
+  channel = 'email', category, prefill, onDone, onBusy, onNoEmail, variant = 'sheet', booking,
 }: {
   channel?: EnquiryChannel;
   /** Which door they came through. Decides the questions. */
@@ -311,19 +383,15 @@ export function EnquiryForm({
   onDone?: (tripId: string) => void;
   /** The sheet's pinned footer owns the button, so it is told when to spin. */
   onBusy?: (busy: boolean) => void;
+  /** The sheet's footer swaps to WhatsApp when there is no email to reply to. */
+  onNoEmail?: (noEmail: boolean) => void;
   /** 'page' draws its own actions; 'sheet' leaves them to the pinned footer. */
   variant?: 'sheet' | 'page';
+  /** A decided trip: only the customer's details are asked. */
+  booking?: FixedBooking;
 }) {
   const cat = category ? CATEGORIES[category] : null;
   const copy = CHANNEL_COPY[channel];
-
-  /*
-   * The sheet is opened on one channel and ends in one button, so when that
-   * button is "Send my enquiry" the address is marked required up front. The
-   * page shows Send, WhatsApp and Call together and cannot know which is
-   * coming, so it carries a hint instead and the rule lands on submit.
-   */
-  const emailRequired = variant === 'sheet' && channel === 'email';
 
   const [v, setV] = useState<Values>(() => ({
     ...BLANK,
@@ -336,6 +404,10 @@ export function EnquiryForm({
       time: prefill?.time ?? '',
       carType: prefill?.vehicleType ?? '',
       passengers: prefill?.passengers ? String(prefill.passengers) : '',
+      // Stored, not just drawn as the default, so the office sees the answer.
+      direction: AIRPORT_WAYS[0],
+      tripLeg: TRIP_LEGS[0],
+      ...prefill?.fields,
     },
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -364,21 +436,47 @@ export function EnquiryForm({
   };
 
   const f = (k: FieldKey) => v.fields[k] ?? '';
-  const fields = cat?.fields ?? DEFAULT_FIELDS;
-  const required = cat?.required ?? (['pickup'] as FieldKey[]);
+
+  /* Which questions, which of them are required and what they are called can
+     all depend on an earlier answer - an airport run coming off a flight asks
+     for the airport and a drop address, one going to catch a flight asks for
+     a pickup address and the airport. */
+  const shape = shapeFor(cat, v.fields);
+  const { required } = shape;
+  // A route fare is for one leg; letting the trip be switched here would
+  // leave the office a one-way price on a round trip.
+  const fields = prefill?.outstation ? shape.fields.filter((k) => k !== 'tripLeg') : shape.fields;
+  const label = (k: FieldKey) => shape.labels[k] ?? FIELD_LABEL[k];
+
+  /** Where the car starts and ends, as the office and the map read it. */
+  const pickupText = f(shape.pickupFrom).trim();
+  const dropText = f(shape.dropFrom).trim();
+  const mapText = (k: FieldKey) => (k === 'airport' ? AIRPORT_PLACE[f(k)] ?? f(k) : f(k));
 
   const route = useRouteDistance(
-    { text: f('pickup'), lat: pickupPt?.lat, lon: pickupPt?.lon },
-    { text: f('drop'), lat: dropPt?.lat, lon: dropPt?.lon },
+    shape.pickupFrom === 'pickup'
+      ? { text: f('pickup'), lat: pickupPt?.lat, lon: pickupPt?.lon }
+      : { text: mapText(shape.pickupFrom) },
+    shape.dropFrom === 'drop'
+      ? { text: f('drop'), lat: dropPt?.lat, lon: dropPt?.lon }
+      : { text: mapText(shape.dropFrom) },
   );
+
+  const toggleNoEmail = (on: boolean) => {
+    set('noEmail', on);
+    if (on) setErrors((e) => ({ ...e, email: '' }));
+    onNoEmail?.(on);
+  };
+  // A returning visitor who ticked it last time gets the same buttons again.
+  useEffect(() => { if (v.noEmail) onNoEmail?.(true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------------------------------------------------------------- validate */
   /**
-   * `how` matters for exactly one field. An email enquiry is answered by
-   * email, so the address is required on that route; on the WhatsApp route the
-   * chat is the reply channel and the address stays optional.
+   * The email address is required - it is where the reply, Trip ID and invoice
+   * go - unless they ticked that they do not have one, in which case the email
+   * route is gone and the reply comes on WhatsApp or the phone.
    */
-  function validate(how: EnquiryChannel): boolean {
+  function validate(): boolean {
     const e: Record<string, string> = {};
     const email = v.email.trim();
     if (v.name.trim().length < 2) e.name = 'Please tell us your name.';
@@ -386,13 +484,17 @@ export function EnquiryForm({
     if (!v.sameNumber && !validMobile(v.whatsapp)) {
       e.whatsapp = 'Enter your WhatsApp number, or tick that it is the same.';
     }
-    if (how === 'email' && !email) {
-      e.email = 'We need your email address - that is where the reply and your Trip ID go.';
-    } else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-      e.email = 'That email address does not look right.';
+    if (!v.noEmail) {
+      if (!email) {
+        e.email = 'Please enter your email ID, or tick that you do not have one.';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        e.email = 'That email address does not look right.';
+      }
     }
-    for (const k of required) {
-      if (!f(k).trim()) e[k] = `${FIELD_LABEL[k]} is needed.`;
+    if (!booking) {
+      for (const k of required) {
+        if (!f(k).trim()) e[k] = `${label(k)} is needed.`;
+      }
     }
 
     setErrors(e);
@@ -411,7 +513,7 @@ export function EnquiryForm({
   function requirementNote(): string {
     const lines = fields
       .filter((k) => !HAS_OWN_COLUMN.includes(k) && f(k).trim())
-      .map((k) => `${FIELD_LABEL[k]}: ${f(k).trim()}`);
+      .map((k) => `${label(k)}: ${f(k).trim()}`);
     if (v.message.trim()) lines.push(v.message.trim());
     return lines.join('\n');
   }
@@ -420,7 +522,8 @@ export function EnquiryForm({
   async function send(how: EnquiryChannel) {
     if (busy) return;
     outgoing.current = how;
-    if (!validate(how)) {
+    const email = v.noEmail ? '' : v.email.trim();
+    if (!validate()) {
       pending.current?.close();
       pending.current = null;
       return;
@@ -430,23 +533,42 @@ export function EnquiryForm({
     onBusy?.(true);
     setFailed('');
     try {
+      const trip = booking
+        ? {
+          pickup: booking.pickup, dropOff: booking.drop, travelDate: booking.date, travelTime: booking.time,
+          vehicleType: booking.vehicle, passengers: booking.passengers,
+          message: v.message.trim(), category: booking.label, tripType: booking.tripType,
+          outstation: booking.outstation,
+          returnDate: booking.returnDate ?? '', returnTime: booking.returnTime ?? '',
+        }
+        : {
+          pickup: pickupText || 'To be confirmed',
+          dropOff: dropText,
+          travelDate: f('date'),
+          travelTime: f('time'),
+          vehicleType: f('carType'),
+          passengers: Number(f('passengers')) || 0,
+          message: requirementNote(),
+          // A route-fare enquiry is outstation whichever screen opened it; the
+          // vehicle cards open the sheet without a category.
+          category: prefill?.outstation
+            ? `Outstation ${prefill.outstation.leg === 'RETURN' ? 'return' : 'one way'} - fixed fare`
+            : cat?.label ?? prefill?.category ?? '',
+          tripType: prefill?.outstation
+            ? (prefill.outstation.leg === 'RETURN' ? 'ROUND_TRIP' : 'OUTSTATION')
+            : cat?.tripType ?? prefill?.tripType ?? 'LOCAL',
+          airportDirection: isAirportWay(f('direction'))
+            ? AIRPORT_DIRECTION[f('direction') as AirportWay]
+            : prefill?.airportDirection ?? '',
+          outstation: prefill?.outstation,
+        };
       const { data } = await api.post('/public/whatsapp-enquiry', {
         name: v.name.trim(),
         mobile: cleanMobile(v.mobile),
         whatsappMobile: v.sameNumber ? '' : cleanMobile(v.whatsapp),
         sameAsContact: v.sameNumber,
-        email: v.email.trim(),
-        // A wedding or an event has a venue rather than a pickup, and the API
-        // needs somewhere for the car to go.
-        pickup: f('pickup').trim() || f('venue').trim() || 'To be confirmed',
-        dropOff: f('drop').trim(),
-        travelDate: f('date'),
-        travelTime: f('time'),
-        vehicleType: f('carType'),
-        passengers: Number(f('passengers')) || 0,
-        message: requirementNote(),
-        category: cat?.label ?? '',
-        tripType: cat?.tripType ?? 'LOCAL',
+        email,
+        ...trip,
         // So the office's source filter tells the two buttons apart.
         source: how === 'whatsapp' ? 'WHATSAPP' : 'EMAIL',
       });
@@ -456,14 +578,14 @@ export function EnquiryForm({
 
       rememberTrip({
         tripId: data.tripId,
-        from: f('pickup').trim() || f('venue').trim(),
-        to: f('drop').trim(),
-        date: f('date'),
-        time: f('time'),
-        vehicleName: f('carType'),
+        from: trip.pickup,
+        to: trip.dropOff,
+        date: trip.travelDate,
+        time: trip.travelTime,
+        vehicleName: trip.vehicleType,
         name: v.name.trim(),
         mobile: cleanMobile(v.mobile),
-        email: v.email.trim(),
+        email,
         channel: how === 'whatsapp' ? 'WhatsApp' : 'Website',
       });
 
@@ -471,15 +593,23 @@ export function EnquiryForm({
       if (how === 'whatsapp' && win && !win.closed) win.location.href = link;
       pending.current = null;
 
+      const when = [trip.travelDate ? dmy(trip.travelDate) : '', trip.travelTime].filter(Boolean).join(' · ');
+      const selfNumber = v.sameNumber ? cleanMobile(v.mobile) : cleanMobile(v.whatsapp);
+      const selfText = selfCopy({
+        tripId: data.tripId, service: trip.category, pickup: trip.pickup, drop: trip.dropOff,
+        when, vehicle: trip.vehicleType, fare: booking?.fareText ?? prefill?.fareText,
+      });
       setSent({
         tripId: data.tripId,
         whatsappLink: link,
+        selfLink: `https://wa.me/91${selfNumber}?text=${encodeURIComponent(selfText)}`,
         openedWhatsApp: how === 'whatsapp' && !!win && !win.closed,
         name: v.name.trim(),
-        email: v.email.trim(),
-        route: [f('pickup').trim() || f('venue').trim(), f('drop').trim()].filter(Boolean).join('  →  '),
-        when: [f('date') ? dmy(f('date')) : '', f('time')].filter(Boolean).join(' · '),
-        vehicle: f('carType'),
+        email,
+        route: [trip.pickup, trip.dropOff].filter(Boolean).join('  →  '),
+        when,
+        vehicle: trip.vehicleType,
+        fare: booking?.fareText ?? prefill?.fareText,
       });
       onDone?.(data.tripId);
     } catch (err) {
@@ -507,6 +637,8 @@ export function EnquiryForm({
    */
   function submit(how: EnquiryChannel) {
     if (busy) return;
+    // No email to answer, so the sheet's "Send my enquiry" goes out on WhatsApp.
+    if (v.noEmail) how = 'whatsapp';
     if (how === 'whatsapp' && !pending.current) pending.current = window.open('', '_blank');
     void send(how);
   }
@@ -525,12 +657,12 @@ export function EnquiryForm({
         return (
           <>
             <PlaceInput
-              label={FIELD_LABEL[k]} variant="soft" value={f(k)}
+              label={req ? `${label(k)} *` : label(k)} variant="soft" value={f(k)}
               onChange={(x) => setField(k, x)}
               onPick={k === 'pickup' ? setPickupPt : k === 'drop' ? setDropPt : undefined}
               placeholder={
                 k === 'pickup' ? 'Where should the car come?'
-                  : k === 'drop' ? 'Where are you going?'
+                  : k === 'drop' ? (shape.pickupFrom === 'airport' ? 'Where should we drop you?' : 'Where are you going?')
                     : 'Where is it happening?'
               }
               cellClass={err ? 'ring-danger-300' : ''}
@@ -546,8 +678,8 @@ export function EnquiryForm({
       case 'endDate':
         return (
           <PickerField
-            label={FIELD_LABEL[k]} icon={<IconCalendar className="h-3 w-3" />}
-            type="date" value={f(k)} min={todayIso()} error={err}
+            label={label(k)} icon={<IconCalendar className="h-3 w-3" />} required={req}
+            type="date" value={f(k)} min={k === 'date' ? todayIso() : f('date') || todayIso()} error={err}
             onChange={(x) => setField(k, x)}
           />
         );
@@ -555,7 +687,7 @@ export function EnquiryForm({
       case 'time':
         return (
           <PickerField
-            label={FIELD_LABEL[k]} icon={<IconClock className="h-3 w-3" />}
+            label={label(k)} icon={<IconClock className="h-3 w-3" />} required={req}
             type="time" value={f(k)} error={err}
             onChange={(x) => setField(k, x)}
           />
@@ -563,7 +695,7 @@ export function EnquiryForm({
 
       case 'carType':
         return (
-          <Field label={FIELD_LABEL[k]} icon={<IconSteering className="h-3 w-3" />} error={err}>
+          <Field label={label(k)} icon={<IconSteering className="h-3 w-3" />} error={err}>
             <select className={`${INPUT} cursor-pointer`} value={f(k)} onChange={(e) => setField(k, e.target.value)}>
               <option value="">Recommend one for me</option>
               {VEHICLES.map((x) => <option key={x.slug} value={x.name}>{x.name}</option>)}
@@ -574,7 +706,7 @@ export function EnquiryForm({
       case 'passengers':
       case 'vehicles':
         return (
-          <Field label={FIELD_LABEL[k]} icon={<IconUsers className="h-3 w-3" />} error={err} required={req}>
+          <Field label={label(k)} icon={<IconUsers className="h-3 w-3" />} error={err} required={req}>
             <input
               className={INPUT} value={f(k)} inputMode="numeric" maxLength={3}
               onChange={(e) => setField(k, e.target.value.replace(/\D/g, ''))}
@@ -586,7 +718,7 @@ export function EnquiryForm({
       case 'direction':
         return (
           <Toggle
-            label={FIELD_LABEL[k]} options={['To the airport', 'From the airport']}
+            label={label(k)} options={[...AIRPORT_WAYS]}
             value={f(k)} onChange={(x) => setField(k, x)}
           />
         );
@@ -594,7 +726,7 @@ export function EnquiryForm({
       case 'tripLeg':
         return (
           <Toggle
-            label={FIELD_LABEL[k]} options={['One way', 'Round trip']}
+            label={label(k)} options={[...TRIP_LEGS]}
             value={f(k)} onChange={(x) => setField(k, x)}
           />
         );
@@ -612,7 +744,7 @@ export function EnquiryForm({
                   : EVENT_TYPES;
         return (
           <Field
-            label={FIELD_LABEL[k]}
+            label={label(k)}
             icon={k === 'airport' ? <IconPlane className="h-3 w-3" /> : undefined}
             error={err} required={req}
           >
@@ -628,7 +760,7 @@ export function EnquiryForm({
       case 'company':
       case 'functions':
         return (
-          <Field label={FIELD_LABEL[k]} error={err} required={req}>
+          <Field label={label(k)} error={err} required={req}>
             <input
               className={INPUT} value={f(k)}
               onChange={(e) => setField(k, e.target.value)}
@@ -654,7 +786,14 @@ export function EnquiryForm({
       className="animate-fade-up"
     >
       {variant === 'sheet' && (
-        <p className="text-sm leading-relaxed text-ink-500">{cat?.blurb ?? copy.blurb}</p>
+        prefill?.fareText ? (
+          <p className="rounded-2xl bg-ok-50 px-4 py-3 text-sm leading-relaxed text-ok-700">
+            <span className="font-bold">{prefill.vehicleType ? `${prefill.vehicleType}: ` : ''}{prefill.fareText}.</span>{' '}
+            Add your details and pickup, and we confirm the car and chauffeur.
+          </p>
+        ) : (
+          <p className="text-sm leading-relaxed text-ink-500">{cat?.blurb ?? copy.blurb}</p>
+        )
       )}
 
       {/* ------------------------------ about you ------------------------------ */}
@@ -679,22 +818,37 @@ export function EnquiryForm({
           </Field>
         </div>
 
-        <div data-field="email" className="sm:col-span-2">
-          <Field
-            label="Email ID" icon={<IconMail className="h-3 w-3" />} error={errors.email}
-            required={emailRequired}
-            hint={emailRequired
-              ? 'Your reply, Trip ID and invoice are sent here'
-              : 'Needed to send this by email - your Trip ID and invoice go there'}
-          >
-            <input
-              className={INPUT} value={v.email} type="email" inputMode="email"
-              autoComplete="email" autoCapitalize="off"
-              onChange={(e) => set('email', e.target.value)} placeholder="you@example.com"
-            />
-          </Field>
-        </div>
+        {!v.noEmail && (
+          <div data-field="email" className="sm:col-span-2">
+            <Field
+              label="Email ID" icon={<IconMail className="h-3 w-3" />} error={errors.email}
+              required hint="Your reply, Trip ID and invoice are sent here"
+            >
+              <input
+                className={INPUT} value={v.email} type="email" inputMode="email"
+                autoComplete="email" autoCapitalize="off"
+                onChange={(e) => set('email', e.target.value)} placeholder="you@example.com"
+              />
+            </Field>
+          </div>
+        )}
       </div>
+
+      <label className="mt-2.5 flex cursor-pointer items-start gap-3 rounded-2xl bg-ink-50/80 px-3.5 py-3 text-sm leading-snug text-ink-700 transition-colors hover:bg-ink-100/70">
+        <input
+          type="checkbox" checked={v.noEmail}
+          onChange={(e) => toggleNoEmail(e.target.checked)}
+          className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded border-ink-300 text-brand-600 focus:ring-brand-400"
+        />
+        <span>
+          I don&apos;t have an email ID
+          {v.noEmail && (
+            <span className="mt-0.5 block text-xs text-ink-500">
+              No problem - send it on WhatsApp or call us, and we reply there.
+            </span>
+          )}
+        </span>
+      </label>
 
       {/* When the tick is on the WhatsApp field is gone rather than greyed out —
           a disabled box echoing the number above is one more thing to read. */}
@@ -719,18 +873,22 @@ export function EnquiryForm({
       )}
 
       {/* ------------------------- what this category needs -------------------- */}
-      <SectionTitle>{cat ? cat.label : 'Your journey'}</SectionTitle>
-      <div className="grid gap-2.5 sm:grid-cols-2">
-        {fields.map((k) => {
-          const node = renderField(k);
-          if (!node) return null;
-          return (
-            <div key={k} data-field={k} className={PAIRED.includes(k) ? '' : 'sm:col-span-2'}>
-              {node}
-            </div>
-          );
-        })}
-      </div>
+      {!booking && (
+        <>
+          <SectionTitle>{cat ? cat.label : 'Your journey'}</SectionTitle>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {fields.map((k) => {
+              const node = renderField(k);
+              if (!node) return null;
+              return (
+                <div key={k} data-field={k} className={PAIRED.includes(k) ? '' : 'sm:col-span-2'}>
+                  {node}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <SectionTitle>Anything else</SectionTitle>
       <div className={CELL}>
@@ -741,7 +899,9 @@ export function EnquiryForm({
           className={`${INPUT} h-auto min-h-[4.75rem] resize-y py-0.5 sm:min-h-[3.5rem]`}
           value={v.message} rows={3} maxLength={1000}
           onChange={(e) => set('message', e.target.value)}
-          placeholder={cat?.notesHint ?? 'Flight number, luggage, a stop on the way, a return leg…'}
+          placeholder={booking
+            ? 'Exact drop address, luggage, a stop on the way…'
+            : cat?.notesHint ?? 'Flight number, luggage, a stop on the way, a return leg…'}
         />
       </div>
 
@@ -761,7 +921,10 @@ export function EnquiryForm({
       {/* On a page the actions live here; in the sheet they are in the pinned
           footer so they stay reachable above the keyboard. */}
       {variant === 'page' ? (
-        <PageActions busy={busy} onSend={() => submit('email')} onWhatsApp={() => submit('whatsapp')} />
+        <PageActions
+          busy={busy} noEmail={v.noEmail} sendLabel={booking ? 'Confirm booking' : undefined}
+          onSend={() => submit('email')} onWhatsApp={() => submit('whatsapp')}
+        />
       ) : (
         <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true">{copy.cta}</button>
       )}
@@ -780,22 +943,23 @@ export function EnquiryForm({
  * form or on the network.
  */
 function PageActions({
-  busy, onSend, onWhatsApp,
+  busy, noEmail, onSend, onWhatsApp, sendLabel = 'Send enquiry',
 }: {
-  busy: boolean; onSend: () => void; onWhatsApp: () => void;
+  busy: boolean; noEmail: boolean; onSend: () => void; onWhatsApp: () => void; sendLabel?: string;
 }) {
   return (
     <div className="mt-7 border-t border-ink-100 pt-5">
-      <div className="grid gap-2.5 sm:grid-cols-3">
-        <button
+      <div className={`grid gap-2.5 ${noEmail ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+        {/* Without an email ID there is nowhere to send an email reply. */}
+        {!noEmail && <button
           type="button" onClick={onSend} disabled={busy}
           className="grad-brand btn h-12 rounded-full text-md font-semibold text-white shadow-lg shadow-brand-500/25 transition-[filter,transform] hover:brightness-[1.06] active:scale-[.99] disabled:opacity-70"
         >
           {busy
             ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
             : <IconMail className="h-4 w-4" />}
-          {busy ? 'Sending…' : 'Send enquiry'}
-        </button>
+          {busy ? 'Sending…' : sendLabel}
+        </button>}
 
         <button
           type="button" onClick={onWhatsApp} disabled={busy}
@@ -813,15 +977,17 @@ function PageActions({
         </a>
       </div>
       <p className="mt-3 text-center text-xs leading-relaxed text-ink-400">
-        Nothing is charged. Send or WhatsApp and you get a Trip ID you can quote any time —
-        or just tap Call and skip the form entirely.
+        Nothing is charged. {noEmail ? 'WhatsApp' : 'Send or WhatsApp'} and you get a Trip ID you can
+        quote any time — or just tap Call and skip the form entirely.
       </p>
     </div>
   );
 }
 
 /** The pinned footer button, rendered by the sheet outside the scroll area. */
-function SubmitBar({ channel, busy }: { channel: EnquiryChannel; busy: boolean }) {
+function SubmitBar({
+  channel, busy, withCall = false,
+}: { channel: EnquiryChannel; busy: boolean; withCall?: boolean }) {
   const copy = CHANNEL_COPY[channel];
   const tone = channel === 'whatsapp'
     ? 'bg-[#25D366] shadow-[#25D366]/25 hover:brightness-105'
@@ -837,6 +1003,13 @@ function SubmitBar({ channel, busy }: { channel: EnquiryChannel; busy: boolean }
           ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Saving your enquiry…</>
           : <>{channel === 'whatsapp' && <IconWhatsApp className="h-4 w-4" />}{copy.cta}</>}
       </button>
+      {withCall && (
+        <CallButton
+          className="btn mt-2 h-11 w-full rounded-full bg-ink-900 text-sm font-semibold text-white transition-colors hover:bg-ink-800"
+          iconClass="h-3.5 w-3.5"
+          label="Call now"
+        />
+      )}
       <p className="mt-2 text-center text-xs text-ink-400">
         Nothing is charged. You get a Trip ID you can quote any time.
       </p>
@@ -849,7 +1022,7 @@ function SubmitBar({ channel, busy }: { channel: EnquiryChannel; busy: boolean }
    ========================================================================== */
 
 function ThankYou({
-  channel, tripId, whatsappLink: waLink, openedWhatsApp, name, email, route, when, vehicle,
+  channel, tripId, whatsappLink: waLink, openedWhatsApp, name, email, route, when, vehicle, fare, selfLink,
 }: Sent & { channel: EnquiryChannel }) {
   const firstName = name.split(' ')[0] || 'there';
   const [copied, setCopied] = useState(false);
@@ -881,8 +1054,9 @@ function ThankYou({
         Thank you, {firstName}.
       </h3>
       <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-500">
-        Your enquiry is with our desk. We answer round the clock and come back with a rate,
-        usually within the hour.
+        {fare
+          ? 'Your booking is with our desk at the fare below. We confirm the car and chauffeur shortly, round the clock.'
+          : 'Your enquiry is with our desk. We answer round the clock and come back with a rate, usually within the hour.'}
       </p>
 
       <button
@@ -899,11 +1073,12 @@ function ThankYou({
         <span className="mt-0.5 text-2xs text-ink-400">{copied ? 'Copied' : 'Tap to copy'}</span>
       </button>
 
-      {(route || when || vehicle) && (
+      {(route || when || vehicle || fare) && (
         <dl className="mx-auto mt-5 max-w-sm space-y-2 rounded-2xl bg-ink-50/70 px-4 py-3.5 text-left">
           {route && <SummaryRow icon={<IconPin className="h-3.5 w-3.5" />} value={route} />}
           {when && <SummaryRow icon={<IconCalendar className="h-3.5 w-3.5" />} value={when} />}
           {vehicle && <SummaryRow icon={<IconSteering className="h-3.5 w-3.5" />} value={vehicle} />}
+          {fare && <SummaryRow icon={<IconCheck className="h-3.5 w-3.5" />} value={fare} />}
         </dl>
       )}
 
@@ -952,6 +1127,13 @@ function ThankYou({
           : <>Saved to our office — quote the Trip ID any time.</>}
       </p>
 
+      <a
+        href={selfLink} target="_blank" rel="noreferrer"
+        className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#25D366]/10 px-3.5 py-2 text-xs font-bold text-[#128C4B] transition-colors hover:bg-[#25D366]/20"
+      >
+        <IconWhatsApp className="h-3.5 w-3.5" /> Send these details to my WhatsApp
+      </a>
+      <br />
       <Link
         to="/trips"
         className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-brand-700 hover:text-brand-800"
@@ -988,10 +1170,11 @@ export function EnquirySheet({
   const [nonce, setNonce] = useState(0);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [noEmail, setNoEmail] = useState(false);
   const wasOpen = useRef(false);
 
   useEffect(() => {
-    if (open && !wasOpen.current) { setNonce((n) => n + 1); setSent(false); setBusy(false); }
+    if (open && !wasOpen.current) { setNonce((n) => n + 1); setSent(false); setBusy(false); setNoEmail(false); }
     wasOpen.current = open;
   }, [open]);
 
@@ -1003,7 +1186,10 @@ export function EnquirySheet({
       open={open}
       onClose={onClose}
       title={title}
-      footer={sent ? undefined : <SubmitBar channel={channel} busy={busy} />}
+      footer={sent ? undefined : (
+        // No email ID: the email route is gone, WhatsApp and Call are what is left.
+        <SubmitBar channel={noEmail ? 'whatsapp' : channel} busy={busy} withCall={noEmail} />
+      )}
     >
       <EnquiryForm
         key={nonce}
@@ -1011,6 +1197,7 @@ export function EnquirySheet({
         category={category}
         prefill={prefill}
         onBusy={setBusy}
+        onNoEmail={setNoEmail}
         onDone={() => setSent(true)}
       />
     </BottomSheet>

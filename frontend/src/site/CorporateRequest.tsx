@@ -13,11 +13,12 @@ import { COMPANY } from './siteData';
 import { CORPORATE_REQUEST_TYPES, VEHICLES } from './catalog';
 import {
   Callout, ChoiceCard, ContactFields, PlaceInput, Stepper, SubmitButton, TrustRow,
-  useContactDetails, useSendRequirement,
+  useContactDetails, useSendRequirement, emailError,
 } from './kit';
 import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconLock, IconPhone, IconPlus, IconTrash } from '../components/icons';
 import { DateField } from '../components/DateTimeField';
+import { useSeo } from './Seo';
 
 const STEPS = ['Type', 'Requirement', 'Contact'];
 
@@ -35,6 +36,11 @@ const BILLING = [
 ];
 
 export default function CorporateRequest() {
+  useSeo({
+    title: 'Corporate Transport Requirement',
+    path: '/corporate/request',
+    description: 'Send your company’s car rental or employee transport requirement in Mumbai and get a proposal from Gupta Tours & Travels.',
+  });
   const [params] = useSearchParams();
   const { send, busy, error, setError } = useSendRequirement();
 
@@ -73,6 +79,7 @@ export default function CorporateRequest() {
     const errs: Record<string, string> = {};
     if (contact.name.trim().length < 2) errs.name = 'Please enter your name.';
     if (!/^[6-9]\d{9}$/.test(contact.mobile.replace(/\D/g, '').replace(/^91/, ''))) errs.mobile = 'Enter a valid 10-digit mobile number.';
+    Object.assign(errs, emailError(contact));
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -97,7 +104,7 @@ export default function CorporateRequest() {
       ].filter(Boolean).join('. '),
       name: contact.name,
       mobile: contact.mobile,
-      email: contact.email,
+      email: contact.noEmail ? '' : contact.email,
       company: contact.company,
     });
   };

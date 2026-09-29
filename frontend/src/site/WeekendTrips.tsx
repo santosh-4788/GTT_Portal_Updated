@@ -13,6 +13,7 @@ import { Chip, SectionHead, SiteEmpty, TrustRow, ContactRow } from './kit';
 import { Reveal } from '../components/Reveal';
 import PageHero from './PageHero';
 import { IconArrowRight } from '../components/icons';
+import { useSeo } from './Seo';
 
 const NIGHTS = [
   { value: 0, label: 'Day trip' },
@@ -22,6 +23,11 @@ const NIGHTS = [
 ];
 
 export default function WeekendTrips() {
+  useSeo({
+    title: 'Weekend Trips from Mumbai by Cab',
+    path: '/weekend-trips',
+    description: 'Weekend getaways from Mumbai by private cab - hill stations, beaches and pilgrim towns within a few hours, with suggested plans and the right vehicle for your group.',
+  });
   // The header's "Maharashtra tours" link arrives as ?state=Maharashtra.
   const [params] = useSearchParams();
   const state = params.get('state') ?? '';

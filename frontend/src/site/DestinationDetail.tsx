@@ -25,10 +25,16 @@ import {
 import { CompareTray } from './VehicleCard';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck, IconClock, IconPhone, IconPin } from '../components/icons';
+import { useSeo } from './Seo';
 
 export default function DestinationDetail() {
   const { slug } = useParams();
   const d = destinationBySlug(slug);
+  useSeo({
+    title: d ? `Mumbai to ${d.name} Trip by Cab` : 'Weekend Trips',
+    path: d ? `/destinations/${d.slug}` : '/weekend-trips',
+    description: d ? `${d.name}, ${d.km} km from Mumbai (${d.hours}). ${d.blurb}`.slice(0, 300) : undefined,
+  });
   const book = useRates();
 
   const [nights, setNights] = useState<number | null>(null);

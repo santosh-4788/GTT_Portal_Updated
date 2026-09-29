@@ -5,12 +5,18 @@ import { COMPANY, SERVICES } from './siteData';
 import { IconArrowRight, IconCheck, IconPhone } from '../components/icons';
 import { SectionHead, TrustRow } from './kit';
 import { Reveal } from '../components/Reveal';
+import { useSeo } from './Seo';
 
 export default function Services() {
+  useSeo({
+    title: 'Car Rental and Cab Services in Mumbai',
+    path: '/services',
+    description: 'Airport transfers, local car rental, outstation travel, corporate transport, tour packages and event transport from Mumbai - all chauffeur-driven, 24x7.',
+  });
   return (
     <>
       <PageHero
-        eyebrow="Our services"
+        eyebrow="Our services in Mumbai"
         title="Transport arranged around the job you need done"
         sub="Airport transfers, hourly city duties, outstation runs and contracted corporate accounts — each with its own package structure and billing rhythm."
         crumbs={[{ label: 'Services' }]}

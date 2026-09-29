@@ -20,10 +20,16 @@ import { Reveal } from '../components/Reveal';
 import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconPhone } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
+import { useSeo } from './Seo';
 
 
 
 export default function Reviews() {
+  useSeo({
+    title: 'Customer Reviews',
+    path: '/reviews',
+    description: 'What customers say about travelling with Gupta Tours & Travels in Mumbai - airport runs, outstation trips, weddings and corporate duties.',
+  });
   const [params] = useSearchParams();
   const preview = params.get('preview') === '1';
   const source = preview ? REVIEW_PREVIEW : REVIEWS;
@@ -136,7 +142,7 @@ export default function Reviews() {
           />
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              ['Our GST registration', `GSTIN ${COMPANY.gstin}, registered in Maharashtra and on every invoice we raise.`],
+              ['Our GST registration', 'Registered for GST in Maharashtra - the number is on every invoice we raise and on our About page.'],
               ['Speak to an account', 'Ask for a reference from an account that runs your kind of trip and we will put you in touch.'],
               ['The owner answers the phone', `${COMPANY.owner} handles the account personally. Call before you book and judge for yourself.`],
             ].map(([t, b], i) => (

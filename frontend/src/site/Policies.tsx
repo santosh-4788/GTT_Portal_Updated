@@ -20,10 +20,11 @@ import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconMail, IconPhone } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
 import { WhatsAppButton } from './EnquirySheet';
+import { useSeo } from './Seo';
 
 const CHANGES = [
   ['Changing a booking', 'Tell us as early as you can and we will move the booking rather than cancel it wherever possible. If a change close to the reporting time does attract a charge, you are told at the time — it is never added quietly to the invoice.'],
-  ['Cancelling', 'Call the office. A cancellation marked on this website only changes your own copy of the trip; the vehicle is released when you have spoken to us.'],
+  ['Cancelling', 'Cancelling up to 1 hour before the pickup time is free. A cancellation within 1 hour of pickup is chargeable. Call the office to cancel. A cancellation marked on this website only changes your own copy of the trip; the vehicle is released when you have spoken to us.'],
   ['If we cannot supply', 'If a vehicle becomes unavailable we tell you as soon as we know and offer the nearest class, at the rate of whichever is lower. We do not substitute quietly.'],
   ['Waiting time', 'On an airport pickup the chauffeur tracks the flight and waits for the actual landing. On other duties, waiting beyond the agreed reporting time is part of the duty rather than an extra you find out about later.'],
   ['Conduct in the vehicle', 'No smoking, and open alcohol is not permitted. The chauffeurs hold to the same rule — no tobacco, pan or gutkha on duty. Pets are usually fine in a larger vehicle with a carrier; tell us when you book.'],
@@ -33,7 +34,8 @@ const CHANGES = [
 const DATA = [
   ['What we ask for', 'Your name and mobile number, so we can call you back with a rate. An email address and a company name only where you offer them, and a GSTIN only if you want it on the invoice.'],
   ['What we do with it', 'We use it to quote, to run the trip and to raise the invoice. That is all. It is not sold, not shared with anyone outside the trip, and not added to a marketing list.'],
-  ['What stays on your device', 'My Trips, saved places, saved passengers, travel preferences and recent searches are kept in your own browser, not on a server. There is no customer login on this website. Clearing your browser data clears them, and they do not follow you to another device.'],
+  ['Chats with the website assistant', 'Conversations with the travel assistant are saved on our own server, with the time of each message, so our team can follow up on your request and check exactly what you were told. They are not shared with anyone outside the office.'],
+  ['What stays on your device', 'My Trips, saved places, saved passengers, travel preferences and recent searches are kept in your own browser unless you sign in to an account. Clearing your browser data clears the ones kept there, and they do not follow you to another device.'],
   ['What reaches us', 'Only what you submit — a requirement you send, or a call you make. Nothing you type into a planner reaches us until you press the submit button.'],
   ['Fare estimates', 'Estimates shown on this site are worked out in your browser from our published walk-in rates. They are never stored and never binding.'],
   ['Trip records', 'Bookings, duty slips and invoices are kept by the office for as long as tax law requires. If you want a copy of what we hold about you, call and ask.'],
@@ -41,6 +43,11 @@ const DATA = [
 ];
 
 export default function Policies() {
+  useSeo({
+    title: 'Fare Policy, Cancellation and Terms',
+    path: '/policies',
+    description: 'What a Gupta Tours & Travels fare includes, what is charged at actuals, and how cancellations, waiting time and night charges work.',
+  });
   return (
     <div className="page-bg pb-24">
       <PageHero
@@ -100,8 +107,7 @@ export default function Policies() {
               <p className="mt-2 text-sm leading-relaxed text-ink-600">
                 Corporate accounts are invoiced on an agreed cycle — per trip, fortnightly or monthly — with payment
                 terms set when the account opens. For a one-off booking the amount is confirmed before the trip and
-                settled on completion. Every invoice is GST-compliant and carries our GSTIN,{' '}
-                <span className="font-mono font-semibold text-ink-800">{COMPANY.gstin}</span>.
+                settled on completion. Every invoice is GST-compliant and carries our GST registration number.
               </p>
 
               <h3 className="mt-7 font-display text-md font-bold text-ink-900">Changes, cancellation and conduct</h3>

@@ -39,7 +39,8 @@ export type MailKind =
   | 'INQUIRY_CUSTOMER'
   | 'TRIP_DETAILS'
   | 'INVOICE'
-  | 'ACCOUNT';
+  | 'ACCOUNT'
+  | 'FEEDBACK';
 
 export interface MailConfig {
   enabled: boolean;

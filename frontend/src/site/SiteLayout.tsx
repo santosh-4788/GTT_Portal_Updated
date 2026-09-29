@@ -565,9 +565,6 @@ export default function SiteLayout() {
                 Transport, car rental, outstation travel, corporate accounts and event fleets across Mumbai and
                 Maharashtra. Owned and managed personally by {COMPANY.owner}.
               </p>
-              <p className="mt-5 inline-flex items-center gap-2 rounded-full bg-ink-50 px-3.5 py-2 text-xs text-ink-600">
-                GSTIN <span className="font-mono font-semibold text-ink-900">{COMPANY.gstin}</span>
-              </p>
 
               <ul className="mt-5 flex flex-wrap gap-2">
                 {['Verified vehicles', 'Verified chauffeurs', 'Transparent pricing'].map((t) => (

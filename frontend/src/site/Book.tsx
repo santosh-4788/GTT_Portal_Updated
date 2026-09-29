@@ -12,6 +12,7 @@
 import { useSearchParams, Link } from 'react-router-dom';
 import { COMPANY } from './siteData';
 import { NEEDS, type NeedKey } from './catalog';
+import { useSeo } from './Seo';
 
 /** The kinds of trip the booking bar at the top of this page already takes. */
 const BAR_COVERS: NeedKey[] = ['local', 'airport', 'outstation', 'hourly'];
@@ -51,6 +52,11 @@ const NEXT = [
 ];
 
 export default function Book() {
+  useSeo({
+    title: 'Book a Cab in Mumbai',
+    path: '/book',
+    description: 'Book a cab in Mumbai for a local trip, an airport transfer or an outstation journey. Tell us the pickup, drop and time and we confirm the car and the fare before the trip.',
+  });
   const [params] = useSearchParams();
   const tabParam = params.get('tab');
   const tab: BookTab = isBookTab(tabParam) ? tabParam : 'LOCAL';

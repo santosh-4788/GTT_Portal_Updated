@@ -33,9 +33,9 @@
 import { Link } from 'react-router-dom';
 import { inr } from '../lib/format';
 import { VehiclePhoto } from '../components/VehiclePhoto';
-import { IconSeat } from './SiteIcons';
+import { IconSeat, IconLuggage } from './SiteIcons';
 import {
-  IconArrowRight, IconCheck, IconSteering, IconRoad, IconMail, IconPhone,
+  IconArrowRight, IconCheck, IconClock, IconSteering, IconRoad, IconMail, IconPhone,
 } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
 import { EnquiryButton, WhatsAppButton, type EnquiryPrefill } from './EnquirySheet';
@@ -52,6 +52,8 @@ const COMFORT_TONE: Record<string, string> = {
 };
 
 const CHIP = 'inline-flex rounded-full px-2.5 py-1 text-2xs font-bold uppercase tracking-[0.1em]';
+
+const SPEC = 'inline-flex items-center gap-1.5 rounded-md border border-ink-100 px-2 py-1 font-medium text-ink-700';
 
 const TINTS = ['grad-soft', 'grad-mint', 'grad-warm'];
 
@@ -80,7 +82,7 @@ function specLine(v: CatalogVehicle): string {
 
 export function VehicleCard({
   vehicle, index = 0, best = false, count = 1, estimateInput, to, onSelect,
-  selectLabel = 'Select car', compact = false, contact,
+  selectLabel = 'Select car', compact = false, contact, fixedFare,
 }: {
   vehicle: CatalogVehicle;
   index?: number;
@@ -112,16 +114,44 @@ export function VehicleCard({
    * only in what happens after Send, so one object is all that is left.
    */
   contact?: EnquiryPrefill;
+  /**
+   * A published route fare (outstation fixed fares). Replaces the rate-card
+   * estimate: the card shows this one price, toll included or not, and none of
+   * the per-km inclusions, which do not apply to a fixed fare. `amount: null`
+   * is a category the office has not priced yet - shown as Fare on request.
+   */
+  fixedFare?: { amount: number | null; tollIncluded: boolean; legLabel: string };
 }) {
   const book = useRates();
   const compare = useCompare();
 
-  const est = estimateInput
+  const est = estimateInput && !fixedFare
     ? estimateFor(book, vehicle, { ...estimateInput, vehicles: count })
     : { estimate: null, planLabel: '', row: null, reason: 'none' as string | undefined };
 
   const detail = to ?? `/vehicles/${vehicle.slug}`;
   const row = est.row;
+  const rs = (n: number) => inr(n, true).replace('.00', '');
+
+  /* Every figure is read off the matched rate row, so it cannot drift from
+     what the office would quote. */
+  const terms: { key: string; Icon: typeof IconClock; value: string; after?: string }[] = [];
+  if (row && row.included_hours > 0) terms.push({
+    key: 'hrs', Icon: IconClock, value: `${row.included_hours} hrs included`,
+    after: row.extra_hour_rate > 0 ? `then ${rs(row.extra_hour_rate)}/hr` : undefined,
+  });
+  if (row && row.included_km > 0) terms.push({
+    key: 'km', Icon: IconRoad, value: `${row.included_km} km included`,
+    after: row.extra_km_rate > 0 ? `then ${rs(row.extra_km_rate)}/km` : undefined,
+  });
+  if (row && row.plan_type === 'OUTSTATION' && row.min_km_per_day > 0) terms.push({
+    key: 'kmday', Icon: IconRoad, value: `${row.min_km_per_day} km/day`,
+    after: `then ${rs(row.per_km_rate)}/km`,
+  });
+  if (row && row.driver_allowance > 0) terms.push({
+    key: 'da', Icon: IconSteering, value: `${rs(row.driver_allowance)}/day DA`,
+    after: 'driver allowance included',
+  });
 
   return (
     <article
@@ -142,21 +172,36 @@ export function VehicleCard({
               {vehicle.name}
             </h3>
             <p className="mt-0.5 text-xs font-medium text-ink-600">{specLine(vehicle)}</p>
-            {/* "or similar" is the promise the business can keep: the class is
-                guaranteed, the badge on the bonnet is not. */}
-            <p className="truncate text-2xs text-ink-400">{vehicle.examples} or similar</p>
           </Link>
 
           <div className="mt-3">
-            {est.estimate ? (
+            {fixedFare ? (
+              fixedFare.amount != null ? (
+                <>
+                  <p className="font-display text-xl font-extrabold leading-none tracking-tight text-ink-900">
+                    ₹{fixedFare.amount.toLocaleString('en-IN')}
+                  </p>
+                  <p className="mt-1 text-2xs font-semibold text-ok-700">
+                    {fixedFare.tollIncluded ? 'Toll included' : 'Toll extra'} · {fixedFare.legLabel.toLowerCase()}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-md font-bold text-ink-900">Fare on request</p>
+                  <p className="mt-1 text-2xs text-ink-500">Enquire and we quote this one</p>
+                </>
+              )
+            ) : est.estimate ? (
               <>
                 <p className="font-display text-xl font-extrabold leading-none tracking-tight text-ink-900">
                   {inr(est.estimate.total, true).replace('.00', '')}
                 </p>
-                {est.estimate.tax > 0 && (
+                {est.estimate.tax > 0 ? (
                   <p className="mt-1 text-2xs text-ink-500">
                     incl. {inr(est.estimate.tax, true).replace('.00', '')} charges and taxes
                   </p>
+                ) : (
+                  <p className="mt-1 text-2xs text-ink-500">+ toll, parking &amp; state tax extra</p>
                 )}
               </>
             ) : est.reason === 'loading' ? (
@@ -191,32 +236,37 @@ export function VehicleCard({
           What the fare covers. Every figure here is read off the matched
           rate row, so it cannot drift from what the office would quote.
           --------------------------------------------------------------- */}
-      <ul className="space-y-2 border-t border-ink-100 px-4 py-3.5 text-xs leading-snug text-ink-600">
-        <li className="flex items-center gap-2.5">
-          <IconSeat className="h-3.5 w-3.5 shrink-0 text-brand-500" />
-          {vehicle.seats * count} seats{count > 1 ? ` across ${count} vehicles` : ''} ·{' '}
-          {vehicle.bags * count} large {vehicle.bags * count === 1 ? 'bag' : 'bags'}
+      <div className="space-y-2.5 border-t border-ink-100 px-4 py-3 text-xs leading-snug text-ink-600">
+        {/* The cab itself: small pills, read at a glance. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={SPEC}>
+            <IconSeat className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+            {vehicle.seats * count} seats{count > 1 ? ` · ${count} cabs` : ''}
+          </span>
+          <span className={SPEC}>
+            <IconLuggage className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+            {vehicle.bags * count} {vehicle.bags * count === 1 ? 'bag' : 'bags'}
+          </span>
           <span className={`${CHIP} ml-auto ${COMFORT_TONE[vehicle.comfort]}`}>{vehicle.comfort}</span>
-        </li>
+        </div>
 
-        {/* Only what the rate card actually states. With no row matched there
-            is nothing true to put here, so nothing goes here — a line saying
-            the figures will follow is a line that tells the customer nothing. */}
-        {row && row.driver_allowance > 0 && (
-          <li className="flex items-center gap-2.5">
-            <IconSteering className="h-3.5 w-3.5 shrink-0 text-brand-500" />
-            Driver allowance included
-          </li>
+        {/* What the fare covers, and what is charged after it. Only what the
+            rate card actually states: with no row matched there is nothing
+            true to put here, so nothing goes here. */}
+        {terms.length > 0 && (
+          <dl className="grid grid-cols-2 gap-1.5">
+            {terms.map((t) => (
+              <div key={t.key} className="flex min-w-0 items-start gap-2 rounded-lg bg-ink-50 px-2.5 py-2">
+                <t.Icon className="mt-px h-3.5 w-3.5 shrink-0 text-brand-500" />
+                <div className="min-w-0">
+                  <dt className="font-semibold text-ink-800">{t.value}</dt>
+                  {t.after && <dd className="mt-0.5 text-2xs text-ink-500">{t.after}</dd>}
+                </div>
+              </div>
+            ))}
+          </dl>
         )}
-        {row && row.included_km > 0 && (
-          <li className="flex items-center gap-2.5">
-            <IconRoad className="h-3.5 w-3.5 shrink-0 text-brand-500" />
-            {row.included_km} km included
-            {row.extra_km_rate > 0 && <> · {inr(row.extra_km_rate, true).replace('.00', '')}/km after</>}
-          </li>
-        )}
-
-      </ul>
+      </div>
 
       {est.estimate && est.estimate.lines.length > 0 && (
         <details className="border-t border-ink-100 px-4 py-3">
@@ -249,6 +299,10 @@ export function VehicleCard({
                 {inr(est.estimate.total, true).replace('.00', '')}
               </dd>
             </div>
+            <p className="mt-1 flex items-start gap-1.5 rounded-lg bg-warn-50 px-2.5 py-2 text-2xs font-medium leading-snug text-warn-700">
+              <IconRoad className="mt-px h-3 w-3 shrink-0" />
+              Toll, parking &amp; state tax extra — charged at actuals, as per receipts.
+            </p>
             {est.estimate.note && (
               <p className="pt-1 text-2xs leading-relaxed text-ink-400">{est.estimate.note}</p>
             )}
@@ -314,7 +368,8 @@ export function VehicleCard({
           </div>
         )}
 
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-medium text-ink-500 hover:text-ink-700">
+        {/* Compare reads the per-km rate card, which a fixed fare is not. */}
+        {!fixedFare && <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-medium text-ink-500 hover:text-ink-700">
           <input
             type="checkbox"
             className="check"
@@ -322,7 +377,7 @@ export function VehicleCard({
             onChange={() => compare.toggle(vehicle.slug)}
           />
           Add to compare
-        </label>
+        </label>}
       </div>
     </article>
   );

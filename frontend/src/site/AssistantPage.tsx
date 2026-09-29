@@ -9,13 +9,25 @@
  *
  * It is deliberately a parser plus this site's own answers, not a language
  * model: nothing here can invent a rate, a route or a cancellation policy, and
- * it costs nothing to run. When it cannot work out what you mean it falls back
- * to the prepared answers and then to a person.
+ * it costs nothing to run (no AI API; the only requests are to this portal's
+ * own /api/public endpoints). When it cannot work out what you mean it falls
+ * back to the prepared answers and then to a person.
+ *
+ * Money shown here comes from two live sources only: the outstation fare
+ * master (/api/public/outstation-fares) for outstation trips, and the
+ * published rate card (/api/public/fare-options) for local and airport trips.
+ * An outstation trip is never priced off a per-km rate: a route the office has
+ * not priced says "fare on request" and offers the enquiry.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { COMPANY } from './siteData';
-import { findAnswer, outOfScope, pleasantry, topicById } from './assistantKnowledge';
+import {
+  ENQUIRY_LINK, NOT_FOUND_REPLY, findAnswer, outOfScope, outOfScopeReply, pleasantry, topicById, type LiveData,
+} from './assistantKnowledge';
+import {
+  CATEGORY_META, fareOf, matchRoute, rupees, routeLabel, useOutstationRoutes, type Leg, type OutstationRoute,
+} from './outstation';
 import { ADDONS } from './catalog';
 import { recommend, BAG_LABEL, PRIORITY_LABEL } from './recommend';
 import { ASSISTANT_EXAMPLES, parseRequirement, type ParsedTrip } from './assistantParse';
@@ -41,6 +53,7 @@ interface Turn {
   /** A parsed trip turns the reply into cards instead of a paragraph. */
   trip?: ParsedTrip;
   link?: { label: string; to: string };
+  also?: { label: string; to: string };
   /** Tappable follow-ups when we are not sure which answer was wanted. */
   chips?: Chip[];
 }
@@ -53,31 +66,34 @@ let seq = 1;
  * Out-of-scope asks are declined by name — a visitor after a hotel has come to
  * the wrong desk, and a shortlist of car questions does not tell them that.
  */
-function replyFor(said: string): Omit<Turn, 'id' | 'from'> {
+function replyFor(said: string, live: LiveData): Omit<Turn, 'id' | 'from'> {
   const social = pleasantry(said);
   if (social) return { text: social };
 
   const away = outOfScope(said);
-  if (away) {
-    return {
-      text: `We do not arrange ${away} — we are a transport company, so anything I said about it would be a guess. Vehicles, routes, rates and billing I can answer.`,
-    };
-  }
+  if (away) return { text: outOfScopeReply(away), link: ENQUIRY_LINK };
 
-  const match = findAnswer(said);
+  const match = findAnswer(said, live);
 
   if (match.kind === 'answer') {
-    return { text: match.topic.answer, link: match.topic.link };
+    return { text: match.topic.answer, link: match.topic.link, also: match.topic.also };
   }
 
   return {
     text:
       match.kind === 'unsure'
         ? 'I am not certain which one you mean. Is it one of these?'
-        : `I do not have a prepared answer for that. ${COMPANY.owner} will — tap Call, or pick one of these.`,
+        : `${NOT_FOUND_REPLY} Or pick one of these.`,
+    link: match.kind === 'none' ? ENQUIRY_LINK : undefined,
     chips: match.options.slice(0, 4).map((t) => ({ label: t.title, topicId: t.id })),
   };
 }
+
+/** Which enquiry form a parsed trip belongs on. */
+const ENQUIRY_CATEGORY: Record<ParsedTrip['kind'], string> = {
+  LOCAL: 'local', AIRPORT: 'airport', OUTSTATION: 'outstation', TOUR: 'darshan',
+  CORPORATE: 'corporate', EVENT: 'event', WEDDING: 'wedding',
+};
 
 const OPENING =
   `Tell me the trip in your own words — how many of you, where you are going and for how long. ` +
@@ -87,26 +103,135 @@ const OPENING =
    The rich reply
    ========================================================================== */
 
+/**
+ * Which of our vehicles sit in each outstation fare category. Mirrors the
+ * outstation page (OutstationPage.tsx), so the recommended car is priced off
+ * the same row there. A vehicle in no category has no fixed fare.
+ */
+const FARE_CATEGORY_OF: Record<string, OutstationRoute['fares'][number]['category']> = {
+  dzire: 'STANDARD', aura: 'STANDARD',
+  ertiga: 'SUV_MUV', xl6: 'SUV_MUV',
+  'honda-city': 'PREMIUM_SEDAN', ciaz: 'PREMIUM_SEDAN',
+  'innova-crysta': 'PREMIUM_MUV', carens: 'PREMIUM_MUV',
+};
+
+function outstationHref(route: OutstationRoute | undefined, leg: Leg, to: string, pax: number) {
+  const q = new URLSearchParams({ tab: 'OUTSTATION', leg, route: route?.key ?? 'other', pax: String(pax) });
+  if (!route && to) q.set('to', to);
+  return `/outstation?${q.toString()}`;
+}
+
+/**
+ * The outstation price, from the fare master and nothing else. No per-km
+ * arithmetic: a route or cab the office has not priced says so.
+ */
+function OutstationFares({
+  trip, routes, failed, route, onlyLeg,
+}: {
+  trip: ParsedTrip; routes: OutstationRoute[] | null; failed: boolean;
+  route: OutstationRoute | undefined; onlyLeg?: Leg;
+}) {
+  const place = trip.destination?.name ?? '';
+  const leg: Leg = onlyLeg ?? 'ONE_WAY';
+  const legs: Leg[] = onlyLeg ? [onlyLeg] : ['ONE_WAY', 'RETURN'];
+  const enquire = `/enquire/outstation?${tripQuery({ tab: 'OUTSTATION', from: 'Mumbai', to: place, pax: trip.requirement.passengers, leg })}`;
+
+  return (
+    <div className="tile p-5">
+      <p className="text-2xs font-bold uppercase tracking-[0.14em] text-brand-600">Outstation fare</p>
+      {routes === null && !failed ? (
+        <p className="mt-2 text-sm text-ink-500">Loading the current outstation fares…</p>
+      ) : failed ? (
+        <p className="mt-2 text-sm leading-relaxed text-ink-600">
+          The outstation fare list could not be loaded just now, so no fare is shown. Open the outstation page, or
+          send an enquiry and the office will quote it.
+        </p>
+      ) : route ? (
+        <>
+          <p className="mt-1.5 font-display text-md font-bold text-ink-900">{routeLabel(route)}</p>
+          {legs.map((l) => (
+            <div key={l} className="mt-3">
+              <p className="text-xs font-bold text-ink-700">{l === 'RETURN' ? 'Return' : 'One way'}</p>
+              <ul className="mt-1.5 space-y-1">
+                {[...route.fares]
+                  .sort((a, b) => CATEGORY_META[a.category].order - CATEGORY_META[b.category].order)
+                  .map((f) => {
+                    const n = fareOf(f, l);
+                    return (
+                      <li key={f.category} className="flex flex-wrap justify-between gap-x-3 text-sm text-ink-600">
+                        <span>{CATEGORY_META[f.category].label} <span className="text-ink-400">({f.vehicles})</span></span>
+                        <span className="font-semibold text-ink-900">
+                          {n == null ? 'Fare on request' : `${rupees(n)}${f.tollIncluded ? ' · toll included' : ' · toll extra'}`}
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          ))}
+          {!onlyLeg && (
+            <p className="mt-3 text-2xs leading-relaxed text-ink-400">
+              You did not say one way or return, so both are shown.
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="mt-2 text-sm leading-relaxed text-ink-600">
+          {place
+            ? `There is no fixed fare for ${place} on the portal — it is quoted on request.`
+            : 'Outstation fares are fixed per destination. Tell me where you are going, or pick it on the outstation page.'}
+        </p>
+      )}
+      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+        <Link to={outstationHref(route, leg, place, trip.requirement.passengers)} className="inline-flex items-center gap-1 text-xs font-bold text-brand-700 hover:text-brand-800">
+          {route ? `Book ${routeLabel(route)}` : place ? `Request a quote to ${place}` : 'Outstation fares'} <IconArrowRight className="h-3 w-3" />
+        </Link>
+        <Link to={enquire} className="inline-flex items-center gap-1 text-xs font-bold text-brand-700 hover:text-brand-800">
+          Send an outstation enquiry <IconArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function TripAnswer({ trip }: { trip: ParsedTrip }) {
   const book = useRates();
+  const { routes, failed } = useOutstationRoutes();
   const suggestions = recommend(trip.requirement);
   const top = suggestions[0];
   const alt = suggestions[1];
 
+  const outstation = trip.requirement.scope === 'outstation';
+  const route = outstation && routes && trip.destination ? matchRoute(routes, trip.destination.name) : undefined;
+  const leg: Leg = trip.leg ?? 'ONE_WAY';
+
+  // Local and airport trips are estimated from the published rate card.
+  // Outstation trips are not: they are priced from the fare master below.
   const estInput = {
-    plan: (trip.requirement.scope === 'outstation' ? 'OUTSTATION' : 'LOCAL') as 'OUTSTATION' | 'LOCAL',
+    plan: (trip.kind === 'AIRPORT' ? 'AIRPORT' : 'LOCAL') as 'AIRPORT' | 'LOCAL',
     days: trip.days,
-    distanceKm: trip.destination ? trip.destination.km * 2 : undefined,
   };
 
-  const est = top ? estimateFor(book, top.vehicle, { ...estInput, vehicles: top.count }) : null;
+  const est = top && !outstation ? estimateFor(book, top.vehicle, { ...estInput, vehicles: top.count }) : null;
+
+  /** The fixed fare for a card, or "fare on request" — never an estimate. */
+  const fixedFareFor = (slug: string, count: number) => {
+    if (!outstation) return undefined;
+    const cat = FARE_CATEGORY_OF[slug];
+    const f = route && cat ? route.fares.find((x) => x.category === cat) : undefined;
+    return {
+      amount: f ? fareOf(f, leg) : null,
+      tollIncluded: f?.tollIncluded ?? false,
+      legLabel: `${leg === 'RETURN' ? 'Return' : 'One way'}${count > 1 ? ' · per cab' : ''}`,
+    };
+  };
 
   const q = tripQuery({
-    tab: trip.requirement.scope === 'outstation' ? 'OUTSTATION' : 'LOCAL',
+    tab: outstation ? 'OUTSTATION' : trip.kind === 'AIRPORT' ? 'AIRPORT' : 'LOCAL',
     from: 'Mumbai',
     to: trip.destination?.name ?? trip.spot ?? '',
     pax: trip.requirement.passengers,
-    returnDate: trip.nights > 0 ? 'x' : '',
+    leg: outstation ? leg : undefined,
   });
 
   if (!top) return null;
@@ -119,7 +244,9 @@ function TripAnswer({ trip }: { trip: ParsedTrip }) {
         <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2">
           <VehicleCard
             vehicle={top.vehicle} best count={top.count}
-            estimateInput={estInput} to={`/vehicles/${top.vehicle.slug}?${q}`} compact
+            estimateInput={outstation ? undefined : estInput}
+            fixedFare={fixedFareFor(top.vehicle.slug, top.count)}
+            to={`/vehicles/${top.vehicle.slug}?${q}`} compact
           />
           <div className="tile flex flex-col p-5">
             <h4 className="font-display text-sm font-bold text-ink-900">Why</h4>
@@ -207,7 +334,9 @@ function TripAnswer({ trip }: { trip: ParsedTrip }) {
       )}
 
       {/* ------------------------------- estimate ------------------------------- */}
-      {est && (
+      {outstation ? (
+        <OutstationFares trip={trip} routes={routes} failed={failed} route={route} onlyLeg={trip.leg} />
+      ) : est && (
         <EstimatePanel estimate={est.estimate} planLabel={est.planLabel} reason={est.reason} vehicles={top.count} />
       )}
 
@@ -234,10 +363,13 @@ function TripAnswer({ trip }: { trip: ParsedTrip }) {
         >
           Customise <IconArrowRight className="h-4 w-4" />
         </Link>
-        <Link to={`/vehicles?${q}`} className="btn h-11 rounded-full bg-white px-5 text-md text-ink-800 shadow-card hover:shadow-raised">
+        <Link
+          to={outstation ? outstationHref(route, leg, trip.destination?.name ?? '', trip.requirement.passengers) : `/vehicles?${q}`}
+          className="btn h-11 rounded-full bg-white px-5 text-md text-ink-800 shadow-card hover:shadow-raised"
+        >
           View options
         </Link>
-        <Link to={`/enquiry?${q}`} className="btn h-11 rounded-full bg-ink-900 px-5 text-md text-white hover:bg-ink-800">
+        <Link to={`/enquire/${ENQUIRY_CATEGORY[trip.kind]}?${q}`} className="btn h-11 rounded-full bg-ink-900 px-5 text-md text-white hover:bg-ink-800">
           Get a quote
         </Link>
       </div>
@@ -253,6 +385,8 @@ export default function AssistantPage() {
   const [turns, setTurns] = useState<Turn[]>([{ id: seq++, from: 'assistant', text: OPENING }]);
   const [draft, setDraft] = useState('');
   const end = useRef<HTMLDivElement>(null);
+  const { routes, failed } = useOutstationRoutes();
+  const live: LiveData = { routes, failed };
 
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -265,7 +399,16 @@ export default function AssistantPage() {
     const parsed = parseRequirement(said);
     const next: Turn[] = [{ id: seq++, from: 'you', text: said }];
 
-    if (parsed.usable) {
+    // A trip plan only when the sentence describes a trip. "Weather in Goa" or
+    // "hotel in Lonavala" names a place but is not a trip to plan, and "can I
+    // cancel a Pune trip" is a policy question, not a request for a car.
+    const beside = pleasantry(said) || outOfScope(said) ? null : findAnswer(said, live);
+    const policyQuestion =
+      beside?.kind === 'answer' && !beside.topic.id.startsWith('route-') &&
+      !parsed.found.passengers && !parsed.found.nights;
+    const planIt = parsed.usable && !pleasantry(said) && !outOfScope(said) && !policyQuestion;
+
+    if (planIt) {
       const bits = [
         parsed.found.passengers ? `${parsed.requirement.passengers} travelling` : null,
         parsed.destination ? `to ${parsed.destination.name}` : parsed.spot ? `around ${parsed.spot}` : null,
@@ -276,12 +419,12 @@ export default function AssistantPage() {
         id: seq++,
         from: 'assistant',
         text: bits.length
-          ? `Got it — ${bits.join(', ')}. Here is what we would send, and what it would cost.`
-          : 'Here is what we would send for that, and what it would cost.',
+          ? `Got it — ${bits.join(', ')}. Here is what we would send, and the fare where the portal has one.`
+          : 'Here is what we would send for that, and the fare where the portal has one.',
         trip: parsed,
       });
     } else {
-      next.push({ id: seq++, from: 'assistant', ...replyFor(said) });
+      next.push({ id: seq++, from: 'assistant', ...replyFor(said, live) });
     }
 
     setTurns((t) => [...t, ...next]);
@@ -290,11 +433,13 @@ export default function AssistantPage() {
 
   /** A chip resolves to the answer it names rather than being re-matched. */
   const openTopic = (chip: Chip) => {
-    const topic = topicById(chip.topicId);
+    const topic = topicById(chip.topicId, live);
     setTurns((t) => [
       ...t,
       { id: seq++, from: 'you', text: chip.label },
-      { id: seq++, from: 'assistant', text: topic?.answer ?? 'Let me take your number instead.', link: topic?.link },
+      topic
+        ? { id: seq++, from: 'assistant', text: topic.answer, link: topic.link, also: topic.also }
+        : { id: seq++, from: 'assistant', ...replyFor(chip.label, live) },
     ]);
   };
 
@@ -304,7 +449,7 @@ export default function AssistantPage() {
         <PageHero
           eyebrow="Travel assistant"
           title="Tell us what you need"
-          sub="In your own words. It works out the vehicle, the duration, the itinerary and the cost — and hands you straight into the trip builder if you want to change any of it."
+          sub="In your own words. It works out the vehicle, the duration and the itinerary, shows the fare where the portal has one — and hands you straight into booking or an enquiry."
           crumbs={[{ label: 'Travel assistant' }]}
         />
 
@@ -348,6 +493,14 @@ export default function AssistantPage() {
                             className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-bold text-brand-700 hover:text-brand-800"
                           >
                             {t.link.label} <IconArrowRight className="h-3 w-3" />
+                          </Link>
+                        )}
+                        {t.also && (
+                          <Link
+                            to={t.also.to}
+                            className="ml-4 mt-2.5 inline-flex items-center gap-1.5 text-xs font-bold text-brand-700 hover:text-brand-800"
+                          >
+                            {t.also.label} <IconArrowRight className="h-3 w-3" />
                           </Link>
                         )}
                         {t.trip && <TripAnswer trip={t.trip} />}
@@ -399,9 +552,9 @@ export default function AssistantPage() {
             </form>
 
             <Callout className="mt-6">
-              This assistant reads your sentence and answers from this website's own rates, vehicles and routes. It is
-              not a chatbot with opinions — it cannot make up a price or a policy, and where it is unsure it says so and
-              gives you the number.
+              This assistant reads your sentence and answers only from this website's own fares, vehicles, routes and
+              policies. It is not an AI chatbot — it cannot make up a price or a policy. A fare the office has not set
+              shows as "fare on request", and anything the site does not cover is handed to Enquire, WhatsApp or Call.
             </Callout>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -422,7 +575,7 @@ export default function AssistantPage() {
               className="mt-14"
               eyebrow="Also"
               title="Everything the assistant knows, as a page"
-              sub="The same forty answers, grouped and searchable."
+              sub="The written answers it draws on, grouped and searchable."
               action={
                 <Link to="/faq" className="btn-ghost btn-sm text-brand-700 hover:bg-white">
                   Open the FAQ <IconArrowRight className="h-3.5 w-3.5" />

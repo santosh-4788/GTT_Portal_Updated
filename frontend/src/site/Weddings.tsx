@@ -17,13 +17,14 @@ import { WEDDING_SERVICES, ON_REQUEST_CLASSES, VEHICLES } from './catalog';
 import { fleetPlan } from './recommend';
 import {
   BackLink, Callout, ContactFields, Counter, PlaceInput, SectionHead, SubmitButton,
-  TrustRow, useContactDetails, useSendRequirement,
+  TrustRow, useContactDetails, useSendRequirement, emailError,
 } from './kit';
 import { Reveal } from '../components/Reveal';
 import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconPhone, IconPlus, IconTrash } from '../components/icons';
 import { IconSeat } from './SiteIcons';
 import { DateField, TimeField } from '../components/DateTimeField';
+import { useSeo } from './Seo';
 
 interface Movement {
   id: number;
@@ -48,6 +49,11 @@ const TEMPLATE: Movement[] = [
 ];
 
 export default function Weddings() {
+  useSeo({
+    title: 'Wedding Car Rental in Mumbai',
+    path: '/weddings',
+    description: 'Wedding cars and guest transport in Mumbai: the bride and groom car, baraat vehicles, hotel-to-venue shuttles and airport pickups for family, planned as one fleet.',
+  });
   const { send, busy, error } = useSendRequirement();
 
   const [moves, setMoves] = useState<Movement[]>(TEMPLATE);
@@ -72,6 +78,7 @@ export default function Weddings() {
     const errs: Record<string, string> = {};
     if (contact.name.trim().length < 2) errs.name = 'Please enter your name.';
     if (!/^[6-9]\d{9}$/.test(contact.mobile.replace(/\D/g, '').replace(/^91/, ''))) errs.mobile = 'Enter a valid 10-digit mobile number.';
+    Object.assign(errs, emailError(contact));
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -99,7 +106,7 @@ export default function Weddings() {
       ].filter(Boolean).join('. '),
       name: contact.name,
       mobile: contact.mobile,
-      email: contact.email,
+      email: contact.noEmail ? '' : contact.email,
       company: contact.company,
     });
   };
@@ -216,7 +223,7 @@ export default function Weddings() {
                         <button
                           type="button"
                           onClick={() => setMoves((l) => [...l.slice(0, i + 1), blank(m.day), ...l.slice(i + 1)])}
-                          className="text-2xs font-bold text-brand-700 hover:text-brand-800"
+                          className="-my-2 py-2 text-2xs font-bold text-brand-700 hover:text-brand-800"
                         >
                           + movement on this day
                         </button>

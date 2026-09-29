@@ -14,13 +14,14 @@ import { EVENT_TYPES, eventBySlug, VEHICLES } from './catalog';
 import { fleetPlan } from './recommend';
 import {
   Callout, ChoiceCard, ContactFields, Counter, PlaceInput, Stepper, SubmitButton,
-  TrustRow, useContactDetails, useSendRequirement,
+  TrustRow, useContactDetails, useSendRequirement, emailError,
 } from './kit';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconPhone, IconPin, IconPlus, IconTrash } from '../components/icons';
 import { IconSeat } from './SiteIcons';
 import { DateField } from '../components/DateTimeField';
+import { useSeo } from './Seo';
 
 const STEPS = ['Event', 'Stays', 'Venue', 'Guests', 'Vehicles', 'Review'];
 
@@ -60,6 +61,11 @@ function Timeline({ hotels, venue, legs }: { hotels: string[]; venue: string; le
 }
 
 export default function EventPlanner() {
+  useSeo({
+    title: 'Event Transport Planner',
+    path: '/events/planner',
+    description: 'Plan transport for an event in Mumbai - guests, timings and vehicles - and send it to our team for a quote.',
+  });
   const [params] = useSearchParams();
   const { send, busy, error, setError } = useSendRequirement();
 
@@ -103,6 +109,7 @@ export default function EventPlanner() {
     const errs: Record<string, string> = {};
     if (contact.name.trim().length < 2) errs.name = 'Please enter your name.';
     if (!/^[6-9]\d{9}$/.test(contact.mobile.replace(/\D/g, '').replace(/^91/, ''))) errs.mobile = 'Enter a valid 10-digit mobile number.';
+    Object.assign(errs, emailError(contact));
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -131,7 +138,7 @@ export default function EventPlanner() {
       ].filter(Boolean).join('. '),
       name: contact.name,
       mobile: contact.mobile,
-      email: contact.email,
+      email: contact.noEmail ? '' : contact.email,
       company: contact.company,
     });
   };

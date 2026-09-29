@@ -28,6 +28,8 @@ const ALL: Item[] = [
   // Counter booking. The route has always existed in this bundle; without a
   // menu entry there was simply no way to open it from the phone.
   { to: '/admin/customer-booking', label: 'Customer Booking', short: 'Counter', Icon: IconUsers, perms: ['bookings.create'] },
+  { to: '/admin/feedback', label: 'Feedback', Icon: IconReports, perms: ['bookings.view'] },
+  { to: '/admin/chatbot', label: 'Chatbot Knowledge', short: 'Chatbot', Icon: IconTemplates, perms: ['settings.view'] },
   { to: '/admin/billing', label: 'Billing', Icon: IconBilling, perms: ['billing.view'] },
   { to: '/admin/invoices', label: 'Invoices', Icon: IconInvoices, perms: ['invoices.view'] },
   { to: '/admin/payments', label: 'Payments', Icon: IconPayments, perms: ['payments.view'] },

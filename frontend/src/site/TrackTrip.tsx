@@ -20,8 +20,10 @@ import { DriverCard } from './DriverCard';
 import { ShareSheet } from './ShareTrip';
 import { IconArrowRight, IconClock, IconPhone, IconPin } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
+import { useSeo } from './Seo';
 
 export default function TrackTrip() {
+  useSeo({ title: 'Track your trip', noindex: true });
   const { ref } = useParams();
   const { trips } = useCustomer();
   const [sharing, setSharing] = useState(false);

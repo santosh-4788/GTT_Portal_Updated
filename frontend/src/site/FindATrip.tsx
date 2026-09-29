@@ -21,6 +21,7 @@ import {
 } from './kit';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck } from '../components/icons';
+import { useSeo } from './Seo';
 
 const STEPS = ['Start', 'People', 'Days', 'Budget', 'Interests'];
 
@@ -35,6 +36,11 @@ const CAP: Record<string, number> = { ANY: Infinity, LOW: 15_000, MID: 35_000, H
 const FLOOR: Record<string, number> = { ANY: 0, LOW: 0, MID: 15_000, HIGH: 35_000 };
 
 export default function FindATrip() {
+  useSeo({
+    title: 'Find a Trip from Mumbai',
+    path: '/find-a-trip',
+    description: 'Tell us where you start, how many are travelling, the days and budget, and we suggest road trips from Mumbai that fit.',
+  });
   const book = useRates();
 
   const [at, setAt] = useState(0);
@@ -307,13 +313,8 @@ export default function FindATrip() {
               </div>
             )}
 
-            <div className="mt-8 flex items-center justify-between gap-3">
-              <button
-                onClick={() => setAt((i) => Math.max(0, i - 1))} disabled={at === 0}
-                className="btn h-11 rounded-full px-5 text-md text-ink-600 hover:bg-ink-50 disabled:opacity-40"
-              >
-                Back
-              </button>
+            {/* One Back only: the one at the top steps back through the questions. */}
+            <div className="mt-8 flex items-center justify-end gap-3">
               <button
                 onClick={() => (at === STEPS.length - 1 ? setDone(true) : setAt((i) => i + 1))}
                 className="grad-brand btn h-12 rounded-full px-7 text-md font-semibold text-white shadow-lg shadow-brand-500/25 hover:brightness-[1.06]"

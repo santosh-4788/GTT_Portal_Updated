@@ -21,8 +21,10 @@ import { invoiceStep, trailFor, SOURCE_TONE, STAGE_TONE, type ServerTrip, type T
 import { Reveal } from '../components/Reveal';
 import PageHero from './PageHero';
 import { IconArrowRight, IconPhone, IconSearch, IconUsers } from '../components/icons';
+import { useSeo } from './Seo';
 
 export default function TrackLookup() {
+  useSeo({ title: 'Track a trip', noindex: true });
   const [params, setParams] = useSearchParams();
   const [tripId, setTripId] = useState((params.get('trip') ?? '').toUpperCase());
   const [digits, setDigits] = useState(params.get('verify') ?? '');

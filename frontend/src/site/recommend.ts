@@ -284,20 +284,35 @@ const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/
 export function findRate(
   rates: RateOption[],
   vehicle: CatalogVehicle,
-  plan: PlanType
+  plan: PlanType,
+  /**
+   * An hourly package's hours. A vehicle has one LOCAL row per package, so
+   * without this the first row wins and a 12-hour booking was quoted off the
+   * 4-hour fare. With it: the exact package, else the smallest one that covers
+   * the hours (a vehicle with an 8-hour minimum), else the largest there is.
+   */
+  hours?: number
 ): RateOption | undefined {
   const pool = rates.filter((r) => r.plan_type === plan);
   if (!pool.length) return undefined;
 
   const aliases = [...vehicle.rateAliases, ...words(vehicle.name), ...words(vehicle.category)];
 
-  let best: { row: RateOption; hits: number } | undefined;
+  let top = 0;
+  let mine: RateOption[] = [];
   for (const row of pool) {
     const cat = row.vehicle_category.toLowerCase();
     const hits = aliases.reduce((n, a) => (a.length > 2 && cat.includes(a) ? n + a.length : n), 0);
-    if (hits > 0 && (!best || hits > best.hits)) best = { row, hits };
+    if (hits > top) { top = hits; mine = [row]; }
+    else if (hits > 0 && hits === top) mine.push(row);
   }
-  return best?.row;
+  if (!mine.length) return undefined;
+  if (!hours) return mine[0];
+
+  const byHours = [...mine].sort((a, b) => a.included_hours - b.included_hours);
+  return byHours.find((r) => r.included_hours === hours)
+    ?? byHours.find((r) => r.included_hours > hours)
+    ?? byHours[byHours.length - 1];
 }
 
 /** Cheapest plan row for a vehicle, used for the "from" figure on a card. */

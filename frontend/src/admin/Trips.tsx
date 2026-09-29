@@ -20,6 +20,8 @@ import {
 import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/auth';
 import { DateField, TimeField } from '../components/DateTimeField';
+import { gstRateOptions, gstSummary } from './gst';
+import { AIRPORT_NAMES, AirportDirectionPicker, airportEnds, type AirportDir } from './airport';
 import {
   IconArrowRight, IconCheck, IconDownload, IconInvoices, IconMail, IconPhone,
   IconPlus, IconRefresh, IconSearch, IconSteering, IconUsers,
@@ -470,6 +472,23 @@ interface Detail {
   timeline: any[];
   nextStatuses: { value: string; label: string }[];
   emails: any[];
+  /** The feedback request for a completed trip, and the answer once given. */
+  feedback: FeedbackInfo | null;
+}
+
+interface FeedbackInfo {
+  id: number;
+  status: 'PENDING' | 'SUBMITTED';
+  emailStatus: 'SENT' | 'QUEUED' | 'FAILED' | 'NO_EMAIL' | null;
+  sentTo: string | null;
+  requestedAt: string;
+  submittedAt: string | null;
+  allowResubmit: boolean;
+  driverRating: number | null;
+  serviceRating: number | null;
+  vehicleRating: number | null;
+  overallRating: number | null;
+  comments: string | null;
 }
 
 function TripDrawer({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
@@ -646,6 +665,9 @@ function Overview({ d, onRefresh }: { d: Detail; onRefresh: () => void }) {
         </Panel>
 
         <Panel title="Journey">
+          {b.trip_type === 'AIRPORT' && (
+            <Row label="Airport" value={b.airport_direction === 'TO' ? 'To airport (drop)' : b.airport_direction === 'FROM' ? 'From airport (pickup)' : 'Direction not set'} />
+          )}
           <Row label="Pickup" value={b.pickup_address || b.pickup_location} />
           <Row label="Drop" value={b.drop_address || b.drop_location} />
           <Row label="Date" value={dmy(b.travel_date)} />
@@ -676,16 +698,25 @@ function Overview({ d, onRefresh }: { d: Detail; onRefresh: () => void }) {
                 onClick={() => move(s.value)}
                 disabled={!!busy}
                 className={`btn-sm ${
-                  s.value === 'CANCELLED' || s.value === 'NO_SHOW' ? 'btn-outline text-danger-600' : 'btn-outline'
+                  s.value === 'CANCELLED' || s.value === 'NO_SHOW' ? 'btn-outline text-danger-600'
+                    : s.value === 'COMPLETED' ? 'btn-primary' : 'btn-outline'
                 }`}
               >
                 {busy === s.value && <Spinner />}
-                {s.label}
+                {s.value === 'COMPLETED' ? 'Mark Trip as Completed' : s.label}
               </button>
             ))}
           </div>
+          {d.nextStatuses.some((s) => s.value === 'COMPLETED') && !d.feedback && (
+            <p className="mt-2 text-xs text-ink-500">
+              Marking the trip completed emails the customer a <strong>Give Your Feedback</strong> link, once.
+            </p>
+          )}
         </Panel>
       )}
+
+      {/* --- feedback, once the trip is done --- */}
+      {(b.booking_status === 'COMPLETED' || d.feedback) && <FeedbackPanel d={d} onRefresh={onRefresh} />}
 
       {/* --- what has been sent --- */}
       <Panel
@@ -740,6 +771,101 @@ function Overview({ d, onRefresh }: { d: Detail; onRefresh: () => void }) {
         </ol>
       </Panel>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+
+function Stars({ value }: { value: number | null }) {
+  if (!value) return <span className="text-ink-400">—</span>;
+  return (
+    <span className="whitespace-nowrap text-sm tracking-tight" aria-label={`${value} out of 5`}>
+      <span className="text-gold-500">{'★'.repeat(value)}</span>
+      <span className="text-ink-200">{'★'.repeat(5 - value)}</span>
+    </span>
+  );
+}
+
+/** Whether the customer has been asked, and what they said. */
+function FeedbackPanel({ d, onRefresh }: { d: Detail; onRefresh: () => void }) {
+  const toast = useToast();
+  const { can } = useAuth();
+  const b = d.data;
+  const f = d.feedback;
+  const [busy, setBusy] = useState('');
+
+  async function send() {
+    setBusy('send');
+    try {
+      const { data } = await api.post(`/feedback/request/${b.id}`, {});
+      if (data.ok) toast.success('Feedback email sent', data.message);
+      else toast.error('Feedback email not sent yet', data.message);
+      onRefresh();
+    } catch (err) {
+      toast.error('Could not send the feedback email', errorMessage(err));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function reopen() {
+    if (!f) return;
+    setBusy('reopen');
+    try {
+      const { data } = await api.post(`/feedback/${f.id}/allow-resubmit`, {});
+      toast.success('Feedback re-opened', data.message);
+      onRefresh();
+    } catch (err) {
+      toast.error('Could not re-open the feedback', errorMessage(err));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const emailNote = !f ? 'Not requested yet.'
+    : f.emailStatus === 'SENT' ? `Emailed to ${f.sentTo} on ${dmyTime(f.requestedAt)}.`
+      : f.emailStatus === 'NO_EMAIL' ? 'No email address on this trip, so the link could not be sent.'
+        : f.emailStatus === 'FAILED' ? `The email to ${f.sentTo} failed — see Emails sent below.`
+          : `Queued for ${f.sentTo ?? 'the customer'} — it goes out once the mailbox is set up.`;
+
+  return (
+    <Panel
+      title="Customer feedback"
+      action={
+        can('bookings.update') && (!f || f.status === 'PENDING' || f.allowResubmit) ? (
+          <button onClick={send} disabled={!!busy} className="btn-outline btn-sm">
+            {busy === 'send' ? <Spinner /> : <IconMail className="h-3.5 w-3.5" />} {f ? 'Send feedback email again' : 'Send feedback email'}
+          </button>
+        ) : undefined
+      }
+    >
+      {f?.status === 'SUBMITTED' ? (
+        <div className="space-y-3">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-4">
+            {([['Driver', f.driverRating], ['Service', f.serviceRating], ['Cab', f.vehicleRating], ['Overall', f.overallRating]] as const).map(([k, v]) => (
+              <div key={k}>
+                <dt className="text-2xs font-bold uppercase tracking-wide text-ink-400">{k}</dt>
+                <dd><Stars value={v} /></dd>
+              </div>
+            ))}
+          </dl>
+          {f.comments && <p className="whitespace-pre-wrap rounded-lg bg-ink-50 px-3 py-2 text-sm text-ink-700">{f.comments}</p>}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-500">
+            <span>Submitted {f.submittedAt ? dmyTime(f.submittedAt) : ''}{f.allowResubmit ? ' · re-opened for one more response' : ''}</span>
+            {can('bookings.update') && !f.allowResubmit && (
+              <button onClick={reopen} disabled={!!busy} className="btn-ghost btn-sm">
+                {busy === 'reopen' && <Spinner />} Allow a new response
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-ink-600">
+          {f ? <><StatusBadge value="PENDING" /> <span className="ml-1">Waiting for the customer.</span> </> : null}
+          <span className="text-ink-500">{emailNote}</span>
+        </p>
+      )}
+    </Panel>
   );
 }
 
@@ -1009,11 +1135,13 @@ function FarePanel({ d, onRefresh, canEdit }: { d: Detail; onRefresh: () => void
             </select>
           </Field>
           <Field label="Rate %">
-            <input
-              className="input tabular-nums" inputMode="decimal" value={f.taxRate}
+            <select
+              className="input tabular-nums" value={String(num(f.taxRate))}
               disabled={!canEdit || f.taxMode === 'NONE'}
               onChange={(e) => set('taxRate', e.target.value)}
-            />
+            >
+              {gstRateOptions(num(f.taxRate)).map((r) => <option key={r} value={String(r)}>{r}%</option>)}
+            </select>
           </Field>
         </div>
       </Panel>
@@ -1021,7 +1149,7 @@ function FarePanel({ d, onRefresh, canEdit }: { d: Detail; onRefresh: () => void
       <div className="rounded-lg bg-ink-50 p-4">
         <dl className="space-y-2 text-sm">
           <Money label="Taxable value" value={totals.taxable} />
-          <Money label={f.taxMode === 'NONE' ? 'Tax (none)' : `Tax @ ${num(f.taxRate)}%`} value={totals.tax} />
+          <Money label={f.taxMode === 'NONE' ? 'Tax (none)' : gstSummary(f.taxMode, num(f.taxRate))} value={totals.tax} />
           <Money label="Toll & parking (after tax)" value={totals.nonTaxable} />
           <Money label="Total" value={totals.total} strong />
           {num(f.advance) > 0 && <Money label="Balance due" value={totals.balance} />}
@@ -1185,12 +1313,14 @@ function InvoicePanel({ d, onRefresh, canEdit }: { d: Detail; onRefresh: () => v
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="GST type">
               <select className="input" value={taxMode} onChange={(e) => setTaxMode(e.target.value as any)}>
-                <option value="IGST">IGST (inter-state)</option>
-                <option value="CGST_SGST">CGST + SGST (within Maharashtra)</option>
+                <option value="IGST">IGST (other state)</option>
+                <option value="CGST_SGST">CGST + SGST (same state)</option>
               </select>
             </Field>
             <Field label="Rate %">
-              <input className="input tabular-nums" inputMode="decimal" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} />
+              <select className="input tabular-nums" value={String(num(taxRate))} onChange={(e) => setTaxRate(e.target.value)}>
+                {gstRateOptions(num(taxRate)).map((r) => <option key={r} value={String(r)}>{r}%</option>)}
+              </select>
             </Field>
           </div>
         )}
@@ -1282,9 +1412,11 @@ function NewTripModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     customerName: '', customerMobile: '', customerEmail: '',
     pickup: '', dropOff: '',
     travelDate: todayIso(), journeyTime: '',
-    tripType: 'LOCAL', vehicleType: '', passengers: '1',
+    tripType: 'LOCAL', airportDirection: '' as AirportDir, vehicleType: '', passengers: '1',
     message: '', status: 'CONFIRMED', notifyCustomer: true,
   });
+  const airport = f.tripType === 'AIRPORT';
+  const ends = airportEnds(f.airportDirection);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -1293,6 +1425,10 @@ function NewTripModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (airport && !f.airportDirection) {
+      setError('Choose the direction first: to the airport, or from the airport.');
+      return;
+    }
     setBusy(true);
     try {
       const { data } = await api.post('/trips', {
@@ -1358,24 +1494,42 @@ function NewTripModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
 
         <Panel title="Journey">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Pickup" required>
-              <input className="input" value={f.pickup} onChange={(e) => set('pickup', e.target.value)} placeholder="Pickup address" />
-            </Field>
-            <Field label="Drop">
-              <input className="input" value={f.dropOff} onChange={(e) => set('dropOff', e.target.value)} placeholder="Drop address" />
-            </Field>
-            <Field label="Journey date" required>
-              <DateField value={f.travelDate} onChange={(v) => set('travelDate', v)} />
-            </Field>
-            <Field label="Journey time">
-              <TimeField value={f.journeyTime} onChange={(v) => set('journeyTime', v)} />
-            </Field>
-            <Field label="Trip type">
+            {/* The kind of trip comes first here, because an airport trip then
+                asks its direction before either address. */}
+            <Field label="Trip type" className="sm:col-span-2">
               <select className="input" value={f.tripType} onChange={(e) => set('tripType', e.target.value)}>
                 {['LOCAL', 'TRANSFER', 'AIRPORT', 'OUTSTATION', 'ROUND_TRIP', 'PACKAGE'].map((t) => (
                   <option key={t} value={t}>{humanise(t)}</option>
                 ))}
               </select>
+            </Field>
+            {airport && (
+              <Field label="Direction" required className="sm:col-span-2">
+                <AirportDirectionPicker value={f.airportDirection} onChange={(v) => set('airportDirection', v)} />
+              </Field>
+            )}
+            {airport && !f.airportDirection ? (
+              <p className="text-sm text-ink-500 sm:col-span-2">
+                Choose <strong className="text-ink-700">To airport</strong> or <strong className="text-ink-700">From airport</strong> to enter the addresses.
+              </p>
+            ) : (
+              <>
+                <Field label={airport ? ends.pickup : 'Pickup'} required>
+                  <input className="input" value={f.pickup} onChange={(e) => set('pickup', e.target.value)}
+                    placeholder={airport ? ends.pickupHint : 'Pickup address'} list={airport && ends.airportEnd === 'pickup' ? 'gtt-airports' : undefined} />
+                </Field>
+                <Field label={airport ? ends.drop : 'Drop'} required={airport}>
+                  <input className="input" value={f.dropOff} onChange={(e) => set('dropOff', e.target.value)}
+                    placeholder={airport ? ends.dropHint : 'Drop address'} list={airport && ends.airportEnd === 'drop' ? 'gtt-airports' : undefined} />
+                </Field>
+                <datalist id="gtt-airports">{AIRPORT_NAMES.map((a) => <option key={a} value={a} />)}</datalist>
+              </>
+            )}
+            <Field label="Journey date" required>
+              <DateField value={f.travelDate} onChange={(v) => set('travelDate', v)} />
+            </Field>
+            <Field label="Journey time">
+              <TimeField value={f.journeyTime} onChange={(v) => set('journeyTime', v)} />
             </Field>
             <Field label="Vehicle type">
               <input className="input" value={f.vehicleType} onChange={(e) => set('vehicleType', e.target.value)} placeholder="Innova Crysta" />

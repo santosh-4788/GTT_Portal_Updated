@@ -66,6 +66,11 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: 'bookings', column: 'completed_at', ddl: 'TEXT' },
   { table: 'bookings', column: 'details_sent_at', ddl: 'TEXT' },
 
+  // Which way an airport transfer goes: TO the airport (drop) or FROM it
+  // (pickup). NULL for every other trip type. Asked before anything else on
+  // an airport booking, because it decides which end is the airport.
+  { table: 'bookings', column: 'airport_direction', ddl: 'TEXT' },
+
   // When the invoice was emailed to the customer, and to which address.
   { table: 'invoices', column: 'sent_at', ddl: 'TEXT' },
   { table: 'invoices', column: 'sent_to', ddl: 'TEXT' },

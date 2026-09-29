@@ -77,6 +77,23 @@ function extractToken(req: Request): string | null {
   return cookie ?? null;
 }
 
+/**
+ * The signed-in customer, or null - never an error. For "am I signed in?"
+ * checks that every page makes: a 401 there is logged as an error in every
+ * visitor's browser console although being signed out is perfectly normal.
+ */
+export function currentCustomer(req: Request) {
+  const token = extractToken(req);
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, config.jwtSecret) as { sub: string; typ?: string };
+    if (payload.typ !== CUSTOMER_TOKEN_TYPE) return null;
+    return loadCustomer(Number(payload.sub)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function requireCustomer(req: Request, res: Response, next: NextFunction) {
   const token = extractToken(req);
   if (!token) {

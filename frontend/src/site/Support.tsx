@@ -18,8 +18,14 @@ import { Reveal } from '../components/Reveal';
 import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconChevron, IconMail, IconPhone } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
+import { useSeo } from './Seo';
 
 export default function Support() {
+  useSeo({
+    title: 'Help and Support',
+    path: '/support',
+    description: 'Help with a booking, a trip in progress, an invoice or a complaint - Gupta Tours & Travels, Mumbai, 24x7.',
+  });
   const [params] = useSearchParams();
   const { trips } = useCustomer();
   const [topic, setTopic] = useState<string>(params.get('topic') ?? '');

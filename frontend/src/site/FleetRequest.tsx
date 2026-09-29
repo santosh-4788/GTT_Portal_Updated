@@ -14,7 +14,7 @@ import { VEHICLES, ON_REQUEST_CLASSES } from './catalog';
 import { lookupDistance } from './places';
 import {
   Callout, ContactFields, PlaceInput, SectionHead, SubmitButton, TrustRow,
-  estimateFor, useContactDetails, useRates, useSendRequirement,
+  estimateFor, useContactDetails, useRates, useSendRequirement, emailError,
 } from './kit';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { Reveal } from '../components/Reveal';
@@ -22,6 +22,7 @@ import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconPhone, IconPlus, IconTrash } from '../components/icons';
 import { IconSeat } from './SiteIcons';
 import { DateField } from '../components/DateTimeField';
+import { useSeo } from './Seo';
 
 type Line = { slug: string; count: number };
 
@@ -33,6 +34,11 @@ const DURATIONS = [
 ];
 
 export default function FleetRequest() {
+  useSeo({
+    title: 'Request Multiple Vehicles',
+    path: '/fleet-request',
+    description: 'Need several cars, tempo travellers or coaches from Mumbai at once? Send the requirement and we plan the fleet.',
+  });
   const book = useRates();
   const { send, busy, error } = useSendRequirement();
 
@@ -78,6 +84,7 @@ export default function FleetRequest() {
     const errs: Record<string, string> = {};
     if (contact.name.trim().length < 2) errs.name = 'Please enter your name.';
     if (!/^[6-9]\d{9}$/.test(contact.mobile.replace(/\D/g, '').replace(/^91/, ''))) errs.mobile = 'Enter a valid 10-digit mobile number.';
+    Object.assign(errs, emailError(contact));
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -101,7 +108,7 @@ export default function FleetRequest() {
       ].filter(Boolean).join('. '),
       name: contact.name,
       mobile: contact.mobile,
-      email: contact.email,
+      email: contact.noEmail ? '' : contact.email,
       company: contact.company,
     });
   };

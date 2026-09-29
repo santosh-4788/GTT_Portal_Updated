@@ -644,3 +644,210 @@ CREATE TABLE IF NOT EXISTS geo_usage (
 INSERT OR IGNORE INTO settings (key, value, category, data_type, label) VALUES
   ('maps.enabled',      'true', 'maps', 'boolean', 'Look up addresses and distance'),
   ('maps.monthlyLimit', '2000', 'maps', 'number',  'Address/distance lookups allowed per month');
+
+-- ---------------------------------------------------------------------------
+-- Outstation fixed fares.
+--
+-- The popular routes out of Mumbai are sold at one published price per vehicle
+-- category, toll included, rather than per kilometre. One row per route per
+-- category. A NULL fare means "not priced yet": the website then shows Fare on
+-- request for that category instead of inventing a number, which is how the
+-- premium and return fares start until the office fills them in.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS outstation_fares (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  route_key      TEXT NOT NULL,                   -- 'lonavala'
+  origin         TEXT NOT NULL DEFAULT 'Mumbai',
+  destination    TEXT NOT NULL,                   -- 'Lonavala'
+  category       TEXT NOT NULL CHECK (category IN ('STANDARD','SUV_MUV','PREMIUM_SEDAN','PREMIUM_MUV')),
+  vehicles       TEXT NOT NULL,                   -- 'Dzire / Aura'
+  one_way_fare   REAL CHECK (one_way_fare IS NULL OR one_way_fare >= 0),
+  return_fare    REAL CHECK (return_fare IS NULL OR return_fare >= 0),
+  toll_included  INTEGER NOT NULL DEFAULT 1,
+  is_active      INTEGER NOT NULL DEFAULT 1,
+  display_order  INTEGER NOT NULL DEFAULT 0,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_outstation_fares_route_cat ON outstation_fares(route_key, category);
+
+-- ---------------------------------------------------------------------------
+-- Website assistant conversations.
+--
+-- Every chat is kept so the office can see exactly what a customer asked, what
+-- the assistant answered, which vehicles and fares it showed, and when the
+-- booking was confirmed. chat_messages is APPEND-ONLY: nothing updates or
+-- deletes a row, so the original conversation is never overwritten; a later
+-- change (a modified detail, the booking being created) is a new row with its
+-- own time. chat_sessions only carries the latest headline for the list.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id             TEXT PRIMARY KEY,                -- random id made by the browser
+  started_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  last_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  status         TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','BOOKED')),
+  trip_id        TEXT,
+  booking_id     INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+  customer_name  TEXT,
+  mobile         TEXT,
+  email          TEXT,
+  summary_json   TEXT,                            -- latest trip/plan headline
+  page           TEXT,
+  user_agent     TEXT,
+  ip_address     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_chat_sessions_last ON chat_sessions(last_at);
+CREATE INDEX IF NOT EXISTS ix_chat_sessions_trip ON chat_sessions(trip_id);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id  TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  seq         INTEGER NOT NULL,                   -- order within the chat
+  at          TEXT NOT NULL,                      -- when it was said (browser time, ISO)
+  received_at TEXT NOT NULL DEFAULT (datetime('now')),
+  sender      TEXT NOT NULL CHECK (sender IN ('customer','assistant','system')),
+  text        TEXT NOT NULL,
+  data_json   TEXT                                -- options shown, fares and how they were worked out
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_chat_messages_seq ON chat_messages(session_id, seq);
+
+-- ---------------------------------------------------------------------------
+-- Customer feedback on a completed trip.
+--
+-- One row per booking, created the moment the office marks the trip completed
+-- and the feedback email is sent. The UNIQUE booking_id is what stops a second
+-- email going out when the completed booking is opened or saved again, and the
+-- random token in the email link is the only way in — Trip IDs run in
+-- sequence, so they are not secret enough to open a form on their own.
+--
+-- Who ran the trip (driver, vehicle, route, date) is copied onto the row when
+-- the customer submits, so the admin's filters still read true if the booking
+-- is edited afterwards.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS trip_feedback (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id      INTEGER NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+  trip_id         TEXT,
+  token           TEXT NOT NULL UNIQUE,
+  customer_id     INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+  customer_name   TEXT,
+  sent_to         TEXT,                          -- the address the link went to
+  email_log_id    INTEGER REFERENCES email_log(id) ON DELETE SET NULL,
+  email_status    TEXT,                          -- SENT | QUEUED | FAILED | NO_EMAIL
+  requested_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  requested_by    INTEGER REFERENCES users(id),
+  status          TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','SUBMITTED')),
+  -- An admin can re-open a submitted form once; submitting clears it again.
+  allow_resubmit  INTEGER NOT NULL DEFAULT 0,
+
+  driver_rating   INTEGER CHECK (driver_rating BETWEEN 1 AND 5),
+  service_rating  INTEGER CHECK (service_rating BETWEEN 1 AND 5),
+  vehicle_rating  INTEGER CHECK (vehicle_rating BETWEEN 1 AND 5),
+  overall_rating  INTEGER CHECK (overall_rating BETWEEN 1 AND 5),
+  comments        TEXT,
+  submitted_at    TEXT,
+  submit_count    INTEGER NOT NULL DEFAULT 0,
+
+  -- snapshot of the trip at submission
+  travel_date     TEXT,
+  pickup          TEXT,
+  drop_off        TEXT,
+  driver_id       INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+  driver_name     TEXT,
+  vehicle_type    TEXT,
+  vehicle_number  TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_trip_feedback_status    ON trip_feedback(status);
+CREATE INDEX IF NOT EXISTS ix_trip_feedback_submitted ON trip_feedback(submitted_at);
+
+-- ---------------------------------------------------------------------------
+-- The website assistant's knowledge base.
+--
+-- The assistant runs in the visitor's browser on rules and this data - no AI
+-- or translation service. These tables say what a customer MEANS (intents,
+-- the example questions that show each one, synonyms for places, vehicles and
+-- services); the answer itself still comes from the live portal data - fares,
+-- the fleet, the booking - so nothing here can carry a price or a policy.
+--
+-- Questions the assistant could not place land in chatbot_unknown_questions
+-- for the office to map to an intent. Nothing a customer types changes what
+-- the assistant does until an admin has reviewed it.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS chatbot_intents (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  code               TEXT NOT NULL UNIQUE,          -- FARE_INQUIRY
+  name               TEXT NOT NULL,
+  category           TEXT NOT NULL,                 -- Booking, Fare, Vehicle, Support ...
+  description        TEXT,
+  service_type       TEXT,                          -- LOCAL | AIRPORT | OUTSTATION | HOURLY | NULL
+  required_entities  TEXT,                          -- comma list: route,leg
+  optional_entities  TEXT,
+  -- Answered from live data (fares, trips): the wording is built by the
+  -- assistant and no template can replace the figures.
+  dynamic            INTEGER NOT NULL DEFAULT 0,
+  -- Optional wording for a static answer, per language, as JSON
+  -- {"en": "...", "hi": "...", "hi-Latn": "...", "mr": "...", "mr-Latn": "..."}.
+  -- {phone} {whatsapp} {email} {address} {company} {hours} are filled in.
+  response_template  TEXT,
+  active             INTEGER NOT NULL DEFAULT 1,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS chatbot_intent_examples (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  intent_code  TEXT NOT NULL REFERENCES chatbot_intents(code) ON UPDATE CASCADE ON DELETE CASCADE,
+  language     TEXT NOT NULL DEFAULT 'en' CHECK (language IN ('en','hi','hi-Latn','mr','mr-Latn')),
+  example_text TEXT NOT NULL,
+  keywords     TEXT,
+  source       TEXT NOT NULL DEFAULT 'SEED' CHECK (source IN ('SEED','ADMIN','LEARNED')),
+  active       INTEGER NOT NULL DEFAULT 1,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (intent_code, language, example_text)
+);
+CREATE INDEX IF NOT EXISTS ix_chatbot_examples_intent ON chatbot_intent_examples(intent_code);
+
+CREATE TABLE IF NOT EXISTS chatbot_entities (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity_type   TEXT NOT NULL CHECK (entity_type IN ('LOCATION','VEHICLE','SERVICE','TRIP_TYPE','FARE_TERM','TIME','GENERAL')),
+  entity_value  TEXT NOT NULL,                      -- what the assistant reads: 'pune'
+  display_name  TEXT,
+  synonyms      TEXT,                               -- comma list: poona, puna, पुणे
+  language      TEXT NOT NULL DEFAULT 'any',
+  active        INTEGER NOT NULL DEFAULT 1,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (entity_type, entity_value)
+);
+
+CREATE TABLE IF NOT EXISTS chatbot_unknown_questions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  question        TEXT NOT NULL,                    -- as first typed
+  normalised      TEXT NOT NULL UNIQUE,             -- lower-cased, spaces collapsed
+  language        TEXT,
+  times_asked     INTEGER NOT NULL DEFAULT 1,
+  first_asked_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  last_asked_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  last_session_id TEXT,
+  status          TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW','MAPPED','IGNORED')),
+  mapped_intent   TEXT,
+  reviewed_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_chatbot_unknown_status ON chatbot_unknown_questions(status, last_asked_at);
+
+-- One row per customer message: what the assistant understood. The reply is
+-- read from chat_messages (the next assistant line), so it is never copied.
+CREATE TABLE IF NOT EXISTS chatbot_conversation_log (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id    TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+  seq           INTEGER NOT NULL,
+  message       TEXT NOT NULL,
+  language      TEXT,
+  intent        TEXT,
+  entities_json TEXT,
+  confidence    REAL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (session_id, seq)
+);
+CREATE INDEX IF NOT EXISTS ix_chatbot_log_intent ON chatbot_conversation_log(intent, created_at);

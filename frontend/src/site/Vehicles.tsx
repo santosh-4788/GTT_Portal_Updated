@@ -9,15 +9,17 @@
  * The trip itself lives in the URL, so a search is a link the customer can send
  * to whoever is paying for the trip.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { dmy } from '../lib/format';
 import { VEHICLES, ON_REQUEST_CLASSES, capacityOf, type CatalogVehicle } from './catalog';
 import { recommend, type Bags, type Priority } from './recommend';
 import { HOURLY_PACKAGES, QuickBook } from './QuickBook';
-import { estimateInputFor, tripPrefill, tripQuery, useTripParams } from './tripParams';
+import { estimateInputFor, readTrip, tripPrefill, tripQuery, useTripParams } from './tripParams';
 import { WhatsAppButton } from './EnquirySheet';
 import { VehicleCard, CompareTray } from './VehicleCard';
+import { FareTerms } from './FareTerms';
+import { TripAdjust } from './TripAdjust';
 import {
   BackLink, BottomSheet, Callout, CompareProvider, SectionHead, SiteEmpty,
   SkeletonGrid, TrustRow, estimateFor, useRates,
@@ -25,6 +27,7 @@ import {
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck, IconChevron, IconEdit, IconSettings } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
+import { useSeo } from './Seo';
 
 /* ==========================================================================
    Filters
@@ -180,17 +183,41 @@ function filtersFromUrl(params: URLSearchParams): Filters {
 }
 
 export default function Vehicles() {
+  useSeo({
+    title: 'Cars and Cabs on Rent in Mumbai',
+    path: '/vehicles',
+    description: 'Sedans, SUVs, Innova Crysta, tempo travellers and buses on rent in Mumbai, each with a chauffeur. Compare seats and luggage, see an estimate and send an enquiry.',
+  });
   const trip = useTripParams();
   const book = useRates();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
 
   const [f, setF] = useState<Filters>(() => filtersFromUrl(params));
   const [sheet, setSheet] = useState(false);
   const [editing, setEditing] = useState(false);
+  /* "Change trip" edits a copy of the trip; the results only re-price when
+     the customer taps Apply changes. `newSearch` swaps the sheet to the full
+     booking bar, for a different pickup or drop. */
+  const [draft, setDraft] = useState<URLSearchParams>(() => new URLSearchParams(params));
+  const [newSearch, setNewSearch] = useState(false);
+  const openEditor = () => { setDraft(new URLSearchParams(params)); setNewSearch(false); setEditing(true); };
+  const closeEditor = useCallback(() => setEditing(false), []);
+  // Written into the URL only once the sheet's history entry is gone (see
+  // useBackToClose), so Back after Apply still leaves the page.
+  const pending = useRef<URLSearchParams | null>(null);
+  const applyEditor = () => { pending.current = draft; setEditing(false); };
+  const afterEditor = () => {
+    const next = pending.current;
+    pending.current = null;
+    if (next) setParams(next, { replace: true });
+  };
+  // A new search from inside the sheet lands on this same page: close it.
+  const query = params.toString();
+  useEffect(() => { setEditing(false); }, [query]);
 
   const set = (p: Partial<Filters>) => setF((v) => ({ ...v, ...p }));
 
-  const estInput = useMemo(() => estimateInputFor(trip), [trip.tab, trip.to, trip.date, trip.returnDate, trip.plan]);
+  const estInput = useMemo(() => estimateInputFor(trip), [trip]);
 
   /**
    * Our own ranking, and how many of each vehicle this group needs.
@@ -229,7 +256,7 @@ export default function Vehicles() {
       passengers: trip.pax,
       bags,
       scope: trip.tab === 'OUTSTATION' ? 'outstation' : 'local',
-      length: trip.returnDate ? 'multi-day' : trip.tab === 'HOURLY' ? 'few-hours' : 'full-day',
+      length: trip.returnDate || trip.days > 1 ? 'multi-day' : trip.tab === 'HOURLY' ? 'few-hours' : 'full-day',
       priority,
     });
     const order = new Map(list.map((s, i) => [s.vehicle.slug, i]));
@@ -399,6 +426,7 @@ export default function Vehicles() {
     trip.date ? dmy(trip.date) : null,
     trip.time || null,
     trip.returnDate ? `Return ${dmy(trip.returnDate)}` : null,
+    trip.tab === 'OUTSTATION' && trip.days > 1 ? `${trip.days} days` : null,
     `${trip.pax} ${trip.pax === 1 ? 'passenger' : 'passengers'}`,
     pkg?.label ?? null,
     trip.flight ? `Flight ${trip.flight}` : null,
@@ -436,31 +464,27 @@ export default function Vehicles() {
                 <h1 className="font-display text-[1.45rem] font-extrabold leading-[1.15] tracking-[-0.03em] text-ink-900 sm:text-[1.85rem]">
                   {routeLabel}
                 </h1>
-                <ul className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-600">
+                {/* The dot trails its item, so a wrapped line never starts with one. */}
+                <ul className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-600">
                   {meta.map((m, i) => (
-                    <li key={m} className="flex items-center gap-2">
-                      {i > 0 && <span className="text-ink-300">·</span>}
+                    <li key={m} className="flex items-center gap-2 whitespace-nowrap">
                       {m}
+                      {i < meta.length - 1 && <span className="text-ink-300" aria-hidden="true">·</span>}
                     </li>
                   ))}
                 </ul>
               </div>
 
               <button
-                onClick={() => setEditing((v) => !v)}
-                className="btn h-10 shrink-0 rounded-full bg-white px-5 text-sm text-ink-700 shadow-card hover:shadow-raised"
+                onClick={openEditor}
+                className="btn h-11 shrink-0 rounded-full bg-white px-5 text-sm text-ink-700 shadow-card hover:shadow-raised"
               >
-                <IconEdit className="h-4 w-4" /> {editing ? 'Close' : 'Change trip'}
+                <IconEdit className="h-4 w-4" /> Change trip
               </button>
             </div>
 
-            {editing && (
-              <div className="mt-5 animate-fade-up">
-                <QuickBook initialTab={trip.tab} />
-              </div>
-            )}
-
-            <TrustRow compact className="mt-6" />
+            {/* On a phone the header is just the trip and Change trip. */}
+            <TrustRow compact className="mt-5 hidden sm:flex" />
           </div>
         </section>
 
@@ -581,6 +605,8 @@ export default function Vehicles() {
                 </>
               )}
 
+              {book.rates.length > 0 && <FareTerms tab={trip.tab} className="mt-8" />}
+
               {!book.rates.length && book.loaded && (
                 <Callout className="mt-6">
                   Estimates appear here once the walk-in rate card is filled in. Until then send the requirement through
@@ -666,6 +692,43 @@ export default function Vehicles() {
           }
         >
           <FilterPanel f={f} set={set} />
+        </BottomSheet>
+
+        {/* Change trip: a compact sheet on a phone, a dialog on a desktop. */}
+        <BottomSheet
+          open={editing}
+          onClose={closeEditor}
+          onClosed={afterEditor}
+          title={newSearch ? 'New search' : 'Edit trip'}
+          subtitle={newSearch ? 'A different pickup, drop or kind of trip.' : 'Prices update when you apply the changes.'}
+          size={newSearch ? 'lg' : 'md'}
+          footer={newSearch ? undefined : (
+            <div className="flex gap-2.5">
+              <button onClick={closeEditor} className="btn h-11 flex-1 rounded-full bg-ink-50 text-md text-ink-700">
+                Cancel
+              </button>
+              <button onClick={applyEditor} className="grad-brand btn h-11 flex-[2] rounded-full text-md font-semibold text-white">
+                Apply changes
+              </button>
+            </div>
+          )}
+        >
+          {newSearch ? (
+            <QuickBook initialTab={trip.tab} replace className="!p-3 !shadow-none sm:!p-4" />
+          ) : (
+            <>
+              <TripAdjust
+                trip={readTrip(draft)} bare
+                onChange={(fn) => setDraft((d) => { const p = new URLSearchParams(d); fn(p); return p; })}
+              />
+              <button
+                type="button" onClick={() => setNewSearch(true)}
+                className="mt-3 inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800"
+              >
+                Change pickup, drop or trip type <IconArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
         </BottomSheet>
 
         <CompareTray />

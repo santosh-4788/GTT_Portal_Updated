@@ -15,10 +15,12 @@ import { BackLink, estimateFor, SiteEmpty, useRates, Callout } from './kit';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { IconSeat, IconLuggage } from './SiteIcons';
 import { IconArrowRight, IconCheck, IconClose } from '../components/icons';
+import { useSeo } from './Seo';
 
 type RowValue = (v: CatalogVehicle) => React.ReactNode;
 
 export default function CompareVehicles() {
+  useSeo({ title: 'Compare vehicles', noindex: true });
   const [params, setParams] = useSearchParams();
   const book = useRates();
   const trip = readTrip(params);
@@ -95,6 +97,7 @@ export default function CompareVehicles() {
     return (
       <div className="page-bg min-h-screen pb-24 pt-28 sm:pt-32">
         <div className="shell">
+          <BackLink to={`/vehicles?${q}`} className="mb-4" />
           <h1 className="font-display text-[2rem] font-extrabold tracking-[-0.03em] text-ink-900">Compare vehicles</h1>
           <div className="mt-8">
             <SiteEmpty
@@ -195,7 +198,6 @@ export default function CompareVehicles() {
                     />
                   </div>
                   <h2 className="mt-3.5 font-display text-md font-bold text-ink-900">{v.name}</h2>
-                  <p className="mt-0.5 truncate text-xs text-ink-500">{v.examples}</p>
                   <button
                     onClick={() => drop(v.slug)}
                     className="mt-2 inline-flex items-center gap-1 text-2xs font-bold text-ink-400 hover:text-danger-600"

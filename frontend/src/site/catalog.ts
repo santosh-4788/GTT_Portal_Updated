@@ -47,7 +47,7 @@ export interface Need {
 export const NEEDS: Need[] = [
   { key: 'local',      emoji: '\u{1F695}', label: 'Local Travel',      sub: 'Around Mumbai, by the hour or the trip',   to: '/enquire/local',      tint: 'blue', photo: '/assets/places/marine-drive.jpg' },
   { key: 'airport',    emoji: '✈️', label: 'Airport Transfer', sub: 'CSMIA T1 & T2, Navi Mumbai and Pune',      to: '/enquire/airport',    tint: 'mint' },
-  { key: 'outstation', emoji: '\u{1F6E4}️', label: 'Outstation',   sub: 'One-way drops and round trips',           to: '/enquire/outstation', tint: 'warm', photo: '/assets/places/khandala.jpg' },
+  { key: 'outstation', emoji: '\u{1F6E4}️', label: 'Outstation',   sub: 'One-way drops and round trips',           to: '/outstation', tint: 'warm', photo: '/assets/places/khandala.jpg' },
   { key: 'hourly',     emoji: '⏱️', label: 'Hourly Rental',   sub: '4h/40km and 8h/80km packages',            to: '/enquire/hourly',     tint: 'violet', photo: '/assets/places/colaba.jpg' },
   { key: 'corporate',  emoji: '\u{1F3E2}', label: 'Corporate Travel',   sub: 'Employee, executive and client travel',   to: '/enquire/corporate',           tint: 'blue', photo: '/assets/fleet/city.jpg' },
   { key: 'darshan',    emoji: '\u{1F6D5}', label: 'Mumbai Darshan',     sub: 'Half day and full day city sightseeing',  to: '/enquire/darshan',        tint: 'warm', photo: '/assets/places/gateway-of-india.jpg' },

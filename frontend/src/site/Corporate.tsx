@@ -12,6 +12,7 @@ import { CORPORATE_BLOCKS, TRUST } from './catalog';
 import { BackLink, SectionHead, TrustRow, ContactRow } from './kit';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck, IconInvoices, IconLock, IconPhone, IconShield, IconClock } from '../components/icons';
+import { useSeo } from './Seo';
 
 const PROMISES = [
   {
@@ -44,6 +45,11 @@ const STEPS = [
 ];
 
 export default function Corporate() {
+  useSeo({
+    title: 'Corporate Car Rental in Mumbai',
+    path: '/corporate',
+    description: 'Corporate car rental and employee transport in Mumbai: monthly and on-call cars, airport desks for visiting guests, GST invoices and one account manager.',
+  });
   return (
     <div className="page-bg pb-24">
       {/* ================================ HERO ================================ */}
@@ -64,7 +70,7 @@ export default function Corporate() {
           </div>
 
           <span className="pill">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> GSTIN {COMPANY.gstin}
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> GST registered · GST-compliant invoices
           </span>
 
           <h1 className="mt-6 max-w-3xl font-display text-[2.4rem] font-extrabold leading-[1.04] tracking-[-0.035em] text-ink-900 sm:text-[3.2rem]">

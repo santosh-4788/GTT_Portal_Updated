@@ -10,6 +10,7 @@
  * Everything here is presentation plus the small amount of arithmetic the
  * presentation needs. No screen-specific logic lives in this file.
  */
+import { createPortal } from 'react-dom';
 import {
   createContext, useContext, useEffect, useMemo, useRef, useState,
   type ReactNode,
@@ -31,6 +32,7 @@ import {
 } from '../components/icons';
 import { Spinner } from '../components/ui';
 import { CalendarPopover } from '../components/DateTimeField';
+import { useBackToClose } from '../lib/useBackToClose';
 
 /* ==========================================================================
    Rates — fetched once for the whole session
@@ -87,6 +89,9 @@ export interface EstimateInput {
   /** LOCAL / AIRPORT */
   extraHours?: number;
   extraKm?: number;
+  /** HOURLY: the package the customer picked, which chooses the rate row. */
+  hours?: number;
+  km?: number;
   /** Multiply the whole thing — a fleet of four cars costs four times one. */
   vehicles?: number;
 }
@@ -104,23 +109,34 @@ export interface VehicleEstimate {
   reason?: string;
 }
 
+const n0 = (v: number | undefined) => (typeof v === 'number' && v > 0 ? v : 0);
+
 /** Work out what a vehicle costs for a trip, or say honestly that we cannot. */
 export function estimateFor(book: RateBook, vehicle: CatalogVehicle, input: EstimateInput): VehicleEstimate {
   if (!book.loaded) return { estimate: null, planLabel: '', row: null, reason: 'loading' };
-  const row = findRate(book.rates, vehicle, input.plan);
+  const row = findRate(book.rates, vehicle, input.plan, input.hours);
   if (!row) return { estimate: null, planLabel: '', row: null, reason: 'no-rate' };
+
+  // A package longer than any this vehicle has is the largest one plus the
+  // difference; one shorter than its smallest is billed at that minimum.
+  const pkgHours = n0(input.hours);
+  const shortBy = pkgHours && row.included_hours ? Math.max(0, pkgHours - row.included_hours) : 0;
+  const shortKm = shortBy ? Math.max(0, n0(input.km) - row.included_km) : 0;
 
   const one = estimateFare(
     row,
     {
       distanceKm: input.distanceKm,
       days: input.days,
-      extraHours: input.extraHours,
-      extraKm: input.extraKm,
+      extraHours: n0(input.extraHours) + shortBy,
+      extraKm: n0(input.extraKm) + shortKm,
     },
     book.taxMode,
     book.taxRate
   );
+  if (pkgHours && row.included_hours > pkgHours) {
+    one.note = `This vehicle's shortest package is ${row.included_hours} hrs / ${row.included_km} km, so that is what is quoted.`;
+  }
 
   const n = Math.max(1, input.vehicles ?? 1);
   if (n === 1) return { estimate: one, planLabel: row.plan_label, row };
@@ -416,7 +432,7 @@ export function DmyDateField({
         aria-label="Open the calendar"
         aria-expanded={open}
         className="absolute right-0 top-0 grid h-8 w-8 place-items-center rounded-lg text-ink-400
-                   transition-colors hover:text-brand-600 sm:h-7 sm:w-7"
+                   transition-colors hover:text-brand-600 lg:h-7 lg:w-7"
       >
         <IconCalendar className="h-4 w-4" />
       </button>
@@ -443,15 +459,15 @@ export function SoftStepper({
   min?: number; max?: number; unit?: string;
 }) {
   const step = (d: number) => onChange(Math.min(max, Math.max(min, value + d)));
-  // 40px on a phone, 32 on a desktop. The audit found these at 32x32, which
+  // 36px on phones and tablets (both are touch screens), 28 on a desktop. The audit found these at 32x32, which
   // is under any sensible thumb target for the two controls a customer presses
   // most on this widget. A mouse does not need the extra eight pixels, and on
   // a desktop the row has to line up with the other fields.
-  const btn = 'grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink-50 text-base font-bold leading-none '
+  const btn = 'grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink-50 text-base font-bold leading-none '
     + 'text-ink-600 transition-all hover:bg-brand-50 hover:text-brand-600 active:scale-90 '
-    + 'disabled:opacity-30 disabled:hover:bg-ink-50 disabled:hover:text-ink-600 sm:h-7 sm:w-7 sm:text-sm';
+    + 'disabled:opacity-30 disabled:hover:bg-ink-50 disabled:hover:text-ink-600 lg:h-7 lg:w-7 lg:text-sm';
   return (
-    <div id={id} className="flex h-8 items-center justify-center gap-3 sm:h-7">
+    <div id={id} className="flex h-9 items-center justify-center gap-3 lg:h-7">
       <button type="button" onClick={() => step(-1)} disabled={value <= min}
         className={btn} aria-label={`One fewer ${unit}`}>−</button>
       <span className="min-w-[1.5rem] text-center text-sm font-semibold tabular-nums text-ink-900"
@@ -598,37 +614,55 @@ export function PlaceInput({
   const [items, setItems] = useState<PlacePick[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
+  /** The text the map was last searched for, so the button is offered once. */
+  const [mapped, setMapped] = useState('');
+  const [mapBusy, setMapBusy] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
   /*
-   * Suggestions come from /geo/search, which answers with the office's own
-   * pickup and drop points first and only then asks the map service — and
-   * only for what our own list could not answer.
-   *
-   * The wait is 450ms rather than the 180 this used before. A keystroke is no
-   * longer a free database query; it can become a request to a service run on
-   * somebody else's goodwill, so it waits until the typing actually stops.
+   * Suggestions while typing come from /geo/search WITHOUT the map service:
+   * the office's own pickup and drop points, this browser's saved places, and
+   * earlier cached searches. OpenStreetMap's free search forbids autocomplete,
+   * so it is only asked when the customer presses "Search the map".
    */
+  const load = async (term: string, map: boolean) => {
+    const { data } = await api.get('/geo/search', { params: { q: term, ...(map ? { map: 1 } : {}) } });
+    const remote = (data?.places ?? []) as PlacePick[];
+    // This browser's own saved places stay at the top: they are what this
+    // person books, and they cost nothing to offer.
+    const saved: PlacePick[] = snapshot().places
+      .filter((x) => x.toLowerCase().includes(term.toLowerCase()))
+      .map((x) => ({ label: x, city: 'Saved', lat: null, lon: null, own: true }));
+    const merged = [...saved, ...remote];
+    return merged.filter((m, i) => merged.findIndex((x) => x.label === m.label) === i).slice(0, 8);
+  };
+
+  const searchMap = async () => {
+    const term = value.trim();
+    if (term.length < 3 || mapBusy) return;
+    setMapBusy(true);
+    try {
+      setItems(await load(term, true));
+      setMapped(term);
+      setOpen(true);
+    } catch { /* keep what is shown */ } finally {
+      setMapBusy(false);
+    }
+  };
+
   useEffect(() => {
     const term = value.trim();
     if (term.length < 2) { setItems([]); return; }
     let alive = true;
     const t = setTimeout(async () => {
       try {
-        const { data } = await api.get('/geo/search', { params: { q: term } });
+        const merged = await load(term, false);
         if (!alive) return;
-        const remote = (data?.places ?? []) as PlacePick[];
-        // This browser's own saved places stay at the top: they are what this
-        // person books, and they cost nothing to offer.
-        const saved: PlacePick[] = snapshot().places
-          .filter((x) => x.toLowerCase().includes(term.toLowerCase()))
-          .map((x) => ({ label: x, city: 'Saved', lat: null, lon: null, own: true }));
-        const merged = [...saved, ...remote];
-        setItems(merged.filter((m, i) => merged.findIndex((x) => x.label === m.label) === i).slice(0, 8));
+        setItems(merged);
       } catch {
         if (alive) setItems([]);
       }
-    }, 450);
+    }, 250);
     return () => { alive = false; clearTimeout(t); };
   }, [value]);
 
@@ -647,7 +681,11 @@ export function PlaceInput({
     setActive(-1);
   };
 
+  const term = value.trim();
+  const offerMap = term.length >= 3 && mapped !== term;
+
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && active < 0 && open && offerMap) { e.preventDefault(); void searchMap(); return; }
     if (!open || !items.length) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => (i + 1) % items.length); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => (i - 1 + items.length) % items.length); }
@@ -682,7 +720,7 @@ export function PlaceInput({
         />
       </div>
 
-      {open && items.length > 0 && (
+      {open && (items.length > 0 || offerMap) && (
         <ul
           role="listbox"
           className="absolute left-0 right-0 top-full z-40 mt-1.5 max-h-64 overflow-auto rounded-2xl bg-white py-1.5 shadow-pop"
@@ -706,6 +744,21 @@ export function PlaceInput({
               </button>
             </li>
           ))}
+          {offerMap && (
+            <li>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void searchMap()}
+                className="flex w-full items-center gap-2.5 border-t border-ink-100 px-3.5 py-2.5 text-left text-sm font-semibold text-brand-700 hover:bg-brand-50"
+              >
+                {mapBusy
+                  ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" />
+                  : <IconSearch className="h-4 w-4 shrink-0" />}
+                Search the map for &ldquo;{term}&rdquo;
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>
@@ -745,13 +798,18 @@ export function PlaceInput({
  *    `viewport-fit=cover` — see index.html.
  */
 export function BottomSheet({
-  open, onClose, title, subtitle, children, footer, size = 'md',
+  open, onClose, onClosed, title, subtitle, children, footer, size = 'md',
 }: {
   open: boolean; onClose: () => void; title: string;
+  /** Runs after the sheet has closed and the history is back in place. */
+  onClosed?: () => void;
   subtitle?: ReactNode;
   children: ReactNode; footer?: ReactNode;
   size?: 'md' | 'lg';
 }) {
+  // The phone's Back closes the sheet first; it does not leave the page.
+  useBackToClose(open, onClose, onClosed);
+
   /**
    * The visible rectangle, but ONLY while an on-screen keyboard is up.
    *
@@ -824,7 +882,13 @@ export function BottomSheet({
 
   const width = size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-lg';
 
-  return (
+  /*
+   * Rendered into <body>, not where the button is. A vehicle card has
+   * overflow-hidden and a hover transform, and a transformed ancestor becomes
+   * the containing block for `position: fixed` - so the sheet opened INSIDE
+   * the card, clipped to its size, instead of over the page.
+   */
+  return createPortal(
     <div
       className="fixed inset-x-0 z-[70] flex items-end sm:items-center sm:justify-center sm:p-6"
       // Only while the keyboard is up; otherwise the ordinary full viewport.
@@ -881,7 +945,8 @@ export function BottomSheet({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -1100,21 +1165,25 @@ export function EstimatePanel({
               <dd className="shrink-0 tabular-nums text-ink-700">{inr(l.amount)}</dd>
             </div>
           ))}
-          <div className="flex items-baseline justify-between gap-4 border-t border-ink-200 pt-2.5">
-            <dt className="text-ink-600">Subtotal</dt>
-            <dd className="tabular-nums text-ink-700">{inr(estimate.subtotal)}</dd>
-          </div>
-          <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-ink-600">{estimate.taxLabel}</dt>
-            <dd className="tabular-nums text-ink-700">{inr(estimate.tax)}</dd>
-          </div>
+          {estimate.tax > 0 && (
+            <>
+              <div className="flex items-baseline justify-between gap-4 border-t border-ink-200 pt-2.5">
+                <dt className="text-ink-600">Subtotal</dt>
+                <dd className="tabular-nums text-ink-700">{inr(estimate.subtotal)}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4">
+                <dt className="text-ink-600">{estimate.taxLabel}</dt>
+                <dd className="tabular-nums text-ink-700">{inr(estimate.tax)}</dd>
+              </div>
+            </>
+          )}
           <div className="flex items-baseline justify-between gap-4 border-t border-ink-200 pt-2.5">
             <dt className="font-bold text-ink-900">Estimated total</dt>
             <dd className="font-bold tabular-nums text-ink-900">{inr(estimate.total)}</dd>
           </div>
-          <p className="pt-1.5 text-xs leading-relaxed text-ink-500">
-            Not included: toll, parking, state permits and anything from the "enhance your trip" list, each billed at
-            actuals against a receipt.
+          <p className="rounded-lg bg-warn-50 px-3 py-2 text-xs font-medium leading-relaxed text-warn-700">
+            Toll, parking &amp; state tax extra — charged at actuals, as per receipts. The same goes for state
+            permits and anything from the "enhance your trip" list.
           </p>
           {estimate.note && <p className="text-xs leading-relaxed text-warn-700">{estimate.note}</p>}
         </dl>
@@ -1288,18 +1357,29 @@ export interface Contact {
   mobile: string;
   email: string;
   company: string;
+  /** Ticked "I don't have an email ID" - the reply then comes on WhatsApp or a call. */
+  noEmail?: boolean;
 }
 
 export function useContactDetails(): [Contact, (p: Partial<Contact>) => void] {
   const stored = snapshot().customer;
   const [c, setC] = useState<Contact>({
-    name: stored.name, mobile: stored.mobile, email: stored.email, company: stored.company,
+    name: stored.name, mobile: stored.mobile, email: stored.email, company: stored.company, noEmail: false,
   });
   return [c, (p) => setC((v) => ({ ...v, ...p }))];
 }
 
 export const cleanMobile = (v: string) => v.replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '');
 export const validMobile = (v: string) => /^[6-9]\d{9}$/.test(cleanMobile(v));
+
+/** Email is required unless they ticked that they do not have one. */
+export function emailError(c: Pick<Contact, 'email' | 'noEmail'>): Record<string, string> {
+  if (c.noEmail) return {};
+  const email = c.email.trim();
+  if (!email) return { email: 'Please enter your email ID, or tick that you do not have one.' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { email: 'That email address does not look right.' };
+  return {};
+}
 
 export function ContactFields({
   value, onChange, error, company = false,
@@ -1321,11 +1401,14 @@ export function ContactFields({
           onChange={(e) => onChange({ mobile: e.target.value })} placeholder="10-digit mobile" inputMode="numeric" autoComplete="tel" />
         {error?.mobile && <p className="error-text">{error.mobile}</p>}
       </div>
-      <div className={company ? '' : 'sm:col-span-2'}>
-        <label className="label" htmlFor="c-email">Email</label>
-        <input id="c-email" className="input" type="email" value={value.email}
-          onChange={(e) => onChange({ email: e.target.value })} placeholder="name@company.com" autoComplete="email" />
-      </div>
+      {!value.noEmail && (
+        <div className={company ? '' : 'sm:col-span-2'}>
+          <label className="label" htmlFor="c-email">Email ID <span className="text-danger-600">*</span></label>
+          <input id="c-email" className={`input ${error?.email ? 'input-error' : ''}`} type="email" value={value.email}
+            onChange={(e) => onChange({ email: e.target.value })} placeholder="name@company.com" autoComplete="email" />
+          {error?.email && <p className="error-text">{error.email}</p>}
+        </div>
+      )}
       {company && (
         <div>
           <label className="label" htmlFor="c-company">Company</label>
@@ -1333,6 +1416,21 @@ export function ContactFields({
             onChange={(e) => onChange({ company: e.target.value })} placeholder="Company name" autoComplete="organization" />
         </div>
       )}
+      <label className="flex cursor-pointer items-start gap-2.5 text-sm text-ink-700 sm:col-span-2">
+        <input
+          type="checkbox" checked={!!value.noEmail}
+          onChange={(e) => onChange({ noEmail: e.target.checked, ...(e.target.checked ? { email: '' } : {}) })}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-ink-300 text-brand-600 focus:ring-brand-400"
+        />
+        <span>
+          I don&apos;t have an email ID
+          {value.noEmail && (
+            <span className="mt-0.5 block text-xs text-ink-500">
+              No problem - we send your Trip ID and quote on WhatsApp, or call you on the number above.
+            </span>
+          )}
+        </span>
+      </label>
     </div>
   );
 }
@@ -1460,7 +1558,7 @@ export function BackLink({
     <button
       type="button"
       onClick={goBack}
-      className={`inline-flex items-center gap-1.5 rounded-full bg-white/80 py-1.5 pl-2 pr-3.5 text-xs font-bold text-ink-600 shadow-card transition-all duration-200 hover:bg-white hover:text-ink-900 hover:shadow-raised ${className}`}
+      className={`inline-flex min-h-10 items-center gap-1.5 rounded-full bg-white/80 py-1.5 pl-2 pr-3.5 text-xs font-bold lg:min-h-0 text-ink-600 shadow-card transition-all duration-200 hover:bg-white hover:text-ink-900 hover:shadow-raised ${className}`}
     >
       <IconChevron className="h-3.5 w-3.5 rotate-90" />
       {label}

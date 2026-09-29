@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import PageHero from './PageHero';
 import { COMPANY, ROUTES } from './siteData';
 import { IconCheck, IconPhone } from '../components/icons';
+import { useSeo } from './Seo';
+import { POPULAR_ROUTES, routeLandingPath } from './outstation';
 
 const LOCAL_PACKAGES = [
   {
@@ -32,6 +34,11 @@ const LOCAL_PACKAGES = [
 ];
 
 export default function Packages() {
+  useSeo({
+    title: 'Local and Outstation Packages from Mumbai',
+    path: '/packages',
+    description: 'Hourly local packages in Mumbai and outstation packages to Pune, Lonavala, Nashik, Shirdi, Mahabaleshwar, Alibaug, Surat and Goa.',
+  });
   return (
     <>
       <PageHero
@@ -106,7 +113,11 @@ export default function Packages() {
                 {ROUTES.map((r) => (
                   <tr key={r.to}>
                     <td className="font-medium text-ink-700">{r.from}</td>
-                    <td className="font-semibold text-ink-900">{r.to}</td>
+                    <td className="font-semibold text-ink-900">
+                      {POPULAR_ROUTES.some((p) => p.destination === r.to)
+                        ? <Link to={routeLandingPath(r.to.toLowerCase())} className="hover:text-brand-700">{r.to}</Link>
+                        : r.to}
+                    </td>
                     <td className="text-ink-600">{r.km}</td>
                     <td className="text-ink-600">{r.time}</td>
                     <td className="text-right">

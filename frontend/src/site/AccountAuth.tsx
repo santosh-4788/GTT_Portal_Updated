@@ -12,10 +12,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { googleConfig, loadGoogleScript, useCustomerAuth } from '../lib/customerAuth';
-import { cleanMobile, validMobile, SoftField, SOFT_INPUT } from './kit';
+import { BackLink, cleanMobile, validMobile, SoftField, SOFT_INPUT } from './kit';
 import { COMPANY } from './siteData';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck, IconLock, IconMail, IconPhone, IconUsers } from '../components/icons';
+import { useSeo } from './Seo';
 
 type Mode = 'signin' | 'signup';
 
@@ -27,6 +28,7 @@ const PROMISES = [
 ];
 
 export default function AccountAuth() {
+  useSeo({ title: 'Your account', noindex: true });
   const [params] = useSearchParams();
   const location = useLocation() as { state?: { from?: string } };
   const navigate = useNavigate();
@@ -89,8 +91,9 @@ export default function AccountAuth() {
   }
 
   return (
-    <div className="page-bg pb-24 pt-28 sm:pt-32">
+    <div className="page-bg pb-24 pt-24 sm:pt-28">
       <div className="shell">
+        <div className="mx-auto mb-4 max-w-5xl"><BackLink to="/" /></div>
         <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr,22rem] lg:items-start">
 
           {/* ---------------------------- the form --------------------------- */}

@@ -10,6 +10,7 @@ import { IconTemplates,
   IconSearch, IconMenu, IconClose, IconChevron, IconExternal, IconRoad,
   IconLogout, IconKey, IconPlus,
 } from '../components/icons';
+import { useSeo } from '../site/Seo';
 
 type IconCmp = (p: any) => JSX.Element;
 interface NavItem { to: string; label: string; Icon: IconCmp; perms?: string[]; end?: boolean }
@@ -27,11 +28,16 @@ const NAV_GROUPS: { title: string | null; items: NavItem[] }[] = [
       { to: '/admin/trips', label: 'Trips', Icon: IconRoad, perms: ['bookings.view'] },
       { to: '/admin/bookings', label: 'Bookings', Icon: IconBookings, perms: ['bookings.view'] },
       { to: '/admin/customer-booking', label: 'Customer Booking', Icon: IconUsers, perms: ['bookings.create'] },
+      { to: '/admin/chats', label: 'Chat history', Icon: IconAudit, perms: ['bookings.view'] },
+      // What the website assistant understands - intents, examples, synonyms.
+      { to: '/admin/chatbot', label: 'Chatbot Knowledge', Icon: IconTemplates, perms: ['settings.view'] },
+      { to: '/admin/feedback', label: 'Feedback', Icon: IconReports, perms: ['bookings.view'] },
       { to: '/admin/vendors', label: 'Vendors', Icon: IconVendors, perms: ['vendors.view'] },
       // Rate cards are vendor data, so they sit behind the vendor permissions
       // rather than a new module — which also means every existing account can
       // reach the Master without a permission migration.
       { to: '/admin/master', label: 'Master', Icon: IconTemplates, perms: ['vendors.view'] },
+      { to: '/admin/outstation-fares', label: 'Outstation Fares', Icon: IconRoad, perms: ['vendors.view'] },
     ],
   },
   {
@@ -153,6 +159,7 @@ function GlobalSearch({ onNavigate }: { onNavigate?: () => void }) {
 
 // ---------------------------------------------------------------------------
 export default function AdminLayout() {
+  useSeo({ title: 'Staff portal', noindex: true });
   const { user, logout, can } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

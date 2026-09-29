@@ -11,6 +11,7 @@ export type AuditAction =
   | 'TEMPLATE_UPLOADED' | 'TEMPLATE_UPDATED' | 'TEMPLATE_DELETED'
   | 'USER_CREATED' | 'USER_UPDATED' | 'USER_DELETED'
   | 'RATE_CREATED' | 'RATE_UPDATED' | 'RATE_DELETED' | 'RATE_COPIED' | 'RATE_IMPORTED'
+  | 'OUTSTATION_FARE_UPDATED'
   | 'SETTINGS_CHANGED' | 'BACKUP_CREATED'
   // The customer journey: enquiries, allotment, the trip itself, and the
   // emails that go out along the way.
@@ -18,7 +19,9 @@ export type AuditAction =
   | 'TRIP_FARE_SET' | 'TRIP_DETAILS_SENT' | 'TRIP_LINKED'
   | 'INVOICE_SENT' | 'INVOICE_SEND_FAILED'
   | 'EMAIL_TEST' | 'EMAIL_RESENT'
-  | 'DRIVER_ADDED' | 'DRIVER_UPDATED';
+  | 'DRIVER_ADDED' | 'DRIVER_UPDATED'
+  | 'FEEDBACK_REQUESTED' | 'FEEDBACK_REOPENED'
+  | 'CHATBOT_UPDATED';
 
 export function clientIp(req: Request): string {
   const fwd = req.headers['x-forwarded-for'];

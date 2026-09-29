@@ -4,10 +4,16 @@ import { ServiceIcon } from './SiteIcons';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { COMPANY, SERVICES, FLEET } from './siteData';
 import { IconCheck, IconClock, IconInvoices, IconPhone, IconPin } from '../components/icons';
+import { useSeo } from './Seo';
 
 export default function ServiceDetail() {
   const { slug } = useParams();
   const service = SERVICES.find((s) => s.slug === slug);
+  useSeo({
+    title: service ? `${service.name} in Mumbai` : 'Services',
+    path: service ? `/services/${service.slug}` : '/services',
+    description: service?.short,
+  });
   if (!service) return <Navigate to="/services" replace />;
 
   const others = SERVICES.filter((s) => s.slug !== slug).slice(0, 3);

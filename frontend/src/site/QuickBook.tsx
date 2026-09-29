@@ -42,6 +42,7 @@ import { IconSeat } from './SiteIcons';
 import { IconWhatsApp } from './SiteIcons';
 import { WhatsAppButton } from './EnquirySheet';
 import { TimeField } from '../components/DateTimeField';
+import { matchRoute, routeLabel, useOutstationRoutes } from './outstation';
 
 /** Two arrows, one each way. Used only by the pickup/drop swap. */
 function IconSwap({ className = '' }: { className?: string }) {
@@ -91,9 +92,9 @@ const TABS: { value: BookTab; label: string }[] = [
 ];
 
 export const HOURLY_PACKAGES = [
-  { key: '4H40', label: '4 hrs / 40 km', hours: 4 },
-  { key: '8H80', label: '8 hrs / 80 km', hours: 8 },
-  { key: '12H120', label: '12 hrs / 120 km', hours: 12 },
+  { key: '4H40', label: '4 hrs / 40 km', hours: 4, km: 40 },
+  { key: '8H80', label: '8 hrs / 80 km', hours: 8, km: 80 },
+  { key: '12H120', label: '12 hrs / 120 km', hours: 12, km: 120 },
 ];
 
 const AIRPORTS = [
@@ -121,9 +122,11 @@ const SPAN: Record<number, string> = {
    ========================================================================== */
 
 export function QuickBook({
-  initialTab = 'LOCAL', className = '',
+  initialTab = 'LOCAL', className = '', replace = false,
 }: {
   initialTab?: BookTab; className?: string;
+  /** Search in place of the current history entry - used inside a sheet. */
+  replace?: boolean;
 }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState<BookTab>(initialTab);
@@ -135,13 +138,19 @@ export function QuickBook({
   const [airport, setAirport] = useState(AIRPORTS[0]);
   const [direction, setDirection] = useState<'TO' | 'FROM'>('TO');
   const [flight, setFlight] = useState('');
-  const [leg, setLeg] = useState<'ONE_WAY' | 'RETURN'>('ONE_WAY');
+  /* Nothing is chosen until the customer picks One way or Return: that choice
+     is what opens the list of fixed-fare destinations underneath. */
+  const [leg, setLeg] = useState<'ONE_WAY' | 'RETURN' | ''>('');
+  /** A fixed-fare route key, 'other', or '' before one is picked. */
+  const [routeKey, setRouteKey] = useState('');
+  const { routes } = useOutstationRoutes();
 
   // Filled in, not blank: this business takes most of its work for today or
   // tomorrow, and an empty date field made the common case the most typing.
   const [date, setDate] = useState(todayLocalIso());
   const [time, setTime] = useState(nowLocalHm());
   const [returnDate, setReturnDate] = useState('');
+  const [returnTime, setReturnTime] = useState('');
 
   const [pax, setPax] = useState(2);
   const [pkg, setPkg] = useState(HOURLY_PACKAGES[1].key);
@@ -178,10 +187,19 @@ export function QuickBook({
       q.set('from', from);
       q.set('to', to);
       if (tab === 'OUTSTATION') {
-        q.set('leg', leg);
-        if (leg === 'RETURN' && returnDate) q.set('return', returnDate);
-        const extra = stops.map((s) => s.trim()).filter(Boolean);
-        if (extra.length) q.set('stops', extra.join(' | '));
+        q.set('leg', leg || 'ONE_WAY');
+        if (leg === 'RETURN') {
+          if (returnDate) q.set('return', returnDate);
+          if (returnTime) q.set('returnTime', returnTime);
+          // A return to one of the fixed-fare destinations shows its return
+          // fares; anywhere else is quoted by the office.
+          const hit = matchRoute(routes ?? [], to);
+          q.set('route', hit ? hit.key : 'other');
+          const extra = stops.map((s) => s.trim()).filter(Boolean);
+          if (extra.length) q.set('stops', extra.join(' | '));
+        } else {
+          q.set('route', 'other');
+        }
       }
     }
     return q;
@@ -200,16 +218,34 @@ export function QuickBook({
     }
     if (!from.trim()) return 'Please tell us the pickup point.';
     if (tab === 'HOURLY') return '';
-    if (!to.trim()) return tab === 'OUTSTATION' ? 'Where are you travelling to?' : 'Where are you going?';
-    if (tab === 'OUTSTATION' && leg === 'RETURN' && !returnDate) return 'Which day are you coming back?';
+    // Outstation picks its destination from the fixed-fare routes on the next
+    // screen, so the drop here is a hint, not a requirement.
+    if (tab === 'OUTSTATION') {
+      if (!leg) return 'Choose One way or Return.';
+      if (leg === 'ONE_WAY' && routeKey !== 'other') return 'Choose your destination.';
+      if (!to.trim()) return 'Where are you travelling to?';
+      if (leg === 'RETURN' && !returnDate) return 'Which day are you coming back?';
+      return '';
+    }
+    if (!to.trim()) return 'Where are you going?';
     return '';
+  };
+
+  /**
+   * One way to a fixed-fare destination goes straight to its cabs and prices -
+   * nothing else is asked on this screen. Pickup, date and time are taken on
+   * the booking summary.
+   */
+  const pickRoute = (key: string) => {
+    navigate(`/outstation?${new URLSearchParams({ tab: 'OUTSTATION', leg: 'ONE_WAY', route: key }).toString()}`, { replace });
   };
 
   const submit = () => {
     const bad = problem();
     setError(bad);
     if (bad) return;
-    navigate(`/vehicles?${query().toString()}`);
+    // Outstation is sold at fixed route fares: destination, then cab, then confirm.
+    navigate(`${tab === 'OUTSTATION' ? '/outstation' : '/vehicles'}?${query().toString()}`, { replace });
   };
 
   /**
@@ -225,7 +261,7 @@ export function QuickBook({
     const when = [date ? isoToDmy(date) : '', hm12(time)].filter(Boolean).join(', ');
     const bits = [people, when];
     if (tab === 'HOURLY') bits.splice(1, 0, pkgLabel);
-    if (tab === 'OUTSTATION') bits.splice(1, 0, leg === 'RETURN' ? 'return trip' : 'one way');
+    if (tab === 'OUTSTATION' && leg) bits.splice(1, 0, leg === 'RETURN' ? 'return trip' : 'one way');
     return { head: `${label} trip`, rest: bits.filter(Boolean).join(' · ') };
   })();
 
@@ -326,12 +362,13 @@ export function QuickBook({
             decides whether there is a return date to collect at all. */}
         {tab === 'OUTSTATION' && (
           <SegTabs
-            value={leg}
+            value={leg as 'ONE_WAY' | 'RETURN'}
             onChange={(v) => { setLeg(v); setError(''); }}
             options={[{ value: 'ONE_WAY', label: 'One way' }, { value: 'RETURN', label: 'Return' }]}
             className="w-full sm:max-w-[15rem]"
           />
         )}
+
       </div>
 
       {/* A tinted rail under the fields. White cells on a white card had no
@@ -387,22 +424,73 @@ export function QuickBook({
         )}
 
         {/* ----------------------------------------------- OUTSTATION */}
-        {tab === 'OUTSTATION' && (
+        {tab === 'OUTSTATION' && !leg && (
+          <p className={`px-3 py-4 text-sm text-ink-500 ${SPAN[12]}`}>
+            Choose <span className="font-semibold text-ink-700">One way</span> or{' '}
+            <span className="font-semibold text-ink-700">Return</span> above.
+          </p>
+        )}
+
+        {/* One way: only the destination names. No prices, no cars and no
+            other fields here - the cabs and fares come on the next page, and
+            the trip details are only asked for Other. */}
+        {tab === 'OUTSTATION' && leg === 'ONE_WAY' && (
+          <>
+            <div className={`rounded-2xl bg-white p-3 ${SPAN[12]}`}>
+              <p className="px-1 text-2xs font-bold uppercase tracking-[0.12em] text-ink-500">
+                Select destination
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4">
+                {(routes ?? []).map((r) => (
+                  <button
+                    key={r.key} type="button" onClick={() => pickRoute(r.key)}
+                    className="rounded-xl bg-ink-50 px-3 py-3 text-left text-sm font-bold text-ink-800 transition-colors hover:bg-ink-900 hover:text-white"
+                  >
+                    {routeLabel(r)}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => { setRouteKey('other'); setError(''); }}
+                  className={`rounded-xl px-3 py-3 text-left text-sm font-bold transition-colors ${
+                    routeKey === 'other' ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-800 hover:bg-ink-900 hover:text-white'
+                  }`}
+                >
+                  Other
+                </button>
+              </div>
+            </div>
+
+            {routeKey === 'other' && (
+              <>
+                <p className={`px-2 pt-1 text-xs text-ink-500 ${SPAN[12]}`}>
+                  <span className="font-semibold text-ink-700">Fare on request.</span> Tell us the trip and our team
+                  will come back with the applicable fare and vehicle options.
+                </p>
+                {routePair('Where are you going?')}
+                {dateField}{timeField}{paxField}
+              </>
+            )}
+          </>
+        )}
+
+        {/* Return: the full outstation form, as it was. */}
+        {tab === 'OUTSTATION' && leg === 'RETURN' && (
           <>
             {routePair('Lonavala')}
             {dateField}{timeField}{paxField}
-
-            {/* The return DATE decides the rate; the return hour does not,
-                and it is the one thing a group changes on the day anyway. Asked
-                on confirmation instead of here. */}
-            {leg === 'RETURN' && (
-              <SoftField label="Return date" htmlFor="qb-return" icon={<IconCalendar className={FIELD_ICON} />} className={SPAN[2]}>
-                <DmyDateField
-                  id="qb-return" value={returnDate} min={date || today} muted
-                  onChange={(v) => { setReturnDate(v); setError(''); }}
-                />
-              </SoftField>
-            )}
+            <SoftField label="Return date" htmlFor="qb-return" icon={<IconCalendar className={FIELD_ICON} />} className={SPAN[2]}>
+              <DmyDateField
+                id="qb-return" value={returnDate} min={date || today} muted
+                onChange={(v) => { setReturnDate(v); setError(''); }}
+              />
+            </SoftField>
+            <SoftField label="Return time" htmlFor="qb-return-time" icon={<IconClock className={FIELD_ICON} />} className={SPAN[2]}>
+              <TimeField
+                id="qb-return-time" value={returnTime} onChange={setReturnTime} placeholder="Select time"
+                baseClass={SOFT_INPUT_MUTED} chevron={false} showIcon={false}
+              />
+            </SoftField>
 
             {/* Optional extra stops. Outstation groups pick people up on the
                 way out far more often than they admit at booking time, and a
@@ -461,6 +549,7 @@ export function QuickBook({
       {/* The action row states what is about to be searched for. It fills what
           was an empty band beside the button, and it is the one place a
           customer can check the date they never typed before they press. */}
+      {!(tab === 'OUTSTATION' && (!leg || (leg === 'ONE_WAY' && routeKey !== 'other'))) && (
       <div className="relative mt-5 flex flex-col gap-3 border-t border-ink-100/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="min-w-0 text-xs text-ink-500">
           <span className="font-semibold text-ink-700">{summary.head}</span>
@@ -472,10 +561,11 @@ export function QuickBook({
                      shadow-lg shadow-brand-500/30 transition-all duration-200 hover:-translate-y-0.5
                      hover:shadow-xl hover:shadow-brand-500/35 active:translate-y-0 sm:h-11 sm:w-auto"
         >
-          <IconSearch className="h-4 w-4" /> Search
+          <IconSearch className="h-4 w-4" /> {tab === 'OUTSTATION' && leg === 'ONE_WAY' ? 'Request a quote' : 'Search'}
           <IconArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
         </button>
       </div>
+      )}
 
       {/* A tinted band across the foot of the card. On a phone it is one line
           that scrolls, rather than six pills stacked three deep between the

@@ -36,11 +36,39 @@ export interface EnquiryCategory {
   fields: FieldKey[];
   /** Which of those must be answered before the enquiry can be sent. */
   required?: FieldKey[];
+  /**
+   * For a category whose questions depend on an earlier answer - which way an
+   * airport run goes, whether an outstation trip comes back. Overrides
+   * `fields` and `required`, and can rename a field or say which answers are
+   * the two ends of the route.
+   */
+  shape?: (answers: Partial<Record<FieldKey, string>>) => Partial<Shape>;
   /** Placeholder for the free-text note at the end. */
   notesHint: string;
   /** Where to read more about this service, when such a page exists. */
   readMore?: { to: string; label: string };
 }
+
+/** What the form actually asks, once the answers so far are known. */
+export interface Shape {
+  fields: FieldKey[];
+  required: FieldKey[];
+  /** Label overrides, e.g. "Drop airport" rather than "Airport". */
+  labels: Partial<Record<FieldKey, string>>;
+  /** Which answers are where the car starts and ends. */
+  pickupFrom: FieldKey;
+  dropFrom: FieldKey;
+}
+
+/** The two ways an airport transfer goes. The first is the default. */
+export const AIRPORT_FROM = 'Pickup from airport';
+export const AIRPORT_TO = 'Drop at airport';
+export const AIRPORT_WAYS = [AIRPORT_FROM, AIRPORT_TO] as const;
+export type AirportWay = (typeof AIRPORT_WAYS)[number];
+/** What the server stores for each. */
+export const AIRPORT_DIRECTION: Record<AirportWay, 'TO' | 'FROM'> = { [AIRPORT_TO]: 'TO', [AIRPORT_FROM]: 'FROM' };
+export const isAirportWay = (v: unknown): v is AirportWay => v === AIRPORT_TO || v === AIRPORT_FROM;
+export const TRIP_LEGS = ['One way', 'Round trip'] as const;
 
 export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
   local: {
@@ -51,7 +79,7 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     emoji: '\u{1F695}',
     tripType: 'LOCAL',
     fields: ['pickup', 'drop', 'date', 'time', 'carType', 'passengers'],
-    required: ['pickup'],
+    required: ['pickup', 'date', 'time'],
     notesHint: 'Luggage, a stop on the way, a child seat…',
     readMore: { to: '/services/local-travel', label: 'About local travel' },
   },
@@ -63,8 +91,25 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     blurb: 'We track the flight number, so a delayed landing does not mean a missed car.',
     emoji: '✈️',
     tripType: 'AIRPORT',
-    fields: ['direction', 'airport', 'flightNo', 'pickup', 'drop', 'date', 'time', 'carType', 'passengers'],
-    required: ['pickup'],
+    /*
+     * Coming off a flight, the car starts at the airport: we need which one,
+     * the flight (so a late landing is tracked) and where to take them. Going
+     * to catch one, the car starts at their door and the airport is the drop;
+     * the flight number is then only nice to have.
+     */
+    fields: ['direction', 'airport', 'flightNo', 'drop', 'date', 'time', 'carType', 'passengers'],
+    required: ['airport', 'flightNo', 'drop', 'date', 'time', 'passengers'],
+    shape: (a) => (a.direction || AIRPORT_WAYS[0]) === AIRPORT_WAYS[0]
+      ? {
+        labels: { airport: 'Pickup airport', drop: 'Drop address', date: 'Landing date', time: 'Landing time' },
+        pickupFrom: 'airport',
+      }
+      : {
+        fields: ['direction', 'pickup', 'airport', 'flightNo', 'date', 'time', 'carType', 'passengers'],
+        required: ['pickup', 'airport', 'date', 'time', 'passengers'],
+        labels: { airport: 'Drop airport', flightNo: 'Flight number (optional)', date: 'Pickup date', time: 'Pickup time' },
+        dropFrom: 'airport',
+      },
     notesHint: 'Meet and greet at arrivals, extra luggage, a second pickup…',
     readMore: { to: '/services/airport-transfers', label: 'About airport transfers' },
   },
@@ -76,8 +121,15 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     blurb: 'One-way drops and round trips across Maharashtra and beyond.',
     emoji: '\u{1F6E4}️',
     tripType: 'OUTSTATION',
-    fields: ['pickup', 'drop', 'tripLeg', 'date', 'returnDate', 'carType', 'passengers'],
-    required: ['pickup', 'drop'],
+    fields: ['tripLeg', 'pickup', 'drop', 'date', 'time', 'carType', 'passengers'],
+    required: ['pickup', 'drop', 'date', 'passengers'],
+    // A return date only means something on a round trip, and then it is needed.
+    shape: (a) => (a.tripLeg || TRIP_LEGS[0]) === TRIP_LEGS[1]
+      ? {
+        fields: ['tripLeg', 'pickup', 'drop', 'date', 'time', 'returnDate', 'carType', 'passengers'],
+        required: ['pickup', 'drop', 'date', 'returnDate', 'passengers'],
+      }
+      : {},
     notesHint: 'Places to cover on the way, an overnight halt, a preferred driver…',
     readMore: { to: '/weekend-trips', label: 'Popular destinations' },
   },
@@ -90,7 +142,7 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     emoji: '⏱️',
     tripType: 'LOCAL',
     fields: ['hourlyPlan', 'pickup', 'date', 'time', 'carType', 'passengers'],
-    required: ['pickup'],
+    required: ['hourlyPlan', 'pickup', 'date', 'time'],
     notesHint: 'Roughly where you will be going, and anything the driver should know…',
     readMore: { to: '/services/local-travel', label: 'About hourly packages' },
   },
@@ -103,7 +155,7 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     emoji: '\u{1F3E2}',
     tripType: 'LOCAL',
     fields: ['company', 'requirement', 'pickup', 'date', 'passengers'],
-    required: ['company'],
+    required: ['company', 'requirement', 'pickup'],
     notesHint: 'Roughly how many trips a month, the cities you need covered, billing requirements…',
     readMore: { to: '/corporate', label: 'About corporate accounts' },
   },
@@ -116,7 +168,7 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     emoji: '\u{1F6D5}',
     tripType: 'PACKAGE',
     fields: ['darshanPlan', 'pickup', 'date', 'time', 'carType', 'passengers'],
-    required: ['pickup'],
+    required: ['darshanPlan', 'pickup', 'date', 'time'],
     notesHint: 'Places you especially want to see, or ones to skip…',
     readMore: { to: '/tours/mumbai', label: 'What the tour covers' },
   },
@@ -129,7 +181,7 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     emoji: '\u{1F3AA}',
     tripType: 'PACKAGE',
     fields: ['eventType', 'venue', 'date', 'endDate', 'vehicles', 'passengers'],
-    required: ['venue'],
+    required: ['eventType', 'venue', 'date', 'passengers'],
     notesHint: 'The schedule, pickup points, how many guests at each…',
     readMore: { to: '/services/event-transport', label: 'About event transport' },
   },
@@ -142,7 +194,7 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     emoji: '\u{1F48D}',
     tripType: 'PACKAGE',
     fields: ['functions', 'venue', 'date', 'endDate', 'vehicles', 'passengers'],
-    required: ['venue'],
+    required: ['venue', 'date', 'vehicles'],
     notesHint: 'Which functions need cars, decoration, guest pickups from the airport…',
     readMore: { to: '/weddings', label: 'About wedding transport' },
   },
@@ -155,7 +207,7 @@ export const CATEGORIES: Record<NeedKey, EnquiryCategory> = {
     emoji: '\u{1F46A}',
     tripType: 'LOCAL',
     fields: ['pickup', 'drop', 'date', 'time', 'passengers', 'vehicles'],
-    required: ['pickup', 'passengers'],
+    required: ['pickup', 'drop', 'date', 'passengers'],
     notesHint: 'Luggage, whether the group must travel together, a return leg…',
     readMore: { to: '/group-travel', label: 'About group travel' },
   },
@@ -165,6 +217,29 @@ export const CATEGORY_KEYS = Object.keys(CATEGORIES) as NeedKey[];
 
 export const isCategoryKey = (v: unknown): v is NeedKey =>
   typeof v === 'string' && Object.prototype.hasOwnProperty.call(CATEGORIES, v);
+
+const DEFAULT_SHAPE: Shape = {
+  fields: ['pickup', 'drop', 'date', 'time', 'carType', 'passengers'],
+  required: ['pickup'],
+  labels: {},
+  pickupFrom: 'pickup',
+  dropFrom: 'drop',
+};
+
+/** The questions for this category, given what has been answered so far. */
+export function shapeFor(
+  cat: EnquiryCategory | null, answers: Partial<Record<FieldKey, string>>,
+): Shape {
+  if (!cat) return DEFAULT_SHAPE;
+  return {
+    ...DEFAULT_SHAPE,
+    fields: cat.fields,
+    required: cat.required ?? DEFAULT_SHAPE.required,
+    // A wedding or an event has a venue rather than a pickup.
+    pickupFrom: cat.fields.includes('venue') ? 'venue' : 'pickup',
+    ...cat.shape?.(answers),
+  };
+}
 
 /* ==========================================================================
    Choices for the select fields
@@ -176,6 +251,14 @@ export const AIRPORTS = [
   'Navi Mumbai International',
   'Pune Airport',
 ];
+
+/** What the map search understands for each, so the distance still works. */
+export const AIRPORT_PLACE: Record<string, string> = {
+  'CSMIA Terminal 2 (international)': 'Chhatrapati Shivaji Maharaj International Airport Terminal 2, Mumbai',
+  'CSMIA Terminal 1 (domestic)': 'Chhatrapati Shivaji Maharaj International Airport Terminal 1, Mumbai',
+  'Navi Mumbai International': 'Navi Mumbai International Airport',
+  'Pune Airport': 'Pune International Airport',
+};
 
 export const HOURLY_PLANS = [
   '4 hours / 40 km',

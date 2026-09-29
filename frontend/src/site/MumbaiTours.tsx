@@ -15,7 +15,7 @@ import { VEHICLES } from './catalog';
 import { MUMBAI_SPOTS, TOUR_DURATIONS, THEMES, type Theme, type TourDurationKey } from './places';
 import {
   Callout, Chip, ContactFields, Counter, EstimatePanel, PlaceInput, SectionHead,
-  SubmitButton, TrustRow, estimateFor, useContactDetails, useRates, useSendRequirement,
+  SubmitButton, TrustRow, estimateFor, useContactDetails, useRates, useSendRequirement, emailError,
 } from './kit';
 import { SpotCard } from './PlaceCards';
 import { VehiclePhoto } from '../components/VehiclePhoto';
@@ -24,11 +24,17 @@ import PageHero from './PageHero';
 import { IconArrowRight, IconCheck, IconClock, IconPhone } from '../components/icons';
 import { IconSeat } from './SiteIcons';
 import { DateField, TimeField } from '../components/DateTimeField';
+import { useSeo } from './Seo';
 
 /** The vehicles offered for a city tour, in the order the builder shows them. */
 const TOUR_VEHICLES = ['dzire', 'ertiga', 'innova-crysta', 'tempo-traveller-12'];
 
 export default function MumbaiTours() {
+  useSeo({
+    title: 'Mumbai Sightseeing Tour by Car',
+    path: '/tours/mumbai',
+    description: 'A Mumbai city tour by private car with a chauffeur who knows the city: Gateway of India, Marine Drive, Bandra and more, at your pace, for half a day or a full day.',
+  });
   const book = useRates();
   const { send, busy, error } = useSendRequirement();
 
@@ -86,6 +92,7 @@ export default function MumbaiTours() {
     const errs: Record<string, string> = {};
     if (contact.name.trim().length < 2) errs.name = 'Please enter your name.';
     if (!/^[6-9]\d{9}$/.test(contact.mobile.replace(/\D/g, '').replace(/^91/, ''))) errs.mobile = 'Enter a valid 10-digit mobile number.';
+    Object.assign(errs, emailError(contact));
     setFieldErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -109,7 +116,7 @@ export default function MumbaiTours() {
       ].filter(Boolean).join('. '),
       name: contact.name,
       mobile: contact.mobile,
-      email: contact.email,
+      email: contact.noEmail ? '' : contact.email,
     });
   };
 

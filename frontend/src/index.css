@@ -848,3 +848,30 @@ textarea.input {
     max-width: 15rem;
   }
 }
+
+/* ==========================================================================
+   Phones: no auto-zoom, no sideways scroll.
+
+   iOS Safari zooms the whole page in when a field whose text is under 16px
+   is focused - and leaves it zoomed, so the page is cut off at both sides and
+   the customer has to pinch it back. Every form field is therefore 16px on a
+   touch screen, whatever its utility class says. Pinch-zoom itself is left
+   alone: blocking it with maximum-scale would take it from people who need it.
+
+   `overflow-x: clip` is the backstop for anything decorative that pokes past
+   the edge (a blurred blob, a wide drawing). Unlike `hidden` it does not make
+   a scroll container, so sticky headers keep working.
+   ========================================================================== */
+@media (max-width: 767px), (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}

@@ -11,6 +11,7 @@
  * touches the database or the transport; that is the mailer's job.
  */
 import { q } from '../db';
+import { DIRECTION_LABEL } from './airport';
 
 const BRAND = '#0E82B8';
 const BRAND_SOFT = '#EAF4FB';
@@ -198,6 +199,7 @@ export interface TripLike {
   travel_date?: string | null;
   reporting_time?: string | null;
   trip_type?: string | null;
+  airport_direction?: string | null;
   pickup_location?: string | null;
   pickup_address?: string | null;
   drop_location?: string | null;
@@ -218,7 +220,11 @@ export interface TripLike {
 }
 
 export function journeyRows(t: TripLike): Row[] {
+  const way = t.trip_type === 'AIRPORT' && (t.airport_direction === 'TO' || t.airport_direction === 'FROM')
+    ? DIRECTION_LABEL[t.airport_direction]
+    : '';
   return [
+    ...(way ? [{ label: 'Airport transfer', value: way }] : []),
     { label: 'Journey date', value: dmy(t.travel_date) },
     { label: 'Pickup time', value: t.reporting_time ? hhmm(t.reporting_time) : '' },
     { label: 'Pickup', value: t.pickup_address || t.pickup_location },
@@ -524,6 +530,56 @@ export function welcomeEmail(args: {
     html: layout({
       title: 'Welcome aboard',
       preheader: 'Track your trips, vehicles, drivers and invoices in one place.',
+      body,
+      company: c,
+    }),
+  };
+}
+
+/* ==========================================================================
+   Feedback request — to the customer, once the trip is marked completed
+   ========================================================================== */
+
+export function feedbackRequestEmail(args: {
+  trip: TripLike;
+  tripId: string;
+  customerName: string;
+  /** The customer's own link, with the token in it. */
+  feedbackUrl: string;
+}): { subject: string; html: string } {
+  const c = companyBlock();
+  const t = args.trip;
+
+  const rows: Row[] = [
+    { label: 'Journey date', value: dmy(t.travel_date) },
+    { label: 'Route', value: [t.pickup_address || t.pickup_location, t.drop_address || t.drop_location].filter(Boolean).join(' → ') },
+    { label: 'Vehicle', value: [t.vehicle_type, t.vehicle_number].filter(Boolean).join(' · ') },
+    { label: 'Chauffeur', value: t.driver_name },
+  ];
+
+  const body = `
+    <p style="margin:0 0 4px;font-size:15px;line-height:1.65;color:${INK};">
+      Dear ${esc(args.customerName || 'Customer')},
+    </p>
+    <p style="margin:10px 0 0;font-size:14px;line-height:1.7;color:${MUTED};">
+      Thank you for travelling with ${esc(c.name)}. Your trip is complete, and we would like to know how it
+      went. It takes under a minute: four star ratings — the chauffeur, our service, the cab and the
+      trip overall — and a box for anything else you would like to tell us.
+    </p>
+    ${tripIdBadge(args.tripId)}
+    ${sectionTitle('Your trip')}
+    ${detailTable(rows)}
+    ${button('Give Your Feedback', args.feedbackUrl)}
+    ${note(
+      `This link is for this trip only. If the button does not open, copy this address into your browser:<br>` +
+      `<span style="word-break:break-all;color:${INK};">${esc(args.feedbackUrl)}</span>`
+    )}`;
+
+  return {
+    subject: `How was your trip? ${args.tripId} | ${c.name}`,
+    html: layout({
+      title: 'How was your trip?',
+      preheader: `Rate your ${dmy(t.travel_date)} trip — four quick stars and a comment box.`,
       body,
       company: c,
     }),

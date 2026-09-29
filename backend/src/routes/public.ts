@@ -1,5 +1,8 @@
 /** Unauthenticated endpoints used by the public marketing website. */
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { config } from '../config';
 import { z } from 'zod';
 import { q } from '../db';
 import { validateBody, optionalMobile, requiredMobile } from '../utils/validate';
@@ -8,6 +11,11 @@ import { createInquiryTrip, portalUrl, publicTrip, tripEvents, tripRow } from '.
 import { SOURCE_LABEL, type InquirySource } from '../services/tripId';
 import { sendMail, mailConfig } from '../services/mailer';
 import { inquiryAdminEmail, inquiryCustomerEmail } from '../services/emailTemplates';
+import { fareFor, groupedRoutes } from '../services/outstationFares';
+import { appendChat, linkChatToBooking, validSessionId } from '../services/chatLog';
+import { feedbackByToken, publicFeedback, submitFeedback } from '../services/feedback';
+import { airportDirectionField, DIRECTION_LABEL } from '../services/airport';
+import { publicKnowledge } from '../services/chatbotKnowledge';
 
 const router = Router();
 
@@ -95,8 +103,8 @@ const enquiryLimiter = limiter({
  * parameter to pass, so no request can ask for anyone else's numbers.
  */
 router.get('/fare-options', lookupLimiter, (_req, res) => {
-  const direct = q.get<{ id: number }>("SELECT id FROM vendors WHERE code = 'DIRECT'");
-  if (!direct) return res.json({ data: [], taxRate: 0, taxMode: 'NONE' });
+  const direct = q.get<{ id: number; tax_rate: number | null }>("SELECT id, tax_rate FROM vendors WHERE code = 'DIRECT'");
+  if (!direct) return res.json({ data: [], taxRate: 0, taxMode: 'NONE', gstRate: 5 });
 
   const rows = q.all<any>(
     `SELECT vehicle_category, plan_type, plan_label, included_hours, included_km,
@@ -108,17 +116,92 @@ router.get('/fare-options', lookupLimiter, (_req, res) => {
     { id: direct.id }
   );
 
-  const s = Object.fromEntries(
-    q.all<{ key: string; value: string }>(
-      "SELECT key, value FROM settings WHERE key IN ('invoice.defaultTaxMode', 'invoice.defaultTaxRate')"
-    ).map((r) => [r.key, r.value])
-  );
+  // The website quotes the rate card as it stands — the office's package
+  // prices, with no tax added on top. Invoices still apply their own tax
+  // settings; this only decides what a visitor is shown.
+  // gstRate is what the office bills walk-in customers (Vendors > Direct
+  // Customer), so the calculator's "Add GST" option shows the real rate.
+  res.json({ data: rows, taxMode: 'NONE', taxRate: 0, gstRate: Number(direct.tax_rate ?? 5) });
+});
 
-  res.json({
-    data: rows,
-    taxMode: s['invoice.defaultTaxMode'] ?? 'IGST',
-    taxRate: Number(s['invoice.defaultTaxRate'] ?? 5),
+/**
+ * Which photographs are on disk, so the site shows what exists instead of
+ * guessing filenames (lonavala-2.jpg, -3.jpg...) and logging a 404 for every
+ * guess that misses. Read live, so dropping a file in still needs no rebuild.
+ */
+const PHOTO_BUCKETS = ['places', 'needs', 'fleet', 'promo'];
+router.get('/photos', lookupLimiter, (_req, res) => {
+  const files: string[] = [];
+  for (const bucket of PHOTO_BUCKETS) {
+    try {
+      for (const f of fs.readdirSync(path.join(config.paths.assets, bucket))) {
+        if (/\.(jpe?g|png|webp|avif)$/i.test(f)) files.push(`/assets/${bucket}/${f}`);
+      }
+    } catch { /* bucket missing - nothing in it */ }
+  }
+  res.set('Cache-Control', 'no-cache').json({ files });
+});
+
+/**
+ * The website assistant's conversation, saved as it happens so the office can
+ * later see exactly what was asked and answered. Append-only (services/chatLog).
+ */
+const chatLimiter = limiter({
+  windowMs: 60 * 1000,
+  limit: 60,
+  message: { error: 'Too many messages. Please slow down a moment.' },
+});
+const chatSchema = z.object({
+  messages: z.array(z.object({
+    seq: z.number().int().min(0).max(99999),
+    at: z.string().max(40),
+    sender: z.enum(['customer', 'assistant', 'system']),
+    text: z.string().max(4000),
+    data: z.unknown().optional(),
+  })).max(50),
+  meta: z.object({
+    page: z.string().max(300).optional(),
+    name: z.string().max(120).optional(),
+    mobile: z.string().max(20).optional(),
+    email: z.string().max(160).optional(),
+    summary: z.unknown().optional(),
+  }).optional().default({}),
+});
+router.post('/chat/:id', chatLimiter, validateBody(chatSchema), (req, res) => {
+  const id = String(req.params.id);
+  if (!validSessionId(id)) return res.status(400).json({ error: 'Bad conversation id.' });
+  const b = req.body as z.infer<typeof chatSchema>;
+  const added = appendChat(id, b.messages as any, {
+    ...b.meta,
+    userAgent: String(req.headers['user-agent'] ?? '').slice(0, 300),
+    ip: (req.ip ?? '').replace('::ffff:', ''),
   });
+  res.json({ ok: true, added });
+});
+
+/**
+ * What the website assistant understands - intents, example questions and
+ * synonyms the office maintains under Admin > Chatbot Knowledge. Meanings
+ * only: no fare, policy or customer data is in it.
+ */
+router.get('/chatbot/knowledge', lookupLimiter, (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300').json({ data: publicKnowledge() });
+});
+
+/**
+ * The outstation fixed-fare routes, for the route and cab selection screens.
+ * A null fare is not priced yet and is shown as Fare on request.
+ */
+router.get('/outstation-fares', lookupLimiter, (_req, res) => {
+  const routes = groupedRoutes(true).map((r) => ({
+    key: r.key,
+    origin: r.origin,
+    destination: r.destination,
+    fares: r.fares.map(({ category, vehicles, oneWay, return: ret, tollIncluded }) => ({
+      category, vehicles, oneWay, return: ret, tollIncluded,
+    })),
+  }));
+  res.json({ data: routes });
 });
 
 const enquirySchema = z.object({
@@ -160,8 +243,12 @@ async function raiseInquiry(args: {
   serviceLabel: string;
   whatsappMobile?: string;
   customerId?: number | null;
+  /** The day a return trip comes back. */
+  travelDateTo?: string;
   /** LOCAL | AIRPORT | OUTSTATION | ... so the office's list buckets it right. */
   tripType?: string;
+  /** AIRPORT only: TO or FROM the airport. */
+  airportDirection?: string;
 }) {
   // A journey with no date given is taken as "today" so the office sees it at
   // the top of the sheet rather than filed under a blank date.
@@ -177,7 +264,9 @@ async function raiseInquiry(args: {
     drop: args.drop,
     travelDate,
     journeyTime: args.travelTime,
+    travelDateTo: args.travelDateTo,
     tripType: args.tripType,
+    airportDirection: args.airportDirection,
     vehicleType: args.vehicleType,
     paxCount: args.passengers || 1,
     message: args.message,
@@ -283,7 +372,7 @@ const whatsappSchema = z.object({
   travelTime: z.string().trim().regex(/^([01]?\d|2[0-3]):[0-5]\d$|^$/, 'Time must be HH:MM.').optional().default(''),
   vehicleType: z.string().trim().max(80).optional().default(''),
   passengers: z.coerce.number().int().min(0).max(60).optional().default(0),
-  message: z.string().trim().max(1000).optional().default(''),
+  message: z.string().trim().max(3000).optional().default(''),
   /**
    * What the customer picked on "What do you need today?" — "Airport transfer",
    * "Wedding", and so on. It becomes the requirement line on the trip, so the
@@ -292,6 +381,8 @@ const whatsappSchema = z.object({
   category: z.string().trim().max(60).optional().default(''),
   tripType: z.enum(['LOCAL', 'TRANSFER', 'AIRPORT', 'OUTSTATION', 'ROUND_TRIP', 'PACKAGE'])
     .optional().default('LOCAL'),
+  /** AIRPORT only: which way the transfer goes. Asked before the addresses. */
+  airportDirection: airportDirectionField,
   /**
    * Which button was pressed.
    *
@@ -302,6 +393,20 @@ const whatsappSchema = z.object({
    * channels apart — quietly lied.
    */
   source: z.enum(['EMAIL', 'WHATSAPP']).optional().default('WHATSAPP'),
+  /**
+   * An outstation booking at a fixed route fare. Only which route, category
+   * and leg are taken from the browser; the amount is looked up here, so the
+   * office never sees a price the customer's browser made up.
+   */
+  outstation: z.object({
+    routeKey: z.string().trim().min(1).max(60),
+    category: z.enum(['STANDARD', 'SUV_MUV', 'PREMIUM_SEDAN', 'PREMIUM_MUV']),
+    leg: z.enum(['ONE_WAY', 'RETURN']),
+  }).optional(),
+  /** The assistant conversation this booking came from, if any. */
+  chatSessionId: z.string().trim().max(64).optional().default(''),
+  returnDate: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal('')]).optional().default(''),
+  returnTime: z.string().trim().regex(/^([01]?\d|2[0-3]):[0-5]\d$|^$/, 'Time must be HH:MM.').optional().default(''),
 }).refine((d) => d.sameAsContact || !!d.whatsappMobile, {
   message: 'Enter your WhatsApp number, or tick that it is the same as your contact number.',
   path: ['whatsappMobile'],
@@ -325,6 +430,30 @@ router.post('/whatsapp-enquiry', enquiryLimiter, validateBody(whatsappSchema), a
   const b = req.body as z.infer<typeof whatsappSchema>;
   const whatsapp = b.sameAsContact ? b.mobile : (b.whatsappMobile || b.mobile);
 
+  // A fixed-fare outstation booking: price it from the master, and refuse it if
+  // the fare was changed or withdrawn while the customer had the page open.
+  let fareLine = '';
+  let vehicleType = b.vehicleType;
+  if (b.outstation) {
+    const hit = fareFor(b.outstation.routeKey, b.outstation.category, b.outstation.leg);
+    if (!hit) {
+      return res.status(409).json({
+        error: 'That fare has just changed. Please go back and choose the vehicle again.',
+      });
+    }
+    const leg = b.outstation.leg === 'RETURN' ? 'Return trip' : 'One way';
+    fareLine = `Fixed fare: Rs ${hit.amount.toLocaleString('en-IN')}${hit.tollIncluded ? ' (toll included)' : ''}`
+      + ` - ${hit.row.origin} to ${hit.row.destination}, ${leg}, ${hit.row.vehicles}`;
+    vehicleType = vehicleType || hit.row.vehicles;
+  }
+  const returnLine = b.returnDate
+    ? `Return: ${b.returnDate}${b.returnTime ? ` at ${b.returnTime}` : ''}`
+    : '';
+  const chatLine = b.chatSessionId && validSessionId(b.chatSessionId)
+    ? `Website chat ${b.chatSessionId.slice(0, 8)} - the full conversation is in Admin > Chat history.`
+    : '';
+  const message = [fareLine, returnLine, b.message, chatLine].filter(Boolean).join('\n');
+
   const out = await raiseInquiry({
     source: b.source,
     name: b.name,
@@ -334,13 +463,16 @@ router.post('/whatsapp-enquiry', enquiryLimiter, validateBody(whatsappSchema), a
     drop: b.dropOff,
     travelDate: b.travelDate,
     travelTime: b.travelTime,
-    vehicleType: b.vehicleType,
+    vehicleType,
     passengers: b.passengers,
-    message: b.message,
+    message,
     serviceLabel: b.category || 'WhatsApp enquiry',
     tripType: b.tripType,
+    airportDirection: b.airportDirection,
     whatsappMobile: whatsapp,
+    travelDateTo: b.returnDate,
   });
+  if (b.chatSessionId) linkChatToBooking(b.chatSessionId, out.bookingId, out.tripId);
 
   // The text the chat opens with. Built here rather than in the browser so the
   // office always receives the same layout whichever screen sent it.
@@ -358,10 +490,13 @@ router.post('/whatsapp-enquiry', enquiryLimiter, validateBody(whatsappSchema), a
   if (b.dropOff) L.push(`Drop: ${b.dropOff}`);
   if (b.travelDate) L.push(`Journey date: ${b.travelDate}`);
   if (b.travelTime) L.push(`Journey time: ${b.travelTime}`);
-  if (b.vehicleType) L.push(`Vehicle: ${b.vehicleType}`);
+  if (vehicleType) L.push(`Vehicle: ${vehicleType}`);
   if (b.passengers) L.push(`Passengers: ${b.passengers}`);
   if (b.category) L.splice(5, 0, `Requirement: ${b.category}`);
-  if (b.message) L.push('', `Message: ${b.message}`);
+  if (b.tripType === 'AIRPORT' && (b.airportDirection === 'TO' || b.airportDirection === 'FROM')) {
+    L.splice(b.category ? 6 : 5, 0, `Airport transfer: ${DIRECTION_LABEL[b.airportDirection]}`);
+  }
+  if (message) L.push('', `Message: ${message}`);
 
   res.status(201).json({
     ok: true,
@@ -402,6 +537,56 @@ router.get('/track/:tripId', trackLimiter, (req, res) => {
   }
 
   res.json({ data: publicTrip(b), timeline: tripEvents(b.id, true) });
+});
+
+/* --------------------------------------------------------------------------
+   Feedback on a completed trip.
+
+   The link in the feedback email carries a random token, and that token is the
+   only key: Trip IDs run in sequence, so they could be walked. One response
+   per trip - the form closes on submit unless the office re-opens it.
+   -------------------------------------------------------------------------- */
+const feedbackLimiter = limiter({
+  windowMs: 10 * 60 * 1000,
+  limit: 40,
+  message: { error: 'Too many attempts. Please wait a few minutes and try again.' },
+});
+
+const NOT_FOUND_FEEDBACK = 'This feedback link is not valid. Please use the link from your email, or call us.';
+
+router.get('/feedback/:token', feedbackLimiter, (req, res) => {
+  const hit = feedbackByToken(String(req.params.token ?? ''));
+  if (!hit) return res.status(404).json({ error: NOT_FOUND_FEEDBACK });
+  res.json({ data: publicFeedback(hit.f, hit.b) });
+});
+
+const star = (label: string) =>
+  z.coerce.number({ invalid_type_error: `Please rate the ${label}.` })
+    .int(`Please rate the ${label}.`)
+    .min(1, `Please rate the ${label}.`)
+    .max(5, `Please rate the ${label} from 1 to 5 stars.`);
+
+const feedbackSchema = z.object({
+  driverRating: star('driver'),
+  serviceRating: star('service'),
+  vehicleRating: star('cab'),
+  overallRating: star('overall experience'),
+  comments: z.string().trim().max(2000, 'Please keep the comments under 2000 characters.').optional().default(''),
+});
+
+router.post('/feedback/:token', feedbackLimiter, validateBody(feedbackSchema), (req, res) => {
+  const hit = feedbackByToken(String(req.params.token ?? ''));
+  if (!hit) return res.status(404).json({ error: NOT_FOUND_FEEDBACK });
+
+  const err = submitFeedback(hit.f, hit.b, req.body as z.infer<typeof feedbackSchema>);
+  if (err) return res.status(409).json({ error: err });
+
+  const again = feedbackByToken(String(req.params.token));
+  res.status(201).json({
+    ok: true,
+    data: again ? publicFeedback(again.f, again.b) : null,
+    message: 'Thank You for Your Feedback! Your feedback has been successfully submitted and will help us improve our services.',
+  });
 });
 
 export default router;

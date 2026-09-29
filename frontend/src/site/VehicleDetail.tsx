@@ -9,7 +9,7 @@
  * captioned as such, rather than five stock interiors implying they are ours.
  */
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { VEHICLES, vehicleBySlug, ON_REQUEST_CLASSES } from './catalog';
+import { VEHICLES, vehicleBySlug, ON_REQUEST_CLASSES, type PlanType } from './catalog';
 import { estimateInputFor, tripPrefill, tripQuery, tripSummary, useTripParams } from './tripParams';
 import { EnquiryButton, WhatsAppButton } from './EnquirySheet';
 import { COMPANY } from './siteData';
@@ -18,11 +18,21 @@ import { VehicleCard } from './VehicleCard';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { Reveal } from '../components/Reveal';
 import { IconSeat, IconLuggage, IconWhatsApp } from './SiteIcons';
-import { IconArrowRight, IconCheck, IconPhone, IconShield } from '../components/icons';
+import { IconArrowRight, IconCheck, IconPhone, IconRoad, IconShield, IconSteering } from '../components/icons';
+import { useSeo } from './Seo';
+
+const PLAN_NAME: Record<PlanType, string> = { LOCAL: 'Local', AIRPORT: 'Airport', OUTSTATION: 'Outstation' };
 
 export default function VehicleDetail() {
   const { slug } = useParams();
   const vehicle = vehicleBySlug(slug);
+  useSeo({
+    title: vehicle ? `${vehicle.name} on Rent in Mumbai with Driver` : 'Vehicles',
+    path: vehicle ? `/vehicles/${vehicle.slug}` : '/vehicles',
+    description: vehicle
+      ? `Hire the ${vehicle.name} (${vehicle.category}, ${vehicle.seats} seats, ${vehicle.luggage}) with a chauffeur in Mumbai for local, airport and outstation trips.`
+      : undefined,
+  });
   const trip = useTripParams();
   const book = useRates();
 
@@ -73,12 +83,27 @@ export default function VehicleDetail() {
                 </span>
               </div>
 
-              <p className="mt-3 text-2xs leading-relaxed text-ink-400">
-                {vehicle.photo
-                  ? 'A photograph of one of our own cars of this class, not the specific vehicle assigned to a booking.'
-                  : 'An illustration of the class, not the specific vehicle assigned to a booking.'}{' '}
-                The class is what the business guarantees, the badge on the bonnet is not. The registration and the
-                chauffeur's details are sent to you before the reporting time.
+              {/* The facts a customer asks next, under the picture: which model
+                  it is, what it can be booked for, who it suits and when the
+                  vehicle and chauffeur details arrive. */}
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs leading-snug">
+                {[
+                  { Icon: IconSteering, label: 'Model', value: `${vehicle.examples} or similar` },
+                  { Icon: IconRoad, label: 'Available for', value: vehicle.plans.map((p) => PLAN_NAME[p]).join(' · ') },
+                  { Icon: IconCheck, label: 'Best for', value: vehicle.bestFor.slice(0, 2).join(', ') },
+                  { Icon: IconShield, label: 'Car & chauffeur', value: 'Details sent before pickup' },
+                ].map(({ Icon, label, value }) => (
+                  <div key={label} className="flex min-w-0 items-start gap-2 rounded-xl bg-white/80 px-3 py-2.5 shadow-card">
+                    <Icon className="mt-px h-3.5 w-3.5 shrink-0 text-brand-500" />
+                    <div className="min-w-0">
+                      <dt className="text-2xs font-bold uppercase tracking-[0.1em] text-ink-400">{label}</dt>
+                      <dd className="mt-0.5 font-semibold text-ink-800">{value}</dd>
+                    </div>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-2 text-2xs text-ink-400">
+                {vehicle.photo ? 'Photo' : 'Illustration'} of the class; the exact vehicle may differ.
               </p>
             </div>
 
@@ -87,7 +112,6 @@ export default function VehicleDetail() {
               <h1 className="font-display text-[2rem] font-extrabold leading-[1.08] tracking-[-0.03em] text-ink-900 sm:text-[2.5rem]">
                 {vehicle.name}
               </h1>
-              <p className="mt-2 text-md text-ink-500">{vehicle.examples}</p>
 
               <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
                 <div>

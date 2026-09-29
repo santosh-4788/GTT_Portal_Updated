@@ -11,6 +11,9 @@ import authRoutes from './routes/auth';
 import dashboardRoutes from './routes/dashboard';
 import vendorRoutes from './routes/vendors';
 import rateCardRoutes from './routes/rateCards';
+import outstationFareRoutes from './routes/outstationFares';
+import chatRoutes from './routes/chats';
+import { ensureOutstationFares } from './services/outstationFares';
 import bookingRoutes from './routes/bookings';
 import billingRoutes from './routes/billing';
 import invoiceRoutes from './routes/invoices';
@@ -24,6 +27,10 @@ import publicRoutes from './routes/public';
 import geoRoutes from './routes/geo';
 import tripRoutes from './routes/trips';
 import customerRoutes from './routes/customer';
+import seoRoutes from './routes/seo';
+import feedbackRoutes from './routes/feedback';
+import chatbotRoutes from './routes/chatbot';
+import { ensureChatbotKnowledge } from './services/chatbotKnowledge';
 
 const app = express();
 
@@ -117,8 +124,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/rates', rateCardRoutes);
+app.use('/api/outstation-fares', outstationFareRoutes);
+app.use('/api/chats', chatRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/trips', tripRoutes);
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/invoices', invoiceRoutes);
@@ -134,6 +145,10 @@ app.use('/api/audit', auditRoutes);
 // the server is already running starts working without a restart.
 const spaDir = path.join(config.paths.root, 'frontend', 'dist');
 const spaIndex = path.join(spaDir, 'index.html');
+
+// robots.txt (with an absolute Sitemap line) and sitemap.xml, ahead of the
+// static copy of robots.txt in dist and of the SPA catch-all below.
+app.use(seoRoutes);
 
 app.use(express.static(spaDir, { fallthrough: true }));
 
@@ -317,10 +332,14 @@ function start() {
   if (!fs.existsSync(config.paths.dbFile)) {
     console.log('No database found — creating it from database/schema.sql ...');
     applySchema();
+    ensureOutstationFares();
+    ensureChatbotKnowledge();
     console.log('Database created. Run "npm run seed" to load the admin user and settings.');
   } else {
     getDb();          // opens + sets pragmas
     applySchema();    // idempotent; picks up any new tables
+    ensureOutstationFares();
+    ensureChatbotKnowledge();
   }
 
   const server = app.listen(config.port, () => {

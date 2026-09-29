@@ -375,6 +375,134 @@ describe('Running the trip and closing it out', () => {
   });
 });
 
+describe('Feedback after the trip', () => {
+  /** The token lives only in the email, so the test reads it from the table. */
+  async function feedbackRow() {
+    const { q } = await import('../src/db');
+    return q.get<any>('SELECT * FROM trip_feedback WHERE booking_id = @id', { id: state.tripRowId });
+  }
+  const RATINGS = { driverRating: 5, serviceRating: 4, vehicleRating: 4, overallRating: 5, comments: 'Punctual and polite.' };
+
+  test('marking the trip completed requested feedback once, by email', async () => {
+    const f = await feedbackRow();
+    assert.ok(f, 'a feedback request exists for the completed trip');
+    assert.equal(f.status, 'PENDING');
+    assert.equal(f.sent_to, 'journey.tester@example.com');
+    assert.equal(f.email_status, 'QUEUED', 'with no mailbox the email is queued, not lost');
+
+    const detail = await admin('GET', `/trips/${state.tripRowId}`);
+    assert.equal(detail.body.feedback.status, 'PENDING');
+    assert.equal(detail.body.feedback.token, undefined, 'the drawer never sees the token');
+    assert.ok(detail.body.emails.some((e: any) => e.kind === 'FEEDBACK'), 'the email is in the trip log');
+  });
+
+  test('moving the trip back and completing it again sends no second email', async () => {
+    const { q } = await import('../src/db');
+    const count = () => q.get<any>(`SELECT COUNT(*) AS n FROM email_log WHERE booking_id = @id AND kind = 'FEEDBACK'`, { id: state.tripRowId }).n;
+    const before = count();
+
+    assert.equal((await admin('POST', `/trips/${state.tripRowId}/status`, { status: 'ONTRIP' })).status, 200);
+    const again = await admin('POST', `/trips/${state.tripRowId}/status`, { status: 'COMPLETED' });
+    assert.equal(again.status, 200);
+    assert.equal(again.body.feedback.created, false);
+    assert.equal(again.body.feedback.emailed, false);
+    assert.equal(count(), before, 'still exactly one feedback email');
+  });
+
+  test('a made-up link is refused', async () => {
+    const r = await anon('GET', '/public/feedback/not-a-real-token-at-all-000');
+    assert.equal(r.status, 404);
+  });
+
+  test('the customer sees their trip and rates it', async () => {
+    const f = await feedbackRow();
+    const page = await anon('GET', `/public/feedback/${f.token}`);
+    assert.equal(page.status, 200);
+    assert.equal(page.body.data.tripId, state.tripId);
+    assert.equal(page.body.data.canSubmit, true);
+    assert.equal(page.body.data.driver, 'Ramesh Kumar');
+
+    const missing = await anon('POST', `/public/feedback/${f.token}`, { ...RATINGS, vehicleRating: 0 });
+    assert.equal(missing.status, 400, 'every star rating is required');
+
+    const r = await anon('POST', `/public/feedback/${f.token}`, RATINGS);
+    assert.equal(r.status, 201);
+    assert.match(r.body.message, /Thank You for Your Feedback/);
+
+    const saved = await feedbackRow();
+    assert.equal(saved.status, 'SUBMITTED');
+    assert.equal(saved.overall_rating, 5);
+    assert.equal(saved.driver_name, 'Ramesh Kumar', 'the driver is recorded with the response');
+    assert.ok(saved.vehicle_number, 'and the vehicle');
+    assert.equal(saved.travel_date, '2027-01-15');
+  });
+
+  test('a second response for the same trip is refused', async () => {
+    const f = await feedbackRow();
+    const r = await anon('POST', `/public/feedback/${f.token}`, { ...RATINGS, overallRating: 1 });
+    assert.equal(r.status, 409);
+    assert.equal((await feedbackRow()).overall_rating, 5, 'the first answer stands');
+  });
+
+  test('the admin can re-open the form for exactly one more response', async () => {
+    const f = await feedbackRow();
+    assert.equal((await admin('POST', `/feedback/${f.id}/allow-resubmit`)).status, 200);
+
+    const r = await anon('POST', `/public/feedback/${f.token}`, { ...RATINGS, overallRating: 4 });
+    assert.equal(r.status, 201);
+    const third = await anon('POST', `/public/feedback/${f.token}`, RATINGS);
+    assert.equal(third.status, 409, 'the permission is used up');
+  });
+
+  test('the office lists and filters the feedback', async () => {
+    const all = await admin('GET', '/feedback');
+    assert.equal(all.status, 200);
+    const row = all.body.data.find((x: any) => x.trip_id === state.tripId);
+    assert.ok(row);
+    assert.equal(row.overall_rating, 4);
+    assert.equal(row.comments, 'Punctual and polite.');
+    assert.ok(all.body.summary.responses >= 1);
+
+    const byDriver = await admin('GET', '/feedback?driver=Ramesh');
+    assert.ok(byDriver.body.data.some((x: any) => x.trip_id === state.tripId));
+    const byRating = await admin('GET', '/feedback?rating=1');
+    assert.ok(!byRating.body.data.some((x: any) => x.trip_id === state.tripId));
+    const byBooking = await admin('GET', `/feedback?booking=${state.tripId}`);
+    assert.equal(byBooking.body.data.length, 1);
+    const byRoute = await admin('GET', '/feedback?route=Andheri');
+    assert.ok(byRoute.body.data.some((x: any) => x.trip_id === state.tripId));
+    const outOfRange = await admin('GET', '/feedback?from=2027-02-01');
+    assert.ok(!outOfRange.body.data.some((x: any) => x.trip_id === state.tripId));
+  });
+});
+
+describe('Airport direction', () => {
+  test('an airport trip raised by hand must say which way it goes', async () => {
+    const base = {
+      source: 'WALKIN', customerName: 'Airport Walkin', customerMobile: '9820011223',
+      pickup: 'Powai', dropOff: 'CSMIA Terminal 2', travelDate: '2027-01-20', tripType: 'AIRPORT',
+    };
+    const none = await admin('POST', '/trips', base);
+    assert.equal(none.status, 400);
+    assert.match(none.body.error, /direction/i);
+
+    const ok = await admin('POST', '/trips', { ...base, airportDirection: 'TO' });
+    assert.equal(ok.status, 201);
+    const detail = await admin('GET', `/trips/${ok.body.id}`);
+    assert.equal(detail.body.data.airport_direction, 'TO');
+  });
+
+  test('a website airport enquiry keeps its direction', async () => {
+    const r = await anon('POST', '/public/whatsapp-enquiry', {
+      name: 'Arrivals Guest', mobile: '9820033445', sameAsContact: true,
+      pickup: 'CSMIA Terminal 2', dropOff: 'Bandra West', travelDate: '2027-01-21', travelTime: '23:10',
+      tripType: 'AIRPORT', airportDirection: 'FROM', category: 'Airport transfer',
+    });
+    assert.equal(r.status, 201);
+    assert.match(r.body.whatsappText, /Airport transfer: From airport/);
+  });
+});
+
 describe('Invoicing', () => {
   test('an unfinished trip cannot be invoiced', async () => {
     const list = await admin('GET', '/trips?status=INQUIRY');
@@ -645,6 +773,94 @@ describe('Tracking and email records', () => {
     await admin('PUT', '/settings', { settings: { 'email.appPassword': row.value } });
     const status = await admin('GET', '/settings/email/status');
     assert.equal(status.body.passwordSet, true);
+  });
+});
+
+describe('Chatbot knowledge', () => {
+  const chatId = 'test-chat-0000-0000-0001';
+  const post = (seq: number, text: string, intent: string, confidence = 0.1) =>
+    anon('POST', `/public/chat/${chatId}`, {
+      messages: [{ seq, at: new Date().toISOString(), sender: 'customer', text, data: { nlu: { lang: 'hi-Latn', intent, confidence, entities: { place: 'Pune' } } } }],
+    });
+
+  test('the browser gets intents, examples and synonyms - and nothing internal', async () => {
+    const r = await anon('GET', '/public/chatbot/knowledge');
+    assert.equal(r.status, 200);
+    const k = r.body.data;
+    assert.ok(k.intents.length >= 50, 'every intent from the requirement is seeded');
+    for (const code of ['FARE_INQUIRY', 'AIRPORT_TO', 'AIRPORT_FROM', 'RETURN_BOOKING', 'ONE_WAY_BOOKING', 'BOOKING_STATUS', 'COMPLAINT', 'UNKNOWN_INTENT']) {
+      assert.ok(k.intents.some((i: any) => i.code === code), `${code} is there`);
+    }
+    for (const lang of ['en', 'hi', 'hi-Latn', 'mr']) {
+      assert.ok(k.examples.some((e: any) => e.lang === lang), `examples in ${lang}`);
+    }
+    assert.ok(k.entities.some((e: any) => e.value === 'pune' && e.synonyms.includes('poona')));
+    const raw = JSON.stringify(k);
+    assert.ok(!/times_matched|reviewed_by|session|password|token/i.test(raw), 'no counts, users or sessions in the public payload');
+  });
+
+  test('a question it could not place is listed once, and counted', async () => {
+    assert.equal((await post(1, 'bhai gaadi ka jugaad ho jayega', 'UNKNOWN_INTENT')).status, 200);
+    await post(1, 'bhai gaadi ka jugaad ho jayega', 'UNKNOWN_INTENT'); // the same line resent
+    await post(2, 'Bhai, gaadi ka jugaad ho jayega?', 'UNKNOWN_INTENT'); // asked again
+    const r = await admin('GET', '/chatbot/unknown');
+    assert.equal(r.status, 200);
+    const row = r.body.data.find((u: any) => u.question.toLowerCase().startsWith('bhai gaadi'));
+    assert.ok(row, 'it is waiting to be mapped');
+    assert.equal(row.times_asked, 2, 'a resend is not a second ask; a new ask is');
+
+    const logs = await admin('GET', '/chatbot/logs', undefined);
+    assert.ok(logs.body.data.some((l: any) => l.intent === 'UNKNOWN_INTENT' && l.language === 'hi-Latn'));
+  });
+
+  test('understood questions go to the log, not the unknown list', async () => {
+    await post(3, 'Mumbai se Pune ka bhada kitna hai?', 'FARE_INQUIRY', 0.9);
+    const u = await admin('GET', '/chatbot/unknown');
+    assert.ok(!u.body.data.some((x: any) => /bhada/.test(x.question)));
+    const l = await admin('GET', '/chatbot/logs?intent=FARE_INQUIRY');
+    assert.ok(l.body.data.some((x: any) => /bhada/.test(x.message) && x.confidence === 0.9));
+  });
+
+  test('mapping it teaches the assistant, which the browser then receives', async () => {
+    const u = await admin('GET', '/chatbot/unknown');
+    const row = u.body.data.find((x: any) => x.question.toLowerCase().startsWith('bhai gaadi'));
+    const r = await admin('POST', `/chatbot/unknown/${row.id}/map`, { intent: 'BOOKING_CREATE' });
+    assert.equal(r.status, 200);
+    const k = await anon('GET', '/public/chatbot/knowledge');
+    assert.ok(k.body.data.examples.some((e: any) => e.intent === 'BOOKING_CREATE' && /jugaad/.test(e.text)));
+    const again = await admin('GET', '/chatbot/unknown');
+    assert.ok(!again.body.data.some((x: any) => x.id === row.id), 'it leaves the waiting list');
+  });
+
+  test('the office can add an example, a synonym and its own wording', async () => {
+    const ex = await admin('POST', '/chatbot/examples', { intent: 'FARE_INQUIRY', language: 'hi-Latn', text: 'Pune tak ka kharcha kitna?' });
+    assert.equal(ex.status, 201);
+    assert.equal((await admin('POST', '/chatbot/examples', { intent: 'FARE_INQUIRY', language: 'hi-Latn', text: 'Pune tak ka kharcha kitna?' })).status, 409);
+    assert.equal((await admin('POST', '/chatbot/examples', { intent: 'NOT_AN_INTENT', text: 'x' })).status, 400);
+
+    const en = await admin('POST', '/chatbot/entities', { type: 'LOCATION', value: 'matheran', display: 'Matheran', synonyms: 'Materan, matherann' });
+    assert.equal(en.status, 201);
+
+    const tpl = await admin('PUT', '/chatbot/intents/PAYMENT_INFORMATION', { responseTemplate: { en: 'Pay the office - call {phone}.' } });
+    assert.equal(tpl.status, 200);
+
+    const k = (await anon('GET', '/public/chatbot/knowledge')).body.data;
+    assert.ok(k.examples.some((e: any) => e.text === 'Pune tak ka kharcha kitna?'));
+    assert.deepEqual(k.entities.find((e: any) => e.value === 'matheran').synonyms, ['materan', 'matherann']);
+    assert.equal(k.intents.find((i: any) => i.code === 'PAYMENT_INFORMATION').templates.en, 'Pay the office - call {phone}.');
+  });
+
+  test('a switched-off intent is not sent to the browser', async () => {
+    await admin('PUT', '/chatbot/intents/SUGGESTION', { active: false });
+    const k = (await anon('GET', '/public/chatbot/knowledge')).body.data;
+    assert.ok(!k.intents.some((i: any) => i.code === 'SUGGESTION'));
+    assert.ok(!k.examples.some((e: any) => e.intent === 'SUGGESTION'));
+    await admin('PUT', '/chatbot/intents/SUGGESTION', { active: true });
+  });
+
+  test('the admin screens are staff only', async () => {
+    assert.equal((await anon('GET', '/chatbot/intents')).status, 401);
+    assert.equal((await customer('GET', '/chatbot/logs')).status, 401);
   });
 });
 

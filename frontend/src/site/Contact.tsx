@@ -4,12 +4,13 @@ import PageHero from './PageHero';
 import { COMPANY, SERVICES } from './siteData';
 import { IconWhatsApp } from './SiteIcons';
 import { WhatsAppButton } from './EnquirySheet';
-import { IconClock, IconInvoices, IconMail, IconPhone, IconPin } from '../components/icons';
+import { IconClock, IconMail, IconPhone, IconPin } from '../components/icons';
 import { api, errorMessage } from '../lib/api';
 import { Field, Spinner } from '../components/ui';
 import { useToast } from '../components/Toast';
 import { todayIso } from '../lib/format';
 import { DateField } from '../components/DateTimeField';
+import { useSeo } from './Seo';
 
 const EMPTY = {
   name: '', mobile: '', email: '', service: '',
@@ -17,6 +18,11 @@ const EMPTY = {
 };
 
 export default function Contact() {
+  useSeo({
+    title: 'Contact Us - Cab Booking in Mumbai',
+    path: '/contact',
+    description: 'Contact Gupta Tours & Travels in Goregaon (W), Mumbai to book a cab or ask for a quote. Send an enquiry or message us on WhatsApp - we answer 24x7.',
+  });
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -194,13 +200,6 @@ export default function Contact() {
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Availability</p>
                     <p className="font-semibold text-ink-900">{COMPANY.serviceHours}</p>
-                  </div>
-                </li>
-                <li className="flex gap-3.5">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><IconInvoices className="h-5 w-5" /></span>
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">GSTIN</p>
-                    <p className="font-mono text-ink-800">{COMPANY.gstin}</p>
                   </div>
                 </li>
               </ul>

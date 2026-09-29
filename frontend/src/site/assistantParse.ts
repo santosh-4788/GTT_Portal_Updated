@@ -6,8 +6,9 @@
  * number on it. This pulls those pieces out.
  *
  * It is a parser, not a language model. It runs in the browser, costs nothing,
- * works with no internet connection and — the part that matters for a travel
- * desk — cannot invent a destination, a rate or a cancellation policy. When it
+ * needs no network and — the part that matters for a travel desk — cannot
+ * invent a destination, a rate or a cancellation policy. It extracts no prices
+ * at all: the page prices the parsed trip from the portal's live fares. When it
  * does not understand, it says so and hands over to a person, which is exactly
  * what the existing site assistant does (see assistantKnowledge.ts for the
  * reasoning behind that trade).
@@ -32,6 +33,12 @@ export interface ParsedTrip {
   nights: number;
   days: number;
   kind: 'LOCAL' | 'AIRPORT' | 'OUTSTATION' | 'TOUR' | 'CORPORATE' | 'EVENT' | 'WEDDING';
+  /**
+   * One way or return, when the sentence says so (or a night away implies a
+   * return). Undefined when it does not — the reply then shows both fares
+   * rather than guessing which one was meant.
+   */
+  leg?: 'ONE_WAY' | 'RETURN';
   /** Enough signal to be worth answering with a trip plan at all. */
   usable: boolean;
 }
@@ -112,6 +119,14 @@ export function parseRequirement(input: string): ParsedTrip {
   else if (/\bspace|luggage|bags|suitcases|room\b/.test(text)) { priority = 'space'; priorityFound = true; }
   else if (/\bcomfort|comfortable|relax\b/.test(text)) { priority = 'comfort'; priorityFound = true; }
 
+  /* --------------------------------------------------------------- leg */
+  const leg: ParsedTrip['leg'] =
+    /\b(and back|return|round ?trip|come back|coming back|both ways)\b/.test(text) || nights > 0
+      ? 'RETURN'
+      : /\b(one ?-? ?way|drop only|just a drop)\b/.test(text)
+        ? 'ONE_WAY'
+        : undefined;
+
   /* -------------------------------------------------------------- bags */
   let bags: Bags = 'medium';
   if (/\blight|hand baggage|no luggage|cabin\b/.test(text)) bags = 'light';
@@ -145,6 +160,7 @@ export function parseRequirement(input: string): ParsedTrip {
     nights,
     days,
     kind,
+    leg,
     // One concrete fact is enough to be worth answering with a plan.
     usable: pax !== undefined || Boolean(destination) || Boolean(spot) || nights > 0,
   };
