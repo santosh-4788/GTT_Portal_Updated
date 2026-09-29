@@ -1,17 +1,58 @@
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { config, ensureDirectories } from '../config';
 
 let _db: Database.Database | null = null;
 
+/**
+ * Where the data lives.
+ *
+ * On this PC: the SQLite file in database/ (better-sqlite3), as always.
+ *
+ * On a host with no lasting disk (Vercel): a Turso database, set by
+ * TURSO_DATABASE_URL and TURSO_AUTH_TOKEN. Turso is SQLite served over the
+ * network, and the `libsql` driver speaks the same synchronous API as
+ * better-sqlite3 - prepare/get/all/run/transaction - so not one query in the
+ * portal changes. Nothing is written to local disk in that mode.
+ */
+export const usingTurso = () => !!process.env.TURSO_DATABASE_URL;
+
 export function getDb(): Database.Database {
   if (_db) return _db;
   ensureDirectories();
+
+  if (usingTurso()) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const LibSql = require('libsql');
+    const db = new LibSql(process.env.TURSO_DATABASE_URL, { authToken: process.env.TURSO_AUTH_TOKEN ?? '' });
+    // libsql adds a `_metadata` timing field to each row .get() returns. It
+    // would leak into every API response and every row comparison, so it is
+    // stripped here, once, for the whole portal.
+    const prepare = db.prepare.bind(db);
+    db.prepare = (sql: string) => {
+      const stmt = prepare(sql);
+      const get = stmt.get.bind(stmt);
+      stmt.get = (...args: unknown[]) => {
+        const row = get(...args);
+        if (row && typeof row === 'object' && '_metadata' in row) delete (row as Record<string, unknown>)._metadata;
+        return row;
+      };
+      return stmt;
+    };
+    try { db.exec('PRAGMA foreign_keys = ON'); } catch { /* the server enforces its own */ }
+    _db = db as Database.Database;
+    return _db;
+  }
+
   const dir = path.dirname(config.paths.dbFile);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-  _db = new Database(config.paths.dbFile);
+  // Loaded only here, so a serverless host running on Turso never loads the
+  // native SQLite module at all.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const BetterSqlite3 = require('better-sqlite3') as typeof Database;
+  _db = new BetterSqlite3(config.paths.dbFile);
   _db.pragma('journal_mode = WAL');
   _db.pragma('foreign_keys = ON');
   _db.pragma('busy_timeout = 5000');

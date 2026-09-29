@@ -851,3 +851,15 @@ CREATE TABLE IF NOT EXISTS chatbot_conversation_log (
   UNIQUE (session_id, seq)
 );
 CREATE INDEX IF NOT EXISTS ix_chatbot_log_intent ON chatbot_conversation_log(intent, created_at);
+
+-- ---------------------------------------------------------------------------
+-- Generated invoices and uploaded invoice templates, kept in the database as
+-- well as on disk - but only where the disk does not last (a serverless host;
+-- see backend/src/services/fileStore.ts). On the office PC this stays empty.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS stored_files (
+  path        TEXT PRIMARY KEY,                   -- invoices/<fy>/<vendor>/... or templates/<file>
+  data        BLOB NOT NULL,
+  size        INTEGER NOT NULL DEFAULT 0,
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);

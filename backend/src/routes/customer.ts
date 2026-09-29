@@ -30,6 +30,7 @@ import {
 import { sendMail, mailConfig } from '../services/mailer';
 import { inquiryAdminEmail, inquiryCustomerEmail, welcomeEmail } from '../services/emailTemplates';
 import { SOURCE_LABEL } from '../services/tripId';
+import { ensureLocalFile } from '../services/fileStore';
 
 const router = Router();
 
@@ -416,7 +417,7 @@ router.get('/trips/:tripId/invoice', requireCustomer, (req, res) => {
   }
 
   const abs = path.join(config.paths.invoices, b.invoice_file);
-  if (!abs.startsWith(config.paths.invoices) || !fs.existsSync(abs)) {
+  if (!abs.startsWith(config.paths.invoices) || !ensureLocalFile(abs)) {
     return res.status(404).json({
       error: 'The invoice file could not be found. Please call us and we will email it to you.',
     });
@@ -425,7 +426,7 @@ router.get('/trips/:tripId/invoice', requireCustomer, (req, res) => {
   // Prefer the PDF twin when the office generated a spreadsheet template — a
   // customer should never be handed an .xlsx to open.
   const pdfTwin = abs.replace(/\.[^.]+$/, '.pdf');
-  const send = fs.existsSync(pdfTwin) ? pdfTwin : abs;
+  const send = ensureLocalFile(pdfTwin) ? pdfTwin : abs;
   const safeNumber = String(b.invoice_number).replace(/[^A-Za-z0-9._-]/g, '-');
   res.download(send, `Invoice-${safeNumber}${path.extname(send)}`);
 });

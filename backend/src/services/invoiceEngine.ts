@@ -16,6 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import { config } from '../config';
 import { round2 } from './billing';
+import { ensureLocalFile, persistFile } from './fileStore';
 
 export interface TemplateMapping {
   sheet?: string;
@@ -79,7 +80,7 @@ export async function generateXlsx(
   outputPath: string
 ): Promise<{ path: string; warnings: string[] }> {
   const warnings: string[] = [];
-  if (!fs.existsSync(templatePath)) {
+  if (!ensureLocalFile(templatePath)) {
     throw new Error(`Invoice template file is missing on disk: ${templatePath}`);
   }
 
@@ -145,6 +146,7 @@ export async function generateXlsx(
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   await wb.xlsx.writeFile(outputPath);
+  persistFile(outputPath);
   return { path: outputPath, warnings };
 }
 
@@ -162,7 +164,7 @@ export async function generateDocx(
   const PizZip = require('pizzip');
   const Docxtemplater = require('docxtemplater');
 
-  if (!fs.existsSync(templatePath)) {
+  if (!ensureLocalFile(templatePath)) {
     throw new Error(`Invoice template file is missing on disk: ${templatePath}`);
   }
 
@@ -193,6 +195,7 @@ export async function generateDocx(
   doc.render(flat);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' }));
+  persistFile(outputPath);
   return { path: outputPath, warnings };
 }
 
@@ -209,7 +212,9 @@ export async function generatePdf(
   opts: { title?: string; logoPath?: string } = {}
 ): Promise<{ path: string; warnings: string[] }> {
   const { renderInvoicePdf } = await import('./invoicePdf');
-  return renderInvoicePdf(ctx, outputPath, opts);
+  const r = await renderInvoicePdf(ctx, outputPath, opts);
+  persistFile(r.path);
+  return r;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +239,9 @@ export function convertToPdf(inputPath: string, outDir: string): string | null {
     windowsHide: true,
   });
   const out = path.join(outDir, path.basename(inputPath).replace(/\.[^.]+$/, '.pdf'));
-  return fs.existsSync(out) ? out : null;
+  if (!fs.existsSync(out)) return null;
+  persistFile(out);   // the PDF twin of an XLSX/DOCX invoice
+  return out;
 }
 
 /** data/invoices/<FY>/<VendorCode>/<file> — one folder per vendor per year. */

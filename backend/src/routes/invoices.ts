@@ -15,6 +15,7 @@ import { resolveBillTo } from '../services/directCustomer';
 import { sendMail, mailConfig } from '../services/mailer';
 import { invoiceEmail } from '../services/emailTemplates';
 import { portalUrl, recordTripEvent } from '../services/tripFlow';
+import { ensureLocalFile } from '../services/fileStore';
 
 const router = Router();
 router.use(requireAuth);
@@ -550,13 +551,13 @@ router.get('/:id/download', requirePermission('invoices.view'), (req, res) => {
 
   const abs = path.join(config.paths.invoices, invoice.file_path);
   // Contain the path inside data/invoices — no traversal out of the store.
-  if (!abs.startsWith(config.paths.invoices) || !fs.existsSync(abs)) {
+  if (!abs.startsWith(config.paths.invoices) || !ensureLocalFile(abs)) {
     return res.status(404).json({ error: 'The generated file is missing from disk. Regenerate the invoice.' });
   }
 
   const asPdf = String(req.query.format ?? '').toLowerCase() === 'pdf';
   const pdfTwin = abs.replace(/\.[^.]+$/, '.pdf');
-  const send = asPdf && fs.existsSync(pdfTwin) ? pdfTwin : abs;
+  const send = asPdf && ensureLocalFile(pdfTwin) ? pdfTwin : abs;
 
   audit(req, 'INVOICE_DOWNLOADED', {
     entityType: 'invoice', entityId: invoice.id, description: invoice.invoice_number,
@@ -611,7 +612,7 @@ router.post('/:id/send', requirePermission('invoices.update', 'invoices.create')
     if (attachment) {
       const abs = path.join(config.paths.invoices, attachment);
       const twin = abs.replace(/\.[^.]+$/, '.pdf');
-      if (!attachment.toLowerCase().endsWith('.pdf') && fs.existsSync(twin)) {
+      if (!attachment.toLowerCase().endsWith('.pdf') && ensureLocalFile(twin)) {
         attachment = path.relative(config.paths.invoices, twin);
       }
     }

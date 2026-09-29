@@ -31,6 +31,7 @@ import fs from 'fs';
 import path from 'path';
 import { q } from '../db';
 import { config } from '../config';
+import { ensureLocalFile } from './fileStore';
 
 export const DEFAULT_FROM = 'vinaykumar87674@gmail.com';
 
@@ -311,7 +312,7 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
   const attachments: { filename: string; path: string }[] = [];
   if (input.attachmentPath) {
     const abs = path.join(config.paths.invoices, input.attachmentPath);
-    if (!abs.startsWith(config.paths.invoices) || !fs.existsSync(abs)) {
+    if (!abs.startsWith(config.paths.invoices) || !ensureLocalFile(abs)) {
       return fail('The file to attach is missing from disk. Regenerate the invoice and try again.', 'FAILED');
     }
     attachments.push({ filename: input.attachmentName ?? path.basename(abs), path: abs });

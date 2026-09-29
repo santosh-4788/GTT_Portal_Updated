@@ -48,6 +48,14 @@ function findProjectRoot(): string {
 
 export const PROJECT_ROOT = findProjectRoot();
 
+/**
+ * Where the portal may write. On this PC, beside the code as always. On a
+ * serverless host (Vercel) the code folder is read-only and only /tmp can be
+ * written - and /tmp is emptied between runs, so anything that must last
+ * (invoices, templates) is also kept in the database (services/fileStore.ts).
+ */
+const WRITABLE_ROOT = process.env.VERCEL ? path.join('/tmp', 'gtt') : PROJECT_ROOT;
+
 const env = (k: string, fallback: string) => process.env[k] ?? fallback;
 
 export const config = {
@@ -69,14 +77,14 @@ export const config = {
   paths: {
     root: PROJECT_ROOT,
     database: path.join(PROJECT_ROOT, 'database'),
-    dbFile: env('DB_FILE', path.join(PROJECT_ROOT, 'database', 'gtt.db')),
+    dbFile: env('DB_FILE', path.join(WRITABLE_ROOT, 'database', 'gtt.db')),
     schema: path.join(PROJECT_ROOT, 'database', 'schema.sql'),
-    templates: path.join(PROJECT_ROOT, 'templates'),
-    uploads: path.join(PROJECT_ROOT, 'uploads'),
-    invoices: path.join(PROJECT_ROOT, 'data', 'invoices'),
-    backups: path.join(PROJECT_ROOT, 'data', 'backups'),
+    templates: path.join(WRITABLE_ROOT, 'templates'),
+    uploads: path.join(WRITABLE_ROOT, 'uploads'),
+    invoices: path.join(WRITABLE_ROOT, 'data', 'invoices'),
+    backups: path.join(WRITABLE_ROOT, 'data', 'backups'),
     assets: path.join(PROJECT_ROOT, 'assets'),
-    logs: path.join(PROJECT_ROOT, 'data', 'logs'),
+    logs: path.join(WRITABLE_ROOT, 'data', 'logs'),
   },
 
   /** Read-only reference folder. NEVER written to. */
@@ -101,12 +109,12 @@ export const config = {
  */
 export function ensureDirectories(): void {
   const dirs = [
-    config.paths.database,
+    // The code folders are read-only on a serverless host; only writable ones there.
+    ...(process.env.VERCEL ? [] : [config.paths.database, config.paths.assets]),
     config.paths.templates,
     config.paths.uploads,
     config.paths.invoices,
     config.paths.backups,
-    config.paths.assets,
     config.paths.logs,
     path.dirname(config.paths.dbFile),
   ];

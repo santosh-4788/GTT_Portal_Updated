@@ -10,6 +10,7 @@ import { audit } from '../middleware/audit';
 import { generateXlsx, generatePdf, TemplateMapping } from '../services/invoiceEngine';
 import { buildInvoiceContext } from '../utils/context';
 import { amountInWords } from '../services/billing';
+import { ensureLocalFile, fileExistsAnywhere, persistFile, removeStoredFile } from '../services/fileStore';
 
 const router = Router();
 router.use(requireAuth);
@@ -67,7 +68,7 @@ router.get('/', requirePermission('settings.view', 'invoices.view'), (_req, res)
   );
   // Flag templates whose file has gone missing so the UI can warn before generation fails.
   for (const t of data) {
-    t.file_exists = fs.existsSync(path.join(config.paths.templates, t.file_name));
+    t.file_exists = fileExistsAnywhere(path.join(config.paths.templates, t.file_name));
   }
   res.json({ data, libreOffice: !!require('../services/invoiceEngine').libreOfficeAvailable() });
 });
@@ -81,7 +82,7 @@ router.get('/:id', requirePermission('settings.view', 'invoices.view'), (req, re
   res.json({
     data: t,
     vendors,
-    fileExists: fs.existsSync(path.join(config.paths.templates, t.file_name)),
+    fileExists: fileExistsAnywhere(path.join(config.paths.templates, t.file_name)),
   });
 });
 
@@ -94,7 +95,7 @@ router.get('/:id/inspect', requirePermission('settings.view'), async (req, res) 
   }
 
   const file = path.join(config.paths.templates, t.file_name);
-  if (!fs.existsSync(file)) return res.status(404).json({ error: 'The template file is missing from disk.' });
+  if (!ensureLocalFile(file)) return res.status(404).json({ error: 'The template file is missing from disk.' });
 
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(file);
@@ -139,6 +140,7 @@ router.post('/', requirePermission('settings.create'), upload.single('file'), (r
     }
   }
 
+  persistFile(req.file.path);
   const info = q.run(
     `INSERT INTO invoice_templates (name, description, file_name, original_name, source_path,
         file_type, sheet_name, document_title, mode, mapping_json, is_active, created_by)
@@ -212,7 +214,10 @@ router.post('/:id/duplicate', requirePermission('settings.create'), (req, res) =
   const src = path.join(config.paths.templates, t.file_name);
   const ext = path.extname(t.file_name);
   const newFile = `${Date.now()}_copy_${path.basename(t.file_name, ext).slice(0, 40)}${ext}`;
-  if (fs.existsSync(src)) fs.copyFileSync(src, path.join(config.paths.templates, newFile));
+  if (ensureLocalFile(src)) {
+    fs.copyFileSync(src, path.join(config.paths.templates, newFile));
+    persistFile(path.join(config.paths.templates, newFile));
+  }
 
   const info = q.run(
     `INSERT INTO invoice_templates (name, description, file_name, original_name, source_path,
@@ -269,7 +274,7 @@ router.post('/:id/test', requirePermission('settings.view'), async (req, res) =>
   try {
     if (t.file_type === 'xlsx') {
       const file = path.join(config.paths.templates, t.file_name);
-      if (!fs.existsSync(file)) return res.status(404).json({ error: 'The template file is missing from disk.' });
+      if (!ensureLocalFile(file)) return res.status(404).json({ error: 'The template file is missing from disk.' });
       const out = path.join(outDir, `SAMPLE_${t.id}.xlsx`);
       const r = await generateXlsx(file, mapping, ctx, out);
       return res.json({
@@ -292,7 +297,7 @@ router.get('/:id/test/download', requirePermission('settings.view'), (req, res) 
   const dir = path.join(config.paths.invoices, '_samples');
   for (const ext of ['xlsx', 'pdf', 'docx']) {
     const f = path.join(dir, `SAMPLE_${req.params.id}.${ext}`);
-    if (fs.existsSync(f)) return res.download(f);
+    if (ensureLocalFile(f)) return res.download(f);
   }
   res.status(404).json({ error: 'No sample has been generated for this template yet.' });
 });
@@ -302,7 +307,7 @@ router.get('/:id/download', requirePermission('settings.view'), (req, res) => {
   const t = q.get<any>('SELECT * FROM invoice_templates WHERE id = @id', { id: req.params.id });
   if (!t) return res.status(404).json({ error: 'Template not found.' });
   const file = path.join(config.paths.templates, t.file_name);
-  if (!file.startsWith(config.paths.templates) || !fs.existsSync(file)) {
+  if (!file.startsWith(config.paths.templates) || !ensureLocalFile(file)) {
     return res.status(404).json({ error: 'The template file is missing from disk.' });
   }
   res.download(file, t.original_name ?? t.file_name);
@@ -324,6 +329,7 @@ router.delete('/:id', requirePermission('settings.delete'), (req, res) => {
 
   const file = path.join(config.paths.templates, t.file_name);
   if (file.startsWith(config.paths.templates) && fs.existsSync(file)) fs.unlinkSync(file);
+  removeStoredFile(file);
   q.run('DELETE FROM invoice_templates WHERE id = @id', { id: req.params.id });
 
   audit(req, 'TEMPLATE_DELETED', {

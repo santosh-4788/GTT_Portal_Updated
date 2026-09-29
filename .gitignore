@@ -44,3 +44,7 @@ desktop.ini
 .vscode/
 .idea/
 *.log
+
+# Turso credentials for the one-time data copy (scripts/migrate-to-turso.ts)
+.env.turso
+backend/.env.turso

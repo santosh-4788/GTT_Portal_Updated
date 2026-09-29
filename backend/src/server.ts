@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import fs from 'fs';
 import { config, ensureDirectories } from './config';
-import { getDb, applySchema } from './db';
+import { getDb, applySchema, usingTurso } from './db';
 
 import authRoutes from './routes/auth';
 import dashboardRoutes from './routes/dashboard';
@@ -33,6 +33,18 @@ import chatbotRoutes from './routes/chatbot';
 import { ensureChatbotKnowledge } from './services/chatbotKnowledge';
 
 const app = express();
+
+/*
+ * On Vercel there is no start(): each cold start of the function imports this
+ * file and hands requests straight to `app`. The database is made ready on
+ * the first request instead - once per instance - so a Turso connection is
+ * only opened when there is something to answer.
+ */
+if (process.env.VERCEL) {
+  app.use((_req, _res, next) => {
+    try { initDatabase(); next(); } catch (err) { next(err); }
+  });
+}
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
@@ -113,7 +125,7 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     service: 'Gupta Tours & Travels Portal API',
     version: '1.0.0',
-    database: fs.existsSync(config.paths.dbFile) ? 'connected' : 'missing',
+    database: usingTurso() ? 'turso' : fs.existsSync(config.paths.dbFile) ? 'connected' : 'missing',
     time: new Date().toISOString(),
   });
 });
@@ -319,17 +331,12 @@ function runningOlderThanBuild(): string {
 /** Worked out once at boot; the 404 handler reads it rather than re-checking. */
 let buildProblem = '';
 
-function start() {
-  ensureDirectories();
+let databaseReady = false;
 
-  buildProblem = detectStaleBuild() || runningOlderThanBuild();
-  if (buildProblem) {
-    console.warn('');
-    console.warn('  ! ' + buildProblem);
-    console.warn('');
-  }
-
-  if (!fs.existsSync(config.paths.dbFile)) {
+/** Schema, additive migrations and the seeded masters. Idempotent; once per process. */
+function initDatabase() {
+  if (databaseReady) return;
+  if (!usingTurso() && !fs.existsSync(config.paths.dbFile)) {
     console.log('No database found — creating it from database/schema.sql ...');
     applySchema();
     ensureOutstationFares();
@@ -341,6 +348,20 @@ function start() {
     ensureOutstationFares();
     ensureChatbotKnowledge();
   }
+  databaseReady = true;
+}
+
+function start() {
+  ensureDirectories();
+
+  buildProblem = detectStaleBuild() || runningOlderThanBuild();
+  if (buildProblem) {
+    console.warn('');
+    console.warn('  ! ' + buildProblem);
+    console.warn('');
+  }
+
+  initDatabase();
 
   const server = app.listen(config.port, () => {
     httpServer = server;
@@ -385,6 +406,7 @@ function start() {
   });
 }
 
-start();
+// A serverless host calls `app` itself; everywhere else the portal listens.
+if (!process.env.VERCEL) start();
 
 export default app;
