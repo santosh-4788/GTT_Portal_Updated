@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours And Travels">
+  <title>Gupta Tours And Travels</title>
+
+  <!--
+    THE CAB FACE — the car seen head on.
+
+    Six shapes and nothing else: body, windscreen, two headlights, grille and a
+    lower intake. A front view is symmetric, which is exactly why it survives being
+    shrunk — the eye reads a face long before it can read detail, so this holds
+    at 32px where the poster's three-quarter car does not.
+
+    MATCHED TO THE PORTAL, NOT THE POSTER. The body carries the site's own brand
+    gradient (#5AD6F7 into #2E86F0 — the same `grad-brand` used on every primary
+    button), the glass is the site's ink navy, and there is no container, so it
+    sits on the pale ground as a mark rather than a sticker. The poster's steel
+    and gold stay on the poster, where the near-black ground supports them.
+
+    NO TAXI SIGN ON THE ROOF. This business runs chauffeur-driven cars on
+    contract and says on its own FAQ that it does not do self-drive or metered
+    work — a roof lamp would say the wrong thing to a corporate account.
+
+    PROPORTIONS. The first pass was 50 wide by 36 tall, with a windscreen taking
+    a third of the height and headlights as big as the grille — it read as a bath
+    toy, grinning. This is narrower and taller (44 x 40), keeps a roof edge
+    visible above the glass, and the lamps are swept slits. The soft translucent
+    bumper band is gone; it made the car look like it was melting into the page.
+
+    Every coordinate is mirrored about x=32. If you edit one side, edit both, or
+    the face goes crooked in a way that is very obvious at large sizes.
+  -->
+
+  <defs>
+    <linearGradient id="cabBody" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%"   stop-color="#5AD6F7"/>
+      <stop offset="52%"  stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#2E86F0"/>
+    </linearGradient>
+
+    <linearGradient id="cabGlass" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%"   stop-color="#2A3E52"/>
+      <stop offset="100%" stop-color="#101C2B"/>
+    </linearGradient>
+
+    <linearGradient id="cabLamp" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#D6EEFB"/>
+    </linearGradient>
+  </defs>
+
+  <!-- body -->
+  <path d="M 24 12
+           C 28 11.2, 36 11.2, 40 12
+           C 44 15.5, 47 20, 48.6 25.5
+           C 51 29, 52.6 34, 53 39.5
+           C 53.3 44, 53 48, 51.5 50.5
+           C 50.8 51.6, 49.5 52, 48 52
+           L 16 52
+           C 14.5 52, 13.2 51.6, 12.5 50.5
+           C 11 48, 10.7 44, 11 39.5
+           C 11.4 34, 13 29, 15.4 25.5
+           C 17 20, 20 15.5, 24 12 Z"
+        fill="url(#cabBody)"/>
+
+  <!-- windscreen, with a roof edge left visible above it -->
+  <path d="M 26 15.6 C 29 14.9, 35 14.9, 38 15.6
+           L 41.8 25.4 C 36 24.4, 28 24.4, 22.2 25.4 Z"
+        fill="url(#cabGlass)"/>
+
+  <!-- headlights: swept slits, not slabs -->
+  <path d="M 13.6 33.4 C 16.6 32.2, 20.6 31.8, 23.6 32.2
+           L 23.2 36.4 C 20 36, 16.2 36.4, 13.2 37.4 Z"
+        fill="url(#cabLamp)"/>
+  <path d="M 50.4 33.4 C 47.4 32.2, 43.4 31.8, 40.4 32.2
+           L 40.8 36.4 C 44 36, 47.8 36.4, 50.8 37.4 Z"
+        fill="url(#cabLamp)"/>
+
+  <!-- grille -->
+  <rect x="25.4" y="32.2" width="13.2" height="5.4" rx="2" fill="url(#cabGlass)"/>
+
+  <!-- lower intake -->
+  <rect x="19" y="43.4" width="26" height="4.6" rx="2.3" fill="url(#cabGlass)" opacity="0.85"/>
+
+</svg>

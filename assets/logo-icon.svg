@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="Gupta Tours &amp; Travels">
+  <title>Gupta Tours &amp; Travels</title>
+
+  <!--
+    THE ICON — the same route and marker with the badge taken off, scaled up to
+    fill the box, on a transparent ground.
+
+    This is the favicon and app-icon version. A badge with a ring round it
+    wastes half the pixels at 16px, which is why the full mark goes to a dark
+    disc down there and this one does not: the road is 60% wider here and there
+    is no ring competing with it.
+
+    Use `logo-mark.svg` anywhere with room. Use this one at 32px and below, and
+    wherever the platform draws its own rounded container round the icon.
+  -->
+
+  <defs>
+    <linearGradient id="gttIconRoute" x1="0.15" y1="1" x2="0.85" y2="0">
+      <stop offset="0%" stop-color="#2E86F0"/>
+      <stop offset="55%" stop-color="#35C0EE"/>
+      <stop offset="100%" stop-color="#5AD6F7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the same curve, pushed out to the edges of the box -->
+  <path d="M 14 54 C 18 34.5, 25 24, 47.5 19"
+        fill="none" stroke="url(#gttIconRoute)" stroke-width="11" stroke-linecap="round"/>
+
+  <!-- the destination, with the hole punched right through so it works on any
+       ground the platform puts behind it -->
+  <path d="M 47.5 19 m -8.5 0 a 8.5 8.5 0 1 0 17 0 a 8.5 8.5 0 1 0 -17 0
+           M 47.5 19 m -3.2 0 a 3.2 3.2 0 1 0 6.4 0 a 3.2 3.2 0 1 0 -6.4 0"
+        fill="#D9C33A" fill-rule="evenodd"/>
+</svg>

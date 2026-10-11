@@ -1,0 +1,25 @@
+# Gupta Tours & Travels
+#
+# When the API server serves the site it answers /robots.txt itself, with the
+# same rules plus an absolute Sitemap line for the address it was reached on
+# (backend/src/server.ts). This copy is what the Vite dev / preview server and
+# a static host serve.
+
+User-agent: *
+Allow: /
+
+# Staff portal and API
+Disallow: /admin
+Disallow: /api/
+Disallow: /login
+
+# A visitor's own account, trips and one-off screens
+Disallow: /account
+Disallow: /trips
+Disallow: /profile
+Disallow: /notifications
+Disallow: /request/
+Disallow: /track
+Disallow: /feedback
+Disallow: /search
+Disallow: /vehicles/compare
