@@ -37,7 +37,11 @@ the rest of the portal, which uses no paid service anywhere.
 - Navigation is a row of tabs along the bottom instead of the sidebar.
 - The four tabs are chosen by role. Billing staff get Dashboard, Billing,
   Invoices and Payments. Admins get Dashboard, Trips, Bookings and Billing.
-  Everything else either role can reach is under **More**.
+  Everything else either role can reach — including Events, Fleet, Masters and
+  Outstation Fares — is under **More**, which also holds the English / हिन्दी
+  language switch.
+- The language follows the user: choosing Hindi on the website shows Hindi in
+  the app too, and the other way round.
 - Downloads (invoices, reports, rate-card templates) open Android's share
   sheet, so a file can be opened in a PDF viewer, saved to Downloads, or sent
   straight to the vendor on WhatsApp or email.

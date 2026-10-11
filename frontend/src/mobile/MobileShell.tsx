@@ -6,8 +6,10 @@ import {
   IconDashboard, IconBookings, IconVendors, IconBilling, IconInvoices,
   IconPayments, IconReports, IconSettings, IconUsers, IconAudit,
   IconTemplates, IconRoad, IconLogout, IconKey, IconMenu, IconClose, IconChevron,
+  IconEvent, IconCar, IconLayers, IconGlobe,
 } from '../components/icons';
 import { COMPANY } from '../site/siteData';
+import { LanguageProvider, LanguageSwitch } from '../lib/i18n';
 import { RouteTransition } from './RouteTransition';
 
 type IconCmp = (p: any) => JSX.Element;
@@ -27,15 +29,18 @@ const ALL: Item[] = [
   { to: '/admin/bookings', label: 'Bookings', Icon: IconBookings, perms: ['bookings.view'] },
   // Counter booking. The route has always existed in this bundle; without a
   // menu entry there was simply no way to open it from the phone.
-  { to: '/admin/customer-booking', label: 'Customer Booking', short: 'Counter', Icon: IconUsers, perms: ['bookings.create'] },
+  { to: '/admin/bookings/new?source=WALKIN', label: 'New booking', short: 'Book', Icon: IconUsers, perms: ['bookings.create'] },
+  { to: '/admin/events', label: 'Events', Icon: IconEvent, perms: ['events.view'] },
+  { to: '/admin/fleet', label: 'Fleet', Icon: IconCar, perms: ['fleet.view', 'settings.view'] },
   { to: '/admin/feedback', label: 'Feedback', Icon: IconReports, perms: ['bookings.view'] },
   { to: '/admin/chatbot', label: 'Chatbot Knowledge', short: 'Chatbot', Icon: IconTemplates, perms: ['settings.view'] },
   { to: '/admin/billing', label: 'Billing', Icon: IconBilling, perms: ['billing.view'] },
   { to: '/admin/invoices', label: 'Invoices', Icon: IconInvoices, perms: ['invoices.view'] },
-  { to: '/admin/payments', label: 'Payments', Icon: IconPayments, perms: ['payments.view'] },
+  { to: '/admin/payments', label: 'Payments & Ledger', short: 'Payments', Icon: IconPayments, perms: ['payments.view'] },
   { to: '/admin/reports', label: 'Reports', Icon: IconReports, perms: ['reports.view'] },
-  { to: '/admin/vendors', label: 'Vendors', Icon: IconVendors, perms: ['vendors.view'] },
-  { to: '/admin/master', label: 'Master', Icon: IconTemplates, perms: ['vendors.view'] },
+  { to: '/admin/vendors', label: 'Companies / Vendors', short: 'Companies', Icon: IconVendors, perms: ['vendors.view'] },
+  { to: '/admin/outstation-fares', label: 'Outstation Fares', short: 'Fares', Icon: IconRoad, perms: ['vendors.view', 'masters.view'] },
+  { to: '/admin/masters', label: 'Masters', Icon: IconLayers, perms: ['masters.view', 'vendors.view'] },
   { to: '/admin/settings', label: 'Settings', Icon: IconSettings, perms: ['settings.view'] },
   { to: '/admin/users', label: 'Users', Icon: IconUsers, perms: ['users.view'] },
   { to: '/admin/audit', label: 'Audit Log', Icon: IconAudit, perms: ['audit.view'] },
@@ -78,12 +83,17 @@ function MoreSheet({ items, onClose }: { items: Item[]; onClose: () => void }) {
             {user?.fullName?.charAt(0).toUpperCase()}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-ink-900">{user?.fullName}</span>
+            <span className="block truncate text-sm font-semibold text-ink-900" data-no-i18n>{user?.fullName}</span>
             <span className="block truncate text-xs text-ink-500">{user?.roleName}</span>
           </span>
           <button className="btn-ghost btn-icon" onClick={onClose} aria-label="Close">
             <IconClose className="h-5 w-5" />
           </button>
+        </div>
+
+        <div className="border-b border-ink-100 px-4 py-3">
+          <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-ink-500"><IconGlobe className="h-4 w-4" /> Language</p>
+          <LanguageSwitch />
         </div>
 
         <nav className="grid grid-cols-3 gap-1 p-3">
@@ -138,6 +148,14 @@ function MoreSheet({ items, onClose }: { items: Item[]; onClose: () => void }) {
 
 // ---------------------------------------------------------------------------
 export default function MobileShell() {
+  return (
+    <LanguageProvider>
+      <Shell />
+    </LanguageProvider>
+  );
+}
+
+function Shell() {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const visible = useVisibleItems();

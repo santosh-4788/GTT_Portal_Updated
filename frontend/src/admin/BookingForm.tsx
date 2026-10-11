@@ -8,6 +8,38 @@ import { useToast } from '../components/Toast';
 import { DateField, TimeField } from '../components/DateTimeField';
 import { GST_TYPES, gstRateOptions, gstSummary, type GstType } from './gst';
 import { AirportDirectionPicker, airportEnds, inferAirportDir, type AirportDir } from './airport';
+import AssignPicker, { EMPTY_ASSIGN, type AssignCheck, type AssignValue } from '../components/AssignPicker';
+import { useAuth } from '../lib/auth';
+import { IconCheck, IconEvent, IconUsers, IconVendors, IconWarning } from '../components/icons';
+
+/**
+ * Where a booking comes from. Chosen first, because it decides who is billed,
+ * whether a company reference is expected, and whether a message can be pasted.
+ * Events (many vehicles at once) have their own screen and come back here as
+ * ordinary trips.
+ */
+type Source = 'COMPANY' | 'WALKIN' | 'DIRECT' | 'EVENT';
+const SOURCE_OPTIONS: { key: Source; label: string; hint: string }[] = [
+  { key: 'COMPANY', label: 'Corporate company', hint: 'A company or travel partner sent it — billed to them' },
+  { key: 'WALKIN', label: 'Walk-in customer', hint: 'At the counter — billed to the customer' },
+  { key: 'DIRECT', label: 'Direct customer', hint: 'Phone, WhatsApp or email — billed to the customer' },
+  { key: 'EVENT', label: 'Event / bulk', hint: 'Many vehicles for one event' },
+];
+
+/** Form fields the parser reports on, and the parser's name for each. */
+const PARSED_FIELD: Record<string, string> = {
+  vendorBookingRef: 'vendorBookingRef', passengerName: 'passengerName', passengerMobile: 'passengerMobile',
+  vehicleType: 'vehicleType', travelDate: 'travelDate', reportingTime: 'reportingTime',
+  pickupLocation: 'pickupAddress', dropLocation: 'dropAddress', dutyType: 'dutyType', flightTrainNo: 'flightTrainNo',
+};
+const FIELD_LABEL: Record<string, string> = {
+  vendorBookingRef: 'Company reference', passengerName: 'Passenger', passengerMobile: 'Passenger mobile', passengerCount: 'Passengers',
+  vehicleType: 'Vehicle', dutyType: 'Duty type', tripType: 'Trip type', city: 'City', travelDate: 'Travel date',
+  travelDateTo: 'End date', reportingTime: 'Reporting time', pickupAddress: 'Pickup', dropAddress: 'Drop',
+  flightTrainNo: 'Flight / train', flightSector: 'Sector', flightTime: 'Flight time', remarks: 'Remarks',
+  vendorHint: 'Signed by', contactNumber: 'Company contact', airportDirection: 'Airport direction',
+};
+const STATE_TEXT: Record<string, string> = { ok: 'Found', missing: 'Missing', confirm: 'Check', not_applicable: 'Not applicable' };
 
 const TRIP_TYPES = [
   ['LOCAL', 'Local'], ['TRANSFER', 'Transfer'], ['AIRPORT', 'Airport'],
@@ -157,6 +189,22 @@ export default function BookingForm() {
   const [message, setMessage] = useState('');
   const [parsing, setParsing] = useState(false);
   const [parsed, setParsed] = useState<any>(null);
+  const { can, user } = useAuth() as any;
+  const [source, setSource] = useState<Source>(() => {
+    const p = (params.get('source') ?? '').toUpperCase();
+    return (['COMPANY', 'WALKIN', 'DIRECT', 'EVENT'].includes(p) ? p : 'COMPANY') as Source;
+  });
+  const [directChannel, setDirectChannel] = useState<'WHATSAPP' | 'EMAIL' | 'PORTAL'>('WHATSAPP');
+  const [categories, setCategories] = useState<any[]>([]);
+  const [categoryId, setCategoryId] = useState<string>('');
+  const [assign, setAssign] = useState<AssignValue>(EMPTY_ASSIGN);
+  const [assignCheck, setAssignCheck] = useState<AssignCheck | null>(null);
+  const [overrideReason, setOverrideReason] = useState('');
+  /** Fields the parser could not find or wants checked: key -> note. Cleared as they are edited. */
+  const [flags, setFlags] = useState<Record<string, { state: string; note: string }>>({});
+  const [dateConfirmed, setDateConfirmed] = useState(true);
+  const [applied, setApplied] = useState<any>(null);
+  const canOverride = user?.roleCode === 'SUPER_ADMIN' || can('fleet.update');
 
   const isWalkIn = form.vendorId === WALKIN;
 
@@ -185,12 +233,14 @@ export default function BookingForm() {
   useEffect(() => {
     (async () => {
       try {
-        const [v, veh] = await Promise.all([
+        const [v, veh, cats] = await Promise.all([
           api.get('/vendors/options'),
           api.get('/bookings/lookup/vehicles'),
+          api.get('/fares/categories').catch(() => ({ data: { data: [] } })),
         ]);
         setVendors(v.data.data ?? []);
         setVehicles(veh.data.data ?? []);
+        setCategories(cats.data.data ?? []);
 
         if (isEdit) {
           const { data } = await api.get(`/bookings/${id}`);
@@ -200,6 +250,14 @@ export default function BookingForm() {
           const tollParking = num(c.toll) + num(c.parking);
           const taxable = num(c.taxable_amount);
 
+          setSource(b.booking_source === 'DIRECT' ? (b.inquiry_source === 'WALKIN' ? 'WALKIN' : 'DIRECT') : 'COMPANY');
+          if (['WHATSAPP', 'EMAIL', 'PORTAL'].includes(b.inquiry_source)) setDirectChannel(b.inquiry_source);
+          setCategoryId(b.vehicle_category_id ? String(b.vehicle_category_id) : '');
+          setAssign({
+            ...EMPTY_ASSIGN, vehicleId: b.vehicle_id ?? null, driverId: b.driver_id ?? null,
+            vehicleNumber: b.vehicle_number ?? '', driverName: b.driver_name ?? '', driverMobile: b.driver_mobile ?? '',
+            outsideVehicle: !b.vehicle_id && !!b.vehicle_number, outsideDriver: !b.driver_id && !!b.driver_name,
+          });
           setForm({
             vendorId: b.booking_source === 'DIRECT' ? WALKIN : String(b.vendor_id),
             vendorBookingRef: b.vendor_booking_ref ?? '',
@@ -247,6 +305,8 @@ export default function BookingForm() {
           );
         } else if (params.get('vendorId')) {
           setForm((f) => ({ ...f, vendorId: params.get('vendorId')! }));
+        } else if (['WALKIN', 'DIRECT'].includes((params.get('source') ?? '').toUpperCase())) {
+          setForm((f) => ({ ...f, vendorId: WALKIN }));
         }
       } catch (err) {
         toast.error('Could not load the booking', errorMessage(err));
@@ -260,7 +320,19 @@ export default function BookingForm() {
   const set = (k: keyof FormState) => (e: any) => {
     setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
     setErrors((p) => ({ ...p, [k]: '' }));
+    setFlags((p) => { if (!p[k]) return p; const n = { ...p }; delete n[k]; return n; });
   };
+  /** Amber outline and a note on a field the message did not settle. */
+  const flagCls = (k: string) => (flags[k] ? 'ring-2 ring-warn-300 border-warn-500' : '');
+  const flagNote = (k: string) => flags[k]?.note;
+
+  const chooseSource = (next: Source) => {
+    setSource(next);
+    setParsed(null);
+    if (next === 'WALKIN' || next === 'DIRECT') setForm((f) => ({ ...f, vendorId: WALKIN, vendorBookingRef: '' }));
+    else if (next === 'COMPANY' && form.vendorId === WALKIN) setForm((f) => ({ ...f, vendorId: '' }));
+  };
+  const category = categories.find((c) => String(c.id) === categoryId);
   const setCharge = (k: keyof FormState['charges']) => (e: any) =>
     setForm((f) => ({ ...f, charges: { ...f.charges, [k]: e.target.value } }));
 
@@ -281,7 +353,9 @@ export default function BookingForm() {
     if (!message.trim()) return;
     setParsing(true);
     try {
-      const { data } = await api.post('/bookings/parse-message', { message });
+      const { data } = await api.post('/bookings/parse-message', {
+        message, vendorId: source === 'COMPANY' && form.vendorId && form.vendorId !== WALKIN ? Number(form.vendorId) : undefined,
+      });
       setParsed(data);
     } catch (err) {
       toast.error('Could not read that message', errorMessage(err));
@@ -290,13 +364,21 @@ export default function BookingForm() {
     }
   };
 
-  const applyParsed = () => {
+  /**
+   * Copy what the message gave into the form. Nothing is invented: a field the
+   * message did not contain keeps whatever was there (usually empty) and is
+   * outlined so the operator fills it; anything the parser was unsure of is
+   * outlined with the reason. The original message is kept with the booking.
+   */
+  const applyParsed = (useSuggestions: Record<string, boolean> = {}) => {
     if (!parsed) return;
-    const f = parsed.fields ?? {};
+    const f = { ...(parsed.fields ?? {}) };
+    for (const [k, on] of Object.entries(useSuggestions)) if (on && parsed.fieldSuggestions?.[k]) f[k] = parsed.fieldSuggestions[k];
     const s = parsed.suggestions ?? {};
+    const vendorId = source === 'COMPANY' && s.vendorId ? String(s.vendorId) : undefined;
     setForm((prev) => ({
       ...prev,
-      vendorId: s.vendorId ? String(s.vendorId) : prev.vendorId,
+      vendorId: vendorId ?? prev.vendorId,
       vendorBookingRef: f.vendorBookingRef ?? prev.vendorBookingRef,
       travelDate: f.travelDate ?? prev.travelDate,
       travelDateTo: f.travelDateTo ?? prev.travelDateTo,
@@ -304,7 +386,7 @@ export default function BookingForm() {
       tripType: f.tripType ?? prev.tripType,
       airportDirection: (f.airportDirection ?? prev.airportDirection) as AirportDir,
       dutyType: f.dutyType?.trim() ?? prev.dutyType,
-      city: f.city ?? prev.city,
+      city: f.city && !/outstation/i.test(f.city) ? f.city : prev.city,
       pickupLocation: f.pickupAddress ?? prev.pickupLocation,
       pickupAddress: f.pickupAddress ?? prev.pickupAddress,
       dropLocation: f.dropAddress ?? prev.dropLocation,
@@ -313,35 +395,62 @@ export default function BookingForm() {
       passengerName: f.passengerName ?? prev.passengerName,
       passengerMobile: f.passengerMobile ?? prev.passengerMobile,
       passengerEmail: s.passengerEmail ?? prev.passengerEmail,
+      paxCount: f.passengerCount ? String(f.passengerCount) : prev.paxCount,
       vehicleType: f.vehicleType ?? prev.vehicleType,
-      vehicleId: s.vehicleId ? String(s.vehicleId) : prev.vehicleId,
-      vehicleNumber: s.vehicleNumber ?? prev.vehicleNumber,
-      driverName: s.driverName ?? prev.driverName,
-      driverMobile: s.driverMobile ?? prev.driverMobile,
-      remarks: f.remarks ?? prev.remarks,
+      remarks: [f.remarks, f.flightSector ? `Flight ${f.flightTrainNo ?? ''} ${f.flightSector} ${f.flightTime ?? ''}`.trim() : '']
+        .filter(Boolean).join(' · ') || prev.remarks,
       specialInstructions: f.specialInstructions ?? prev.specialInstructions,
       rawMessage: message,
     }));
+    if (s.categoryId) setCategoryId(String(s.categoryId));
+
+    const nextFlags: Record<string, { state: string; note: string }> = {};
+    for (const [formKey, parsedKey] of Object.entries(PARSED_FIELD)) {
+      const st = parsed.fieldStatus?.[parsedKey];
+      if (st === 'missing' && !(formKey === 'dropLocation' && ['LOCAL', 'PACKAGE'].includes(f.tripType ?? ''))) {
+        nextFlags[formKey] = { state: 'missing', note: 'Not in the message — enter it' };
+      } else if (st === 'confirm') {
+        nextFlags[formKey] = {
+          state: 'confirm',
+          note: parsedKey === 'travelDate' ? 'No year in the message — check the date'
+            : parsedKey === 'dropAddress' && f.dropFromRemarks ? 'Taken from the remarks — check it'
+            : parsedKey === 'dropAddress' && useSuggestions.dropAddress ? 'Completed from the remarks — check it'
+            : parsedKey === 'dropAddress' ? 'Looks cut off — check it' : 'Check this value',
+        };
+      }
+    }
+    // Optional fields the message just did not have are not "missing".
+    for (const k of ['dutyType', 'flightTrainNo']) if (nextFlags[k]?.state === 'missing') delete nextFlags[k];
+    if (parsed.fieldStatus?.vendorBookingRef === 'not_applicable') delete nextFlags.vendorBookingRef;
+    setFlags(nextFlags);
+    setDateConfirmed(parsed.fieldStatus?.travelDate !== 'confirm');
+    setApplied({ warnings: parsed.warnings ?? [], duplicate: parsed.duplicate, company: parsed.company });
     setPasteOpen(false);
     setParsed(null);
-    setMessage('');
-    toast.success('Fields filled from the message', 'Check the highlighted values, then enter the amount.');
+    const n = Object.keys(nextFlags).length;
+    toast.success('Form filled from the message', n ? `${n} field(s) are outlined — fill or check them before saving.` : 'Check the values, then save.');
   };
 
   const airport = form.tripType === 'AIRPORT';
   const ends = airportEnds(form.airportDirection);
 
   // ---- save ---------------------------------------------------------------
-  const validate = () => {
+  const validate = (_then: 'list' | 'new' | 'invoice' = 'list') => {
     const e: Record<string, string> = {};
-    if (!form.vendorId) e.vendorId = 'Choose the vendor this booking came from, or Walk-in customer.';
+    if (!form.vendorId) e.vendorId = 'Choose the company this booking came from.';
+    if (!dateConfirmed) e.travelDate = 'The message had no year — confirm the travel date (tick the box under it).';
+    if (assignCheck?.needsOverride && overrideReason.trim().length < 3) {
+      e.assign = canOverride ? 'Give a reason for allotting an unavailable vehicle or driver.' : 'The vehicle or driver chosen is not available — choose another.';
+    }
     if (isWalkIn && form.customerName.trim().length < 2) {
       e.customerName = 'Enter the customer name — the invoice is addressed to them.';
     }
     if (isWalkIn && form.customerMobile && !/^[6-9]\d{9}$/.test(form.customerMobile.replace(/\D/g, '').replace(/^91/, ''))) {
       e.customerMobile = 'Enter a valid 10-digit mobile number.';
     }
-    if (num(form.charges.amount) <= 0) e.amount = 'Enter the amount to bill for this trip.';
+    // A fare is not invented: it can be left empty now and must be entered
+    // before billing is confirmed. A walk-in at the counter is priced on the spot.
+    if (num(form.charges.amount) <= 0 && source === 'WALKIN') e.amount = 'Enter the amount agreed with the customer.';
     if (!form.travelDate) e.travelDate = 'Travel date is required.';
     if (form.travelDateTo && form.travelDateTo < form.travelDate) e.travelDateTo = 'End date cannot be before the travel date.';
     if (form.tripType === 'AIRPORT' && !form.airportDirection) {
@@ -373,7 +482,15 @@ export default function BookingForm() {
     bookingSource: isWalkIn ? 'DIRECT' : 'VENDOR',
     vendorId: isWalkIn ? undefined : Number(form.vendorId),
     vendorBookingRef: isWalkIn ? '' : form.vendorBookingRef,
-    vehicleId: form.vehicleId ? Number(form.vehicleId) : null,
+    // The allotment is saved through the trip's own assign step (availability,
+    // clashes, history); the booking itself only carries the category.
+    vehicleId: isEdit ? (form.vehicleId ? Number(form.vehicleId) : null) : null,
+    vehicleNumber: isEdit ? form.vehicleNumber : '',
+    driverName: isEdit ? form.driverName : '',
+    driverMobile: isEdit ? form.driverMobile : '',
+    vehicleCategoryId: categoryId ? Number(categoryId) : null,
+    vehicleType: category?.name ?? form.vehicleType,
+    inquirySource: isWalkIn ? (source === 'WALKIN' ? 'WALKIN' : directChannel) : 'VENDOR',
     paxCount: num(form.paxCount), bagCount: num(form.bagCount),
     tripDistanceKm: num(form.tripDistanceKm), tripDurationHrs: num(form.tripDurationHrs),
     travelDateTo: form.travelDateTo || undefined,
@@ -392,17 +509,40 @@ export default function BookingForm() {
     },
   });
 
+  const assignChanged = (b: any) =>
+    (assign.vehicleId ?? null) !== (b?.vehicle_id ?? null) || (assign.vehicleNumber || '') !== (b?.vehicle_number || '')
+    || (assign.driverId ?? null) !== (b?.driver_id ?? null) || (assign.driverName || '') !== (b?.driver_name || '');
+
   const save = async (then: 'list' | 'new' | 'invoice') => {
-    if (!validate()) return;
+    if (!validate(then)) return;
     setSaving(true);
     try {
       const res = isEdit
         ? await api.put(`/bookings/${id}`, payload())
         : await api.post('/bookings', payload());
 
-      const code = res.data.data.booking_code;
+      const saved = res.data.data;
+      const code = saved.trip_id || saved.booking_code;
       toast.success(isEdit ? `${code} updated` : `${code} saved`,
-        `Total ${inr(totals.total)}. It is now visible in Bookings and Billing.`);
+        `${totals.total > 0 ? `Total ${inr(totals.total)}. ` : 'No fare yet — add it before billing. '}It now shows in Bookings and Trips.`);
+
+      // Vehicle and driver go through the same allotment step as the trip
+      // drawer, so availability, clashes and history are checked one way.
+      const hasAllotment = !!(assign.vehicleId || assign.vehicleNumber) && !!(assign.driverId || assign.driverName);
+      if (hasAllotment && assignChanged(saved)) {
+        try {
+          const a = await api.post(`/trips/${saved.id}/assign`, {
+            vehicleId: assign.vehicleId, driverId: assign.driverId, vehicleNumber: assign.vehicleNumber,
+            vehicleType: category?.name ?? form.vehicleType, driverName: assign.driverName, driverMobile: assign.driverMobile,
+            notifyCustomer: false, overrideReason: assignCheck?.needsOverride ? overrideReason : '',
+          });
+          toast.success('Vehicle and driver assigned', a.data.message);
+        } catch (err) {
+          toast.warning('Saved, but the allotment needs attention', `${errorMessage(err)} Open the trip to allot again.`);
+          navigate(`/admin/trips?open=${saved.id}`);
+          return;
+        }
+      }
 
       if (then === 'new') {
         setForm({
@@ -414,9 +554,13 @@ export default function BookingForm() {
         });
         setLegacy([]);
         setErrors({});
+        setFlags({});
+        setApplied(null);
+        setAssign(EMPTY_ASSIGN);
+        setCategoryId('');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (then === 'invoice') {
-        navigate(`/admin/billing?vendorId=${res.data.data.vendor_id ?? form.vendorId}`);
+        navigate(`/admin/trips?open=${saved.id}`);
       } else {
         navigate('/admin/bookings');
       }
@@ -438,47 +582,128 @@ export default function BookingForm() {
           <p className="page-sub">
             {isEdit
               ? 'Update the trip details or charges. Saving re-prices the booking automatically.'
-              : 'Enter the booking once — it flows into vendor records, billing and invoicing on its own.'}
+              : 'Choose where the booking came from, paste the message if there is one, check the details, allot a vehicle and save.'}
           </p>
         </div>
         <div className="page-actions">
-          {!isEdit && (
-            <button onClick={() => setPasteOpen(true)} className="btn-dark">
-              <IconPaste className="h-4 w-4" /> Paste vendor message
-            </button>
-          )}
           <Link to="/admin/bookings" className="btn-outline btn-sm">Cancel</Link>
         </div>
       </div>
 
-      {!isEdit && (
-        <div className="rounded-xl border border-brand-200 bg-brand-50/60 p-4 text-sm text-brand-900">
-          <p className="font-semibold">Save typing: paste the vendor's WhatsApp message.</p>
-          <p className="mt-1 text-brand-800">
-            Click <span className="font-semibold">Paste vendor message</span> and drop in the booking text exactly as the
-            vendor sent it. The reference, passenger, mobile, vehicle, date, time, pickup and drop are read out
-            automatically — this replaces the old <span className="font-mono text-xs">DataEntryFormula.xlsx</span> sheet.
-          </p>
+      {/* --- Step 1: source --- */}
+      <SectionCard title="1 · Booking source" sub="Decides who is billed and which details are needed.">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {SOURCE_OPTIONS.map((o) => {
+            const on = source === o.key;
+            const Icon = o.key === 'COMPANY' ? IconVendors : o.key === 'EVENT' ? IconEvent : IconUsers;
+            return (
+              <button key={o.key} type="button" disabled={isEdit && o.key === 'EVENT'}
+                onClick={() => chooseSource(o.key)} aria-pressed={on}
+                className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${on ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-300' : 'border-ink-200 hover:border-brand-300 hover:bg-ink-50'} disabled:opacity-50`}>
+                <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${on ? 'text-brand-600' : 'text-ink-400'}`} />
+                <span>
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">{o.label}{on && <IconCheck className="h-3.5 w-3.5 text-brand-600" />}</span>
+                  <span className="block text-xs text-ink-500">{o.hint}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {source === 'EVENT' && (
+          <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50/60 p-4 text-sm text-brand-900">
+            <p className="font-semibold">Events are booked from the Events screen.</p>
+            <p className="mt-1 text-brand-800">Enter the event once, add its vehicle requirements (by hand, pasted from Excel, or from an uploaded sheet), and the portal creates one trip per vehicle. Those trips then appear here in Bookings and in Trips, and are billed like any other.</p>
+            <Link to="/admin/events" className="btn-primary btn-sm mt-3 inline-flex">Go to Events</Link>
+          </div>
+        )}
+
+        {source === 'COMPANY' && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr,1.3fr]">
+            <Field label="Company" required error={errors.vendorId}
+              hint={vendor && !isWalkIn ? [vendor.company_name, vendor.gst_number ? `GSTIN ${vendor.gst_number}` : 'No GSTIN on file', vendor.has_parser_rules ? 'Has its own message rules' : ''].filter(Boolean).join(' · ') : 'From the Companies master'}>
+              <select className={`input ${errors.vendorId ? 'input-error' : ''}`} value={isWalkIn ? '' : form.vendorId}
+                onChange={(e) => { set('vendorId')(e); setParsed(null); }}>
+                <option value="">Select the company…</option>
+                {vendorOptions.map((v) => <option key={v.id} value={v.id}>{v.vendor_name}{v.company_name && v.company_name !== v.vendor_name ? ` — ${v.company_name}` : ''} ({v.code})</option>)}
+              </select>
+              {can('vendors.create') && (
+                <Link to="/admin/vendors" className="mt-1.5 inline-block text-xs font-semibold text-brand-700 hover:underline">Company not listed? Register it</Link>
+              )}
+            </Field>
+            {!isEdit && (
+              <div className="text-sm text-ink-600">
+                <p className="font-semibold text-ink-800">2 · Paste the company’s booking message</p>
+                <p className="mt-1">Paste the WhatsApp / email text exactly as received and press <strong>Read message</strong>. The details are shown for checking before anything is filled in, and the original message is saved with the booking.</p>
+                <button onClick={() => setPasteOpen((o) => !o)} className="btn-dark btn-sm mt-2">
+                  <IconPaste className="h-4 w-4" /> {pasteOpen ? 'Hide the message box' : 'Paste booking message'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(source === 'WALKIN' || source === 'DIRECT') && !isEdit && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+            {source === 'DIRECT' && (
+              <Field label="How did they reach us?">
+                <select className="input h-9 w-auto" value={directChannel} onChange={(e) => setDirectChannel(e.target.value as any)}>
+                  <option value="WHATSAPP">Phone / WhatsApp</option><option value="EMAIL">Email</option><option value="PORTAL">Website</option>
+                </select>
+              </Field>
+            )}
+            <p className="text-ink-600">No company reference is needed — the invoice is made out to the customer below.</p>
+            <button onClick={() => setPasteOpen((o) => !o)} className="btn-outline btn-sm"><IconPaste className="h-4 w-4" /> Paste a message</button>
+          </div>
+        )}
+
+        {pasteOpen && !isEdit && source !== 'EVENT' && (
+          <div className="mt-4 space-y-3 rounded-xl border border-ink-200 bg-ink-50/50 p-4">
+            {source === 'COMPANY' && !form.vendorId && (
+              <p className="text-xs text-ink-600">Tip: choose the company first so its own message rules are used. Without one, the portal will try to recognise the company from the message.</p>
+            )}
+            <textarea className="input min-h-[170px] resize-y bg-white font-mono text-xs"
+              placeholder={`Booking #88245430-1\nFor T Sridhar(9663655300)\nVehicle group: DZIRE/ETIOS/XCENT\nDuty type: TRANSFER 4H40KMS\nDate: 27/01 to 27/01\nReporting time: 10:00\nReporting address: T2 Mumbai Airport`}
+              value={message} onChange={(e) => { setMessage(e.target.value); setParsed(null); }} />
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-dark btn-sm" onClick={runParse} disabled={parsing || !message.trim()}>
+                {parsing && <Spinner className="h-4 w-4" />} Read message
+              </button>
+              {parsed && <button className="btn-primary btn-sm" onClick={() => applyParsed()}>Fill the form with these values</button>}
+              {parsed?.fieldSuggestions?.dropAddress && (
+                <button className="btn-outline btn-sm" onClick={() => applyParsed({ dropAddress: true })}>Fill, using the completed drop address</button>
+              )}
+            </div>
+            {parsed && <ParsePreview parsed={parsed} />}
+          </div>
+        )}
+
+        {applied && (applied.duplicate || applied.warnings.length > 0) && (
+          <div className="mt-4 space-y-2">
+            {applied.duplicate && (
+              <div className="notice-warn flex-col !items-start">
+                <p className="font-semibold">Possible duplicate — {applied.duplicate.message}</p>
+                <Link className="text-xs font-semibold text-brand-700 hover:underline" to={`/admin/trips?open=${applied.duplicate.id}`}>Open the existing trip</Link>
+              </div>
+            )}
+            {applied.warnings.length > 0 && (
+              <ul className="space-y-1 rounded-lg border border-warn-100 bg-warn-50 p-3 text-xs text-warn-700">
+                {applied.warnings.map((w: string, i: number) => <li key={i}>• {w}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+      </SectionCard>
 
       {/* --- Booking Information --- */}
-      <SectionCard title="Booking information" sub="Which vendor sent this, and their own reference for it.">
+      {source !== 'EVENT' && <>
+      <SectionCard title="Booking information" sub={isWalkIn ? 'The customer is billed directly.' : 'The company’s own reference for this booking.'}>
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Field label="Vendor" required error={errors.vendorId}
-            hint={isWalkIn ? 'Billed to the customer below' : undefined}>
-            <select className={`input ${errors.vendorId ? 'input-error' : ''}`} value={form.vendorId} onChange={set('vendorId')}>
-              <option value="">Select vendor…</option>
-              <option value={WALKIN}>Walk-in customer (no vendor)</option>
-              {vendorOptions.map((v) => <option key={v.id} value={v.id}>{v.vendor_name} ({v.code})</option>)}
-            </select>
-          </Field>
-
           {!isWalkIn && (
-            <Field label="Vendor's booking reference"
-              hint={vendor ? 'Must be unique for this vendor' : undefined}>
-              <input className="input" value={form.vendorBookingRef} onChange={set('vendorBookingRef')}
-                placeholder="e.g. Booking #88245430-1" />
+            <Field label="Company's booking reference" error={errors.vendorBookingRef}
+              hint={flagNote('vendorBookingRef') ?? (vendor ? 'Must be unique for this company' : undefined)}>
+              <input className={`input ${flagCls('vendorBookingRef')}`} value={form.vendorBookingRef} onChange={set('vendorBookingRef')}
+                placeholder="e.g. 88245430-1" />
             </Field>
           )}
 
@@ -486,10 +711,10 @@ export default function BookingForm() {
             <DateField value={form.bookingDate} onChange={set('bookingDate')} />
           </Field>
 
-          <Field label="Booking status">
+          <Field label="Booking status" hint="Use the trip screen to complete a trip — it records km, hours and extras">
             <select className="input" value={form.bookingStatus} onChange={set('bookingStatus')}>
-              {['DRAFT', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'].map((s) => (
-                <option key={s} value={s}>{s.replace('_', ' ')}</option>
+              {(isEdit ? ['DRAFT', 'CONFIRMED', 'ASSIGNED', 'ONTRIP', 'COMPLETED', 'CANCELLED', 'NO_SHOW'] : ['DRAFT', 'CONFIRMED']).map((s) => (
+                <option key={s} value={s}>{s === 'ONTRIP' ? 'On trip' : s.charAt(0) + s.slice(1).toLowerCase().replace('_', ' ')}</option>
               ))}
             </select>
           </Field>
@@ -542,7 +767,7 @@ export default function BookingForm() {
       {/* --- Passenger --- */}
       <SectionCard title="Passenger information" sub="Start typing a name to reuse a previous guest.">
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Field label="Passenger name" required error={errors.passengerName}>
+          <Field label="Passenger name" required error={errors.passengerName} hint={flagNote('passengerName')}>
             <Suggest
               value={form.passengerName}
               onChange={(v) => setForm((f) => ({ ...f, passengerName: v }))}
@@ -552,10 +777,11 @@ export default function BookingForm() {
               }))}
               fetchUrl="/bookings/lookup/passengers"
               placeholder="e.g. Mahesh Kale"
+              className={flagCls('passengerName') ? 'rounded-lg ring-2 ring-warn-300' : ''}
             />
           </Field>
-          <Field label="Mobile" error={errors.passengerMobile}>
-            <input className={`input ${errors.passengerMobile ? 'input-error' : ''}`} inputMode="numeric"
+          <Field label="Mobile" error={errors.passengerMobile} hint={flagNote('passengerMobile')}>
+            <input className={`input ${errors.passengerMobile ? 'input-error' : ''} ${flagCls('passengerMobile')}`} inputMode="numeric"
               value={form.passengerMobile} onChange={set('passengerMobile')} placeholder="10-digit mobile" />
           </Field>
           <Field label="Email">
@@ -575,15 +801,23 @@ export default function BookingForm() {
       {/* --- Trip --- */}
       <SectionCard title="Trip information" sub="Pickup and drop suggestions come from locations you have used before.">
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Field label="Travel date" required error={errors.travelDate}>
-            <DateField error={!!errors.travelDate}
-              value={form.travelDate} onChange={set('travelDate')} />
+          <Field label="Travel date" required error={errors.travelDate} hint={flagNote('travelDate')}>
+            <div className={flags.travelDate ? 'rounded-lg ring-2 ring-warn-300' : ''}>
+              <DateField error={!!errors.travelDate}
+                value={form.travelDate} onChange={(v: any) => { set('travelDate')(v); setDateConfirmed(true); }} />
+            </div>
+            {!dateConfirmed && (
+              <label className="mt-1.5 flex items-center gap-2 text-xs font-semibold text-warn-700">
+                <input type="checkbox" className="check" checked={dateConfirmed} onChange={(e) => setDateConfirmed(e.target.checked)} />
+                I have checked this date (the message had no year)
+              </label>
+            )}
           </Field>
           <Field label="End date" hint="Only for multi-day duties" error={errors.travelDateTo}>
             <DateField error={!!errors.travelDateTo} placeholder="Single-day duty"
               value={form.travelDateTo} onChange={set('travelDateTo')} min={form.travelDate} />
           </Field>
-          <Field label="Reporting time" error={errors.reportingTime}>
+          <Field label="Reporting time" error={errors.reportingTime} hint={flagNote('reportingTime')}>
             <TimeField error={!!errors.reportingTime}
               value={form.reportingTime} onChange={set('reportingTime')} />
           </Field>
@@ -610,7 +844,7 @@ export default function BookingForm() {
             </p>
           ) : (
             <>
-              <Field label={airport ? ends.pickup : 'Pickup location'} required error={errors.pickupLocation} className="lg:col-span-2">
+              <Field label={airport ? ends.pickup : 'Pickup location'} required error={errors.pickupLocation} className={`lg:col-span-2 ${flagCls('pickupLocation') ? 'rounded-lg ring-2 ring-warn-300' : ''}`} hint={flagNote('pickupLocation')}>
                 <Suggest
                   value={form.pickupLocation}
                   onChange={(v) => setForm((f) => ({ ...f, pickupLocation: v }))}
@@ -618,7 +852,7 @@ export default function BookingForm() {
                   placeholder={airport ? ends.pickupHint : 'e.g. Terminal 2, Mumbai Airport'}
                 />
               </Field>
-              <Field label={airport ? ends.drop : 'Drop location'} required={airport} className="lg:col-span-2">
+              <Field label={airport ? ends.drop : 'Drop location'} required={airport} className={`lg:col-span-2 ${flagCls('dropLocation') ? 'rounded-lg ring-2 ring-warn-300' : ''}`} hint={flagNote('dropLocation')}>
                 <Suggest
                   value={form.dropLocation}
                   onChange={(v) => setForm((f) => ({ ...f, dropLocation: v }))}
@@ -646,29 +880,36 @@ export default function BookingForm() {
         </div>
       </SectionCard>
 
-      {/* --- Vehicle --- */}
-      <SectionCard title="Vehicle information" sub="Picking a vehicle fills in its number and driver automatically.">
-        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <Field label="Vehicle from fleet">
-            <select className="input" value={form.vehicleId} onChange={(e) => pickVehicle(e.target.value)}>
-              <option value="">Not assigned yet</option>
-              {vehicles.map((v) => (
-                <option key={v.id} value={v.id}>{v.vehicle_number} — {v.vehicle_type}</option>
-              ))}
+      {/* --- Vehicle & driver --- */}
+      <SectionCard title="Vehicle & driver" sub="The category booked, and — if known now — the vehicle and driver. Only those free for this trip are offered first.">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Field label="Vehicle category" hint={flagNote('vehicleType') ?? (form.vehicleType && !category ? `Message says “${form.vehicleType}”` : undefined)}>
+            <select className={`input ${flagCls('vehicleType')}`} value={categoryId}
+              onChange={(e) => { setCategoryId(e.target.value); setFlags((p) => { const n = { ...p }; delete n.vehicleType; return n; }); }}>
+              <option value="">Not chosen</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}{c.seating ? ` · ${c.seating} seats` : ''}</option>)}
             </select>
           </Field>
-          <Field label="Vehicle type">
-            <input className="input" value={form.vehicleType} onChange={set('vehicleType')} placeholder="e.g. Sedan/Ertiga" />
-          </Field>
-          <Field label="Vehicle number">
-            <input className="input uppercase" value={form.vehicleNumber} onChange={set('vehicleNumber')} placeholder="MH04LQ1748" />
-          </Field>
-          <Field label="Driver name">
-            <input className="input" value={form.driverName} onChange={set('driverName')} />
-          </Field>
-          <Field label="Driver mobile">
-            <input className="input" inputMode="numeric" value={form.driverMobile} onChange={set('driverMobile')} />
-          </Field>
+          {form.vehicleType && category && form.vehicleType.toLowerCase() !== String(category.name).toLowerCase() && (
+            <p className="self-end pb-2 text-xs text-ink-500 sm:col-span-3">Requested as “{form.vehicleType}”.</p>
+          )}
+        </div>
+        <div className="mt-4">
+          <AssignPicker
+            trip={{ bookingId: isEdit ? Number(id) : null, date: form.travelDate, dateTo: form.travelDateTo, time: form.reportingTime, tripType: form.tripType, categoryId: categoryId ? Number(categoryId) : null }}
+            value={assign} onChange={setAssign} onCheck={setAssignCheck} canOverride={canOverride} />
+          {assignCheck?.needsOverride && (
+            <div className="notice-warn mt-3 flex-col">
+              <p className="flex items-center gap-2 font-semibold"><IconWarning className="h-4 w-4" /> Not available for this trip</p>
+              <ul className="list-disc pl-5 text-xs">{assignCheck.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+              {canOverride ? (
+                <Field label="Allot anyway? Say why" error={errors.assign}>
+                  <input className="input" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} />
+                </Field>
+              ) : <p className="text-xs">Only a fleet manager can override this. Choose another, or leave it unallotted.</p>}
+            </div>
+          )}
+          <p className="mt-2 text-xs text-ink-500">Leave both empty to allot later from Trips. The allotment is saved with its history when the booking is saved.</p>
         </div>
       </SectionCard>
 
@@ -677,7 +918,7 @@ export default function BookingForm() {
         title="Amount"
         sub={
           !form.vendorId
-            ? 'Choose a vendor or Walk-in customer first, so the right GST rate applies.'
+            ? 'Choose the company or customer first, so the right GST rate applies.'
             : !totals.withGst
               ? 'No GST on this bill. Pick a GST type below if the customer wants a GST bill.'
               : `${gstSummary(taxMode, taxRate)} is added on the amount. Change the type or rate below for this bill.`
@@ -685,8 +926,8 @@ export default function BookingForm() {
       >
         <div className="grid gap-5 lg:grid-cols-[1.6fr,1fr]">
           <div className="stagger grid gap-4 sm:grid-cols-2">
-            <Field label="Amount" required error={errors.amount}
-              hint="The agreed fare for this trip, before GST">
+            <Field label="Amount" error={errors.amount}
+              hint="The agreed fare before GST. Leave empty if not known yet — it must be entered before billing.">
               <input
                 className={`input text-right tabular-nums ${errors.amount ? 'input-error' : ''}`}
                 inputMode="decimal" placeholder="0.00"
@@ -809,12 +1050,13 @@ export default function BookingForm() {
         {form.rawMessage && (
           <details className="mt-4">
             <summary className="cursor-pointer text-xs font-semibold text-ink-600 hover:text-brand-600">
-              Original vendor message
+              Original message (kept with the booking)
             </summary>
             <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-ink-50 p-3 text-xs text-ink-600">{form.rawMessage}</pre>
           </details>
         )}
       </SectionCard>
+      </>}
 
       {/* sticky action bar */}
       <div className="action-bar">
@@ -829,95 +1071,81 @@ export default function BookingForm() {
               Save &amp; New
             </button>
           )}
-          <button onClick={() => save('invoice')} className="btn-dark btn-sm" disabled={saving}>
-            Save &amp; Bill
-          </button>
-          <button onClick={() => save('list')} className="btn-primary" disabled={saving}>
+          {source !== 'EVENT' && (
+            <button onClick={() => save('invoice')} className="btn-dark btn-sm" disabled={saving}
+              title="Save, then open the trip to complete, confirm billing and invoice it">
+              Save &amp; open trip
+            </button>
+          )}
+          <button onClick={() => save('list')} className="btn-primary" disabled={saving || source === 'EVENT'}>
             {saving && <Spinner className="h-4 w-4" />}
             {isEdit ? 'Save changes' : 'Save booking'}
           </button>
         </div>
       </div>
 
-      {/* ---------------- paste modal ---------------- */}
-      <Modal
-        open={pasteOpen}
-        onClose={() => { setPasteOpen(false); setParsed(null); }}
-        title="Paste the vendor's booking message"
-        subtitle="Works with both the “Booking #” and “TripId #” formats. Nothing is saved until you apply it."
-        size="lg"
-        footer={
-          <>
-            <button className="btn-outline" onClick={() => { setPasteOpen(false); setParsed(null); }}>Cancel</button>
-            <button className="btn-dark" onClick={runParse} disabled={parsing || !message.trim()}>
-              {parsing && <Spinner className="h-4 w-4" />} Read message
-            </button>
-            <button className="btn-primary" onClick={applyParsed} disabled={!parsed}>
-              Fill the form
-            </button>
-          </>
-        }
-      >
-        <textarea
-          className="input min-h-[190px] resize-y font-mono text-xs"
-          placeholder={`Booking #88245430-1\nFor T Sridhar(9663655300)\nVehicle group: DZIRE/ETIOS/XCENT\nDuty type: TRANSFER 4H40KMS\nCity: Mumbai\nDate: 27/01 to 27/01\nReporting time: 10:00\nReporting address: T2 Mumbai Airport\nDrop address: Mahalaxmi, Mumbai`}
-          value={message}
-          onChange={(e) => { setMessage(e.target.value); setParsed(null); }}
-        />
+    </div>
+  );
+}
 
-        {parsed && (
-          <div className="mt-5 space-y-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-lg bg-ink-50 px-4 py-3">
-              <StatusBadge value={parsed.detectedFormat} />
-              <span className="text-sm text-ink-700">
-                Confidence <strong>{Math.round(parsed.confidence * 100)}%</strong>
-              </span>
-              <span className="text-xs text-ink-500">{parsed.matchedLabels.length} fields recognised</span>
-            </div>
-
-            {parsed.duplicate && (
-              <div className="rounded-lg border border-warn-100 bg-warn-50 p-3.5 text-sm text-warn-600">
-                <strong>Possible duplicate.</strong> {parsed.duplicate.message}
-              </div>
-            )}
-
-            {parsed.warnings?.length > 0 && (
-              <ul className="space-y-1.5 rounded-lg border border-warn-100 bg-warn-50 p-3.5 text-xs text-warn-600">
-                {parsed.warnings.map((w: string, i: number) => <li key={i}>• {w}</li>)}
-              </ul>
-            )}
-
-            <div className="table-wrap table-scroll">
-              <table className="tbl">
-                <thead><tr><th>Field</th><th>Value read from the message</th></tr></thead>
-                <tbody>
-                  {Object.entries(parsed.fields)
-                    .filter(([, v]) => v !== undefined && v !== '')
-                    .map(([k, v]) => (
-                      <tr key={k}>
-                        <td className="whitespace-nowrap text-xs font-semibold text-ink-600">
-                          {k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())}
-                        </td>
-                        <td className="text-sm text-ink-900">{String(v)}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-
-            {parsed.unmatchedLines?.length > 0 && (
-              <details>
-                <summary className="cursor-pointer text-xs font-semibold text-ink-600">
-                  {parsed.unmatchedLines.length} line(s) not recognised
-                </summary>
-                <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-ink-50 p-3 text-xs text-ink-600">
-                  {parsed.unmatchedLines.join('\n')}
-                </pre>
-              </details>
-            )}
-          </div>
-        )}
-      </Modal>
+/** What the parser read, field by field, before anything is put into the form. */
+function ParsePreview({ parsed }: { parsed: any }) {
+  const order = ['vendorBookingRef', 'passengerName', 'passengerMobile', 'passengerCount', 'vehicleType', 'dutyType', 'tripType',
+    'airportDirection', 'city', 'travelDate', 'travelDateTo', 'reportingTime', 'pickupAddress', 'dropAddress',
+    'flightTrainNo', 'flightSector', 'flightTime', 'remarks', 'vendorHint', 'contactNumber'];
+  const f = parsed.fields ?? {};
+  const st = parsed.fieldStatus ?? {};
+  const rows = order.filter((k) => f[k] !== undefined && f[k] !== '' || st[k]);
+  const badge = (state?: string) => state === 'ok' ? 'badge-ok' : state === 'missing' ? 'badge-warn' : state === 'confirm' ? 'badge-violet' : 'badge-neutral';
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {parsed.company
+          ? <span className="badge-brand">Company: {parsed.company.name}{parsed.company.detectedBy && parsed.company.detectedBy !== 'selected' ? ` (recognised by ${parsed.company.detectedBy})` : ''}</span>
+          : <span className="badge-neutral">Company not recognised</span>}
+        <span className="text-ink-600">{Math.round((parsed.confidence ?? 0) * 100)}% of the key details found</span>
+      </div>
+      {parsed.companyMismatch && <p className="notice-warn !py-2 text-xs">{parsed.companyMismatch}</p>}
+      {parsed.unknownCompany && (
+        <p className="notice-info !py-2 text-xs">
+          The message is signed by {parsed.unknownCompany.name ?? 'a company'}{parsed.unknownCompany.contactNumber ? ` (${parsed.unknownCompany.contactNumber})` : ''}, which is not in the Companies master.
+          Register it under <Link className="font-semibold text-brand-700" to="/admin/vendors">Companies</Link>, book it as a direct customer, or use <Link className="font-semibold text-brand-700" to="/admin/events">Events</Link> for a bulk request.
+        </p>
+      )}
+      {parsed.duplicate && (
+        <p className="notice-warn !py-2 text-xs">
+          <strong>Already booked.</strong> {parsed.duplicate.message} <Link className="font-semibold text-brand-700" to={`/admin/trips?open=${parsed.duplicate.id}`}>Open it</Link>
+        </p>
+      )}
+      <div className="table-wrap table-scroll bg-white">
+        <table className="tbl">
+          <thead><tr><th>Field</th><th>Read from the message</th><th>Status</th></tr></thead>
+          <tbody>
+            {rows.map((k) => (
+              <tr key={k}>
+                <td className="whitespace-nowrap text-xs font-semibold text-ink-600">{FIELD_LABEL[k] ?? k}</td>
+                <td className="text-sm text-ink-900">
+                  {f[k] !== undefined && f[k] !== '' ? String(f[k]) : <span className="text-ink-400">—</span>}
+                  {k === 'travelDate' && f.travelDateRaw && <span className="ml-2 text-xs text-ink-500">(written “{f.travelDateRaw}”)</span>}
+                  {parsed.fieldSuggestions?.[k] && <span className="block text-xs text-violet-700">Suggested: {parsed.fieldSuggestions[k]}</span>}
+                </td>
+                <td>{st[k] ? <span className={badge(st[k])}>{STATE_TEXT[st[k]] ?? st[k]}</span> : <span className="badge-ok">Found</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {parsed.warnings?.length > 0 && (
+        <ul className="space-y-1 rounded-lg border border-warn-100 bg-warn-50 p-3 text-xs text-warn-700">
+          {parsed.warnings.map((w: string, i: number) => <li key={i}>• {w}</li>)}
+        </ul>
+      )}
+      {parsed.unmatchedLines?.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-xs font-semibold text-ink-600">{parsed.unmatchedLines.length} line(s) not recognised</summary>
+          <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-white p-3 text-xs text-ink-600">{parsed.unmatchedLines.join('\n')}</pre>
+        </details>
+      )}
     </div>
   );
 }

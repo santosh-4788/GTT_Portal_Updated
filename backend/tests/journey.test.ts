@@ -90,6 +90,9 @@ before(async () => {
   applySchema();
   getDb();
   await import('../src/db/seed');
+  // These suites exercise invoicing itself; the billing-confirmation step in
+  // front of it is covered by tests/tripflow.test.ts.
+  getDb().prepare("UPDATE settings SET value = 'false' WHERE key = 'billing.requireConfirmation'").run();
   await import('../src/server');
   await waitForServer();
 

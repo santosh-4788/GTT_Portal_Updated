@@ -30,6 +30,9 @@ export function companyContext(): Record<string, any> {
     bankAccount: s['bank.accountNumber'],
     bankIfsc: s['bank.ifsc'],
     bankUpi: s['bank.upi'],
+    stateCode: s['company.stateCode'],
+    sacCode: s['invoice.sacCode'] ?? '996601',
+    terms: s['invoice.terms'] ?? '',
     currencySymbol: s['invoice.currencySymbol'] ?? '₹',
   };
 }
@@ -110,6 +113,9 @@ export function billingContext(c: any): Record<string, any> {
     permit: Number(c?.permit ?? 0),
     nightCharge: Number(c?.night_charge ?? 0),
     otherCharges: Number(c?.other_charges ?? 0),
+    otherChargesNote: c?.other_charges_note ?? '',
+    waitingCharge: Number(c?.waiting_charge ?? 0),
+    stateTax: Number(c?.state_tax ?? 0),
     discount: Number(c?.discount ?? 0),
     taxableAmount: taxable,
     taxMode: c?.tax_mode ?? 'IGST',

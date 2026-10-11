@@ -5,9 +5,13 @@ import { requireAuth, requirePermission } from '../middleware/auth';
 import { audit } from '../middleware/audit';
 import { validateBody, optionalMobile, isoDate } from '../utils/validate';
 import { computeCharges } from '../services/billing';
+import { withStoredExtras, writeCharges, type StoredChargeInput } from '../services/charges';
+import { sendTable, filterNote } from '../utils/exportSheet';
 import { parseBookingMessage } from '../services/bookingMessageParser';
 import { ensureDirectVendor } from '../services/directCustomer';
 import { nextTripId } from '../services/tripId';
+import { matchCategoryId } from '../services/bootstrap';
+import { parseParserConfig } from '../services/parserConfig';
 import { recordTripEvent } from '../services/tripFlow';
 import { airportDirectionField, resolveAirportDirection } from '../services/airport';
 import { requestFeedback } from '../services/feedback';
@@ -22,82 +26,113 @@ router.use(requireAuth);
 router.post('/parse-message', requirePermission('bookings.create', 'bookings.view'), (req, res) => {
   const message = String(req.body?.message ?? '');
   if (!message.trim()) return res.status(400).json({ error: 'Paste the vendor booking message first.' });
+  const chosenVendorId = Number(req.body?.vendorId) || null;
 
-  const result = parseBookingMessage(message);
+  // A first pass without any company rules finds the sign-off / reference shape,
+  // which is how the company is recognised when the user has not chosen one.
+  let result = parseBookingMessage(message);
 
-  // Try to recognise the vendor from the sign-off line, then from the contact number.
-  let vendorId: number | null = null;
-  const hint = (result.fields.vendorHint ?? '').toLowerCase();
-  if (hint) {
-    const v = q.get<any>(
-      `SELECT id FROM vendors WHERE status='ACTIVE' AND (
-         lower(vendor_name) LIKE '%'||@h||'%' OR lower(company_name) LIKE '%'||@h||'%'
-         OR @h LIKE '%'||lower(vendor_name)||'%')
-       LIMIT 1`,
-      { h: hint.slice(0, 40) }
-    );
-    vendorId = v?.id ?? null;
+  let vendorId: number | null = chosenVendorId;
+  let detectedBy: string | null = chosenVendorId ? 'selected' : null;
+  if (!vendorId) {
+    const found = detectVendor(result.fields.vendorHint, result.fields.contactNumber, result.detectedFormat);
+    vendorId = found?.id ?? null;
+    detectedBy = found?.by ?? null;
   }
-  if (!vendorId && result.fields.contactNumber) {
-    const v = q.get<any>(
-      `SELECT id FROM vendors WHERE status='ACTIVE' AND (mobile = @m OR alt_mobile = @m) LIMIT 1`,
-      { m: result.fields.contactNumber }
-    );
-    vendorId = v?.id ?? null;
-  }
-  if (!vendorId && result.detectedFormat !== 'UNKNOWN') {
-    const v = q.get<any>(
-      `SELECT id FROM vendors WHERE status='ACTIVE' AND booking_message_format = @f LIMIT 1`,
-      { f: result.detectedFormat }
-    );
-    vendorId = v?.id ?? null;
+
+  // Second pass with the company's own label aliases and rules.
+  const vendor = vendorId ? q.get<any>('SELECT id, vendor_name, code, status, parser_config FROM vendors WHERE id = @id', { id: vendorId }) : null;
+  // Rules typed on the company form can be tried before they are saved.
+  const config = parseParserConfig(req.body?.parserConfig ?? vendor?.parser_config);
+  if (vendor || req.body?.parserConfig) result = parseBookingMessage(message, { labels: config.labels, noReference: config.noReference });
+
+  // The company the message itself names, when it disagrees with the one chosen.
+  let companyMismatch: string | null = null;
+  if (chosenVendorId && result.fields.vendorHint) {
+    const named = detectVendor(result.fields.vendorHint, result.fields.contactNumber, 'UNKNOWN');
+    if (named && named.id !== chosenVendorId) {
+      const v = q.get<any>('SELECT vendor_name FROM vendors WHERE id = @id', { id: named.id });
+      companyMismatch = `The message is signed by ${result.fields.vendorHint}, which matches ${v?.vendor_name}, not the company selected.`;
+    }
   }
 
   // Duplicate guard against the vendor's own reference
   let duplicate: any = null;
   if (result.fields.vendorBookingRef && vendorId) {
     duplicate = q.get<any>(
-      `SELECT id, booking_code, travel_date FROM bookings
+      `SELECT id, booking_code, trip_id, travel_date, booking_status FROM bookings
         WHERE vendor_id = @v AND vendor_booking_ref = @r LIMIT 1`,
       { v: vendorId, r: result.fields.vendorBookingRef }
     );
   }
 
-  const vehicle = result.fields.vehicleType
-    ? q.get<any>(
-        `SELECT * FROM vehicles WHERE is_active = 1
-          AND (lower(vehicle_type) = lower(@t) OR lower(@t) LIKE '%'||lower(vehicle_type)||'%')
-        LIMIT 1`,
-        { t: result.fields.vehicleType }
-      )
-    : null;
+  const category = result.fields.vehicleType ? matchCategoryId(result.fields.vehicleType) : null;
+  const categoryRow = category ? q.get<any>('SELECT id, code, name FROM vehicle_categories WHERE id = @id', { id: category }) : null;
 
   const passenger = result.fields.passengerMobile
     ? q.get<any>('SELECT * FROM passengers WHERE mobile = @m LIMIT 1', { m: result.fields.passengerMobile })
     : null;
 
-  audit(req, 'BOOKING_PARSED', { description: `Parsed ${result.detectedFormat} message (confidence ${result.confidence})` });
+  audit(req, 'BOOKING_PARSED', { description: `Parsed ${result.detectedFormat} message (confidence ${result.confidence})${vendor ? ` for ${vendor.vendor_name}` : ''}` });
 
   res.json({
     ...result,
+    company: vendor ? { id: vendor.id, name: vendor.vendor_name, code: vendor.code, status: vendor.status, detectedBy } : null,
+    // The message names a company the master does not know: register it, or
+    // treat the request as an event / direct booking.
+    unknownCompany: !vendor && (result.fields.vendorHint || result.fields.contactNumber)
+      ? { name: result.fields.vendorHint ?? null, contactNumber: result.fields.contactNumber ?? null }
+      : null,
+    companyMismatch,
     suggestions: {
       vendorId,
-      vehicleId: vehicle?.id ?? null,
-      vehicleNumber: vehicle?.vehicle_number ?? null,
-      driverName: vehicle?.driver_name ?? null,
-      driverMobile: vehicle?.driver_mobile ?? null,
+      categoryId: categoryRow?.id ?? null,
+      categoryName: categoryRow?.name ?? null,
       passengerId: passenger?.id ?? null,
       passengerEmail: passenger?.email ?? null,
     },
     duplicate: duplicate
       ? {
+          id: duplicate.id,
           bookingCode: duplicate.booking_code,
+          tripId: duplicate.trip_id,
           travelDate: duplicate.travel_date,
-          message: `This vendor reference is already saved as ${duplicate.booking_code}.`,
+          status: duplicate.booking_status,
+          message: `This company reference is already saved as ${duplicate.trip_id || duplicate.booking_code}.`,
         }
       : null,
   });
 });
+
+/**
+ * Which company sent the message: its sign-off name against names and aliases,
+ * then its contact number, then (weakest) the reference format it uses.
+ */
+function detectVendor(hint?: string, contact?: string, format?: string): { id: number; by: string } | null {
+  const h = (hint ?? '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (h) {
+    const rows = q.all<any>(`SELECT id, vendor_name, company_name, code, aliases FROM vendors WHERE status = 'ACTIVE' AND code <> 'DIRECT'`);
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const r of rows) {
+      const names = [r.vendor_name, r.company_name, r.code, ...String(r.aliases ?? '').split(',')]
+        .map((x) => norm(String(x ?? ''))).filter((x) => x.length >= 3);
+      if (names.some((n) => h === n || h.includes(n) || n.includes(h))) return { id: r.id, by: 'name' };
+    }
+  }
+  if (contact) {
+    const v = q.get<any>(
+      `SELECT id FROM vendors WHERE status='ACTIVE' AND (
+         replace(replace(mobile,' ',''),'+91','') = @m OR replace(replace(alt_mobile,' ',''),'+91','') = @m) LIMIT 1`,
+      { m: contact }
+    );
+    if (v) return { id: v.id, by: 'contact number' };
+  }
+  if (format && format !== 'UNKNOWN' && format !== 'GENERIC') {
+    const v = q.all<any>(`SELECT id FROM vendors WHERE status='ACTIVE' AND booking_message_format = @f`, { f: format });
+    if (v.length === 1) return { id: v[0].id, by: 'message format' };
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -150,6 +185,10 @@ const bookingSchema = z.object({
   bagCount: z.coerce.number().int().min(0).max(60).optional().default(0),
 
   vehicleId: z.coerce.number().int().positive().nullable().optional(),
+  /** Vehicle category from Masters; resolved from the vehicle type text when left out. */
+  vehicleCategoryId: z.coerce.number().int().positive().nullable().optional(),
+  /** How a direct booking reached us (walk-in, phone/WhatsApp, email, website). */
+  inquirySource: z.enum(['VENDOR', 'WALKIN', 'WHATSAPP', 'EMAIL', 'PORTAL']).optional(),
   vehicleType: z.string().trim().optional().default(''),
   vehicleNumber: z.string().trim().optional().default(''),
   driverName: z.string().trim().optional().default(''),
@@ -208,13 +247,22 @@ function nextBookingCode(): string {
   return `GTT-B-${String(last + 1).padStart(6, '0')}`;
 }
 
-function priceBooking(vendor: any, charges: BookingInput['charges']) {
-  return computeCharges({
+/**
+ * The charge input as stored: the form's lines plus the vendor's tax treatment,
+ * plus — on an edit — the waiting charge, state tax and fare rule this form
+ * does not show, so saving the booking never quietly drops them.
+ */
+function chargeInput(vendor: any, charges: BookingInput['charges'], existingId: number | null = null): StoredChargeInput {
+  return withStoredExtras(existingId, {
     ...charges,
     taxMode: charges.taxModeOverride ?? vendor.tax_mode,
     taxRate: charges.taxRateOverride ?? vendor.tax_rate,
     tollParkingTaxable: charges.tollParkingTaxableOverride ?? !!vendor.toll_parking_taxable,
   });
+}
+
+function priceBooking(vendor: any, charges: BookingInput['charges'], existingId: number | null = null) {
+  return computeCharges(chargeInput(vendor, charges, existingId));
 }
 
 function upsertPassenger(b: BookingInput, vendorId: number): number | null {
@@ -251,8 +299,7 @@ function bumpLocation(label: string) {
 // ---------------------------------------------------------------------------
 // List with full filtering
 // ---------------------------------------------------------------------------
-router.get('/', requirePermission('bookings.view'), (req, res) => {
-  const p = req.query as Record<string, string>;
+function bookingList(p: Record<string, string>, all = false) {
   const params = {
     search: p.search ?? '',
     vendorId: p.vendorId ? Number(p.vendorId) : 0,
@@ -263,7 +310,8 @@ router.get('/', requirePermission('bookings.view'), (req, res) => {
     bookingStatus: p.bookingStatus ?? '',
     billingStatus: p.billingStatus ?? '',
     tripType: p.tripType ?? '',
-    limit: Math.min(Number(p.limit ?? 50), 500),
+    source: p.source ?? '',
+    limit: all ? 1_000_000 : Math.min(Number(p.limit ?? 50), 500),
     offset: Number(p.offset ?? 0),
   };
 
@@ -274,7 +322,10 @@ router.get('/', requirePermission('bookings.view'), (req, res) => {
                         OR b.passenger_mobile LIKE '%'||@search||'%'
                         OR b.pickup_location LIKE '%'||@search||'%'
                         OR b.drop_location LIKE '%'||@search||'%'
-                        OR b.vehicle_number LIKE '%'||@search||'%')
+                        OR b.vehicle_number LIKE '%'||@search||'%'
+                        OR b.trip_id LIKE '%'||@search||'%'
+                        OR b.customer_name LIKE '%'||@search||'%'
+                        OR v.vendor_name LIKE '%'||@search||'%')
       AND (@vendorId = 0 OR b.vendor_id = @vendorId)
       AND (@from = '' OR b.booking_date >= @from)
       AND (@to = '' OR b.booking_date <= @to)
@@ -282,14 +333,23 @@ router.get('/', requirePermission('bookings.view'), (req, res) => {
       AND (@travelTo = '' OR b.travel_date <= @travelTo)
       AND (@bookingStatus = '' OR b.booking_status = @bookingStatus)
       AND (@billingStatus = '' OR b.billing_status = @billingStatus)
-      AND (@tripType = '' OR b.trip_type = @tripType)`;
+      AND (@tripType = '' OR b.trip_type = @tripType)
+      AND (@source = '' OR b.inquiry_source = @source)`;
 
   const data = q.all<any>(
     `SELECT b.*, v.vendor_name, v.code AS vendor_code, v.company_name,
             c.base_fare, c.total_amount, c.taxable_amount, c.tax_amount, c.non_taxable_amount,
             i.invoice_number, i.status AS invoice_status, i.id AS invoice_id,
-            CASE WHEN i.id IS NULL THEN 'NOT_INVOICED' ELSE i.status END AS derived_invoice_status
+            CASE WHEN i.id IS NULL THEN 'NOT_INVOICED' ELSE i.status END AS derived_invoice_status,
+            i.paid_amount AS invoice_paid, i.outstanding_amount AS invoice_outstanding, i.due_date AS invoice_due_date,
+            CASE WHEN i.id IS NULL THEN NULL
+                 WHEN COALESCE(i.outstanding_amount,0) <= 0.005 THEN 'PAID'
+                 WHEN i.due_date < date('now') THEN 'OVERDUE'
+                 WHEN COALESCE(i.paid_amount,0) > 0 THEN 'PARTIALLY_PAID'
+                 ELSE 'UNPAID' END AS payment_status,
+            vc.name AS category_name
        FROM bookings b
+       LEFT JOIN vehicle_categories vc ON vc.id = b.vehicle_category_id
        JOIN vendors v ON v.id = b.vendor_id
        LEFT JOIN booking_charges c ON c.booking_id = b.id
        LEFT JOIN invoice_items ii ON ii.booking_id = b.id
@@ -307,7 +367,35 @@ router.get('/', requirePermission('bookings.view'), (req, res) => {
     params
   );
 
-  res.json({ data, total: agg.total, totalAmount: agg.total_amount });
+  return { data, total: agg.total, totalAmount: agg.total_amount };
+}
+
+router.get('/', requirePermission('bookings.view'), (req, res) => {
+  res.json(bookingList(req.query as Record<string, string>));
+});
+
+/** The booking register as Excel/CSV, with the list's filters applied. */
+router.get('/export', requirePermission('bookings.view'), async (req, res) => {
+  const p = req.query as Record<string, string>;
+  const { data } = bookingList(p, true);
+  await sendTable(res, 'bookings', {
+    name: 'Bookings', title: 'Booking register',
+    notes: [filterNote({ Search: p.search, 'Booked from': p.from, 'Booked to': p.to, 'Travel from': p.travelFrom, 'Travel to': p.travelTo, Status: p.bookingStatus, Billing: p.billingStatus })],
+    columns: [
+      { key: 'booking_code', header: 'Booking ID', kind: 'id' }, { key: 'trip_id', header: 'Trip ID', kind: 'id' },
+      { key: 'booking_date', header: 'Booked on', kind: 'date' }, { key: 'travel_date', header: 'Travel date', kind: 'date' },
+      { key: 'reporting_time', header: 'Time' }, { key: 'vendor_name', header: 'Vendor' },
+      { key: 'vendor_booking_ref', header: 'Vendor ref', kind: 'id' }, { key: 'passenger_name', header: 'Passenger' },
+      { key: 'passenger_mobile', header: 'Mobile', kind: 'id' }, { key: 'trip_type', header: 'Trip type' },
+      { key: 'pickup_location', header: 'Pickup', width: 30 }, { key: 'drop_location', header: 'Drop', width: 30 },
+      { key: 'vehicle_type', header: 'Vehicle' }, { key: 'vehicle_number', header: 'Vehicle no.', kind: 'id' },
+      { key: 'driver_name', header: 'Driver' }, { key: 'taxable_amount', header: 'Taxable', kind: 'money' },
+      { key: 'tax_amount', header: 'Tax', kind: 'money' }, { key: 'non_taxable_amount', header: 'Toll/parking', kind: 'money' },
+      { key: 'total_amount', header: 'Total', kind: 'money' }, { key: 'booking_status', header: 'Status' },
+      { key: 'billing_status', header: 'Billing' }, { key: 'invoice_number', header: 'Invoice', kind: 'id' },
+    ],
+    rows: data, totals: ['taxable_amount', 'tax_amount', 'non_taxable_amount', 'total_amount'],
+  }, p.format);
 });
 
 // ---------------------------------------------------------------------------
@@ -367,7 +455,10 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
   // Every booking joins the customer journey, whichever screen raised it: a
   // counter booking is a walk-in, everything else is vendor work. The Trip ID is
   // what the customer and the office quote at each other from here on.
-  const inquirySource = b.bookingSource === 'DIRECT' ? 'WALKIN' : 'VENDOR';
+  const inquirySource = b.bookingSource === 'DIRECT'
+    ? (b.inquirySource && b.inquirySource !== 'VENDOR' ? b.inquirySource : 'WALKIN')
+    : 'VENDOR';
+  const categoryId = b.vehicleCategoryId ?? matchCategoryId(b.vehicleType);
 
   // Attach it to the customer's website account when the email already has one,
   // so the trip shows up in their dashboard without them asking.
@@ -389,7 +480,7 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
           vehicle_id, vehicle_type, vehicle_number, driver_name, driver_mobile,
           special_instructions, remarks, raw_message, booking_status, billing_status,
           booking_source, customer_name, customer_mobile, customer_email, customer_address, customer_gstin,
-          trip_id, inquiry_source, customer_id,
+          trip_id, inquiry_source, customer_id, vehicle_category_id,
           created_by, updated_by)
        VALUES (@code, @vendorId, @ref, @bookingDate, @travelDate, @travelDateTo, @reportingTime,
           @tripType, @airportDirection, @dutyType, @city, @pickupLocation, @pickupAddress, @dropLocation, @dropAddress,
@@ -399,7 +490,7 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
           @vehicleNumber, @driverName, @driverMobile, @specialInstructions, @remarks, @rawMessage,
           @bookingStatus, @billingStatus,
           @bookingSource, @customerName, @customerMobile, @customerEmail, @customerAddress, @customerGstin,
-          @tripId, @inquirySource, @customerId,
+          @tripId, @inquirySource, @customerId, @categoryId,
           @uid, @uid)`,
       {
         code,
@@ -448,32 +539,13 @@ router.post('/', requirePermission('bookings.create'), validateBody(bookingSchem
         tripId,
         inquirySource,
         customerId: account?.id ?? null,
+        categoryId: categoryId ?? null,
         uid: req.user!.id,
       }
     );
 
     const bookingId = Number(info.lastInsertRowid);
-    q.run(
-      `INSERT INTO booking_charges (booking_id, base_fare, extra_km, extra_km_rate, extra_hours,
-          extra_hour_rate, toll, parking, driver_allowance, permit, night_charge, other_charges,
-          other_charges_note, discount, taxable_amount, tax_mode, tax_rate, cgst, sgst, igst,
-          tax_amount, non_taxable_amount, total_amount, advance, balance)
-       VALUES (@id, @baseFare, @extraKm, @extraKmRate, @extraHours, @extraHourRate, @toll, @parking,
-          @driverAllowance, @permit, @nightCharge, @otherCharges, @note, @discount, @taxable,
-          @taxMode, @taxRate, @cgst, @sgst, @igst, @tax, @nonTaxable, @total, @advance, @balance)`,
-      {
-        id: bookingId,
-        baseFare: b.charges.baseFare, extraKm: b.charges.extraKm, extraKmRate: b.charges.extraKmRate,
-        extraHours: b.charges.extraHours, extraHourRate: b.charges.extraHourRate,
-        toll: b.charges.toll, parking: b.charges.parking, driverAllowance: b.charges.driverAllowance,
-        permit: b.charges.permit, nightCharge: b.charges.nightCharge, otherCharges: b.charges.otherCharges,
-        note: b.charges.otherChargesNote, discount: b.charges.discount,
-        taxable: c.taxableAmount, taxMode: c.taxMode, taxRate: c.taxRate,
-        cgst: c.cgst, sgst: c.sgst, igst: c.igst, tax: c.taxAmount,
-        nonTaxable: c.nonTaxableAmount, total: c.totalAmount,
-        advance: c.advance, balance: c.balance,
-      }
-    );
+    writeCharges(bookingId, chargeInput(vendor, b.charges), c);
 
     bumpLocation(b.pickupLocation);
     bumpLocation(b.dropLocation);
@@ -540,7 +612,7 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSch
     }
   }
 
-  const c = priceBooking(vendor, b.charges);
+  const c = priceBooking(vendor, b.charges, id);
 
   getDb().transaction(() => {
     q.run(
@@ -558,6 +630,8 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSch
           vehicle_number=@vehicleNumber, driver_name=@driverName, driver_mobile=@driverMobile,
           special_instructions=@specialInstructions, remarks=@remarks, booking_status=@bookingStatus,
           billing_status=@billingStatus,
+          vehicle_category_id = COALESCE(@categoryId, vehicle_category_id),
+          billing_confirmed_at = CASE WHEN @changed = 1 THEN NULL ELSE billing_confirmed_at END,
           completed_at = CASE WHEN @completing = 1 THEN datetime('now') ELSE completed_at END,
           updated_at=datetime('now'), updated_by=@uid
         WHERE id=@id`,
@@ -579,6 +653,8 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSch
         driverName: b.driverName, driverMobile: b.driverMobile,
         specialInstructions: b.specialInstructions, remarks: b.remarks,
         bookingStatus: b.bookingStatus,
+        categoryId: b.vehicleCategoryId ?? matchCategoryId(b.vehicleType) ?? null,
+        changed: Math.abs(c.totalAmount - Number(q.get<any>('SELECT total_amount FROM booking_charges WHERE booking_id = @id', { id })?.total_amount ?? 0)) > 0.004 ? 1 : 0,
         billingStatus: b.bookingStatus === 'CANCELLED' ? 'CANCELLED'
           : b.bookingStatus === 'DRAFT' ? 'PENDING'
           : (c.totalAmount > 0 ? 'READY' : 'PENDING'),
@@ -586,33 +662,7 @@ router.put('/:id', requirePermission('bookings.update'), validateBody(bookingSch
       }
     );
 
-    q.run(
-      `INSERT INTO booking_charges (booking_id, base_fare, extra_km, extra_km_rate, extra_hours,
-          extra_hour_rate, toll, parking, driver_allowance, permit, night_charge, other_charges,
-          other_charges_note, discount, taxable_amount, tax_mode, tax_rate, cgst, sgst, igst,
-          tax_amount, non_taxable_amount, total_amount, advance, balance)
-       VALUES (@id, @baseFare, @extraKm, @extraKmRate, @extraHours, @extraHourRate, @toll, @parking,
-          @driverAllowance, @permit, @nightCharge, @otherCharges, @note, @discount, @taxable,
-          @taxMode, @taxRate, @cgst, @sgst, @igst, @tax, @nonTaxable, @total, @advance, @balance)
-       ON CONFLICT(booking_id) DO UPDATE SET
-          base_fare=@baseFare, extra_km=@extraKm, extra_km_rate=@extraKmRate, extra_hours=@extraHours,
-          extra_hour_rate=@extraHourRate, toll=@toll, parking=@parking, driver_allowance=@driverAllowance,
-          permit=@permit, night_charge=@nightCharge, other_charges=@otherCharges, other_charges_note=@note,
-          discount=@discount, taxable_amount=@taxable, tax_mode=@taxMode, tax_rate=@taxRate,
-          cgst=@cgst, sgst=@sgst, igst=@igst, tax_amount=@tax, non_taxable_amount=@nonTaxable,
-          total_amount=@total, advance=@advance, balance=@balance, updated_at=datetime('now')`,
-      {
-        id,
-        baseFare: b.charges.baseFare, extraKm: b.charges.extraKm, extraKmRate: b.charges.extraKmRate,
-        extraHours: b.charges.extraHours, extraHourRate: b.charges.extraHourRate,
-        toll: b.charges.toll, parking: b.charges.parking, driverAllowance: b.charges.driverAllowance,
-        permit: b.charges.permit, nightCharge: b.charges.nightCharge, otherCharges: b.charges.otherCharges,
-        note: b.charges.otherChargesNote, discount: b.charges.discount,
-        taxable: c.taxableAmount, taxMode: c.taxMode, taxRate: c.taxRate,
-        cgst: c.cgst, sgst: c.sgst, igst: c.igst, tax: c.taxAmount,
-        nonTaxable: c.nonTaxableAmount, total: c.totalAmount, advance: c.advance, balance: c.balance,
-      }
-    );
+    writeCharges(id, chargeInput(vendor, b.charges, id), c);
   })();
 
   audit(req, 'BOOKING_UPDATED', {

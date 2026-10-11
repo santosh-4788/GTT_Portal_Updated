@@ -1,5 +1,5 @@
 import { ReactNode, useEffect } from 'react';
-import { statusClass, humanise } from '../lib/format';
+import { statusClass, statusLabel } from '../lib/format';
 
 /* ===========================================================================
    Shared UI. Every page composes these instead of hand-rolling padding,
@@ -101,7 +101,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 // ---------------------------------------------------------------------------
 export function StatusBadge({ value, className = '' }: { value?: string | null; className?: string }) {
   if (!value) return <span className="text-ink-400">—</span>;
-  return <span className={`${statusClass(value)} ${className}`}>{humanise(value)}</span>;
+  return <span className={`${statusClass(value)} ${className}`}>{statusLabel(value)}</span>;
 }
 
 // ---------------------------------------------------------------------------

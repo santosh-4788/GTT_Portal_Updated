@@ -51,6 +51,24 @@ const rateSchema = z
     minKmPerDay: money('Minimum kilometres per day'),
     driverAllowance: money('Driver allowance'),
 
+    // The rest of a configurable fare rule. All optional, all default to "none",
+    // so a rule entered the old way prices exactly as it always did.
+    categoryId: z.coerce.number().int().positive().nullable().optional(),
+    minDailyCharge: money('Minimum daily charge'),
+    nightCharge: money('Night charge'),
+    waitingRate: money('Waiting charge per hour'),
+    freeWaitingMinutes: money('Free waiting minutes'),
+    tollIncluded: z.coerce.boolean().default(false),
+    parkingIncluded: z.coerce.boolean().default(false),
+    stateTax: money('State tax'),
+    otherCharge: money('Other charge'),
+    otherChargeLabel: z.string().trim().max(60).optional().default(''),
+    discountPercent: z.coerce.number().min(0, 'Discount cannot be negative.').max(100, 'Discount cannot exceed 100%.').default(0),
+    taxMode: z.enum(['', 'IGST', 'CGST_SGST', 'NONE']).optional().default(''),
+    taxRate: z.union([z.coerce.number().min(0).max(28), z.literal('')]).optional().default(''),
+    effectiveFrom: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Effective from must be a date.'), z.literal('')]).optional().default(''),
+    effectiveTo: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Effective to must be a date.'), z.literal('')]).optional().default(''),
+
     notes: z.string().trim().max(300).optional().default(''),
     isActive: z.coerce.boolean().default(true),
     displayOrder: z.coerce.number().int().min(0).max(999).default(0),
@@ -64,6 +82,10 @@ const rateSchema = z
   .refine((d) => d.planType === 'OUTSTATION' || d.baseFare > 0, {
     message: 'A local or airport rate needs a base fare.',
     path: ['baseFare'],
+  })
+  .refine((d) => !d.effectiveFrom || !d.effectiveTo || d.effectiveTo >= d.effectiveFrom, {
+    message: 'The end date cannot be before the start date.',
+    path: ['effectiveTo'],
   });
 
 type RateInput = z.infer<typeof rateSchema>;
@@ -79,11 +101,41 @@ const COLUMNS = [
   'included_hours', 'included_km', 'base_fare', 'extra_hour_rate', 'extra_km_rate',
   'per_km_rate', 'min_km_per_day', 'driver_allowance', 'notes', 'is_active',
   'display_order', 'created_at', 'updated_at',
+  'category_id', 'min_daily_charge', 'night_charge', 'waiting_rate', 'free_waiting_minutes',
+  'toll_included', 'parking_included', 'state_tax', 'other_charge', 'other_charge_label',
+  'discount_percent', 'tax_mode', 'tax_rate', 'effective_from', 'effective_to',
 ];
+
+/** The new columns as SQL parameters; empty strings stored as NULL. */
+function extraParams(b: RateInput) {
+  return {
+    categoryId: b.categoryId ?? null,
+    minDailyCharge: b.minDailyCharge, nightCharge: b.nightCharge, waitingRate: b.waitingRate,
+    freeWaitingMinutes: b.freeWaitingMinutes, tollIncluded: b.tollIncluded ? 1 : 0,
+    parkingIncluded: b.parkingIncluded ? 1 : 0, stateTax: b.stateTax, otherCharge: b.otherCharge,
+    otherChargeLabel: b.otherChargeLabel || null, discountPercent: b.discountPercent,
+    taxMode: b.taxMode || null, taxRate: b.taxRate === '' || b.taxRate === undefined ? null : Number(b.taxRate),
+    effectiveFrom: b.effectiveFrom || null, effectiveTo: b.effectiveTo || null,
+  };
+}
+
+/**
+ * Pick the category from the master. A category chosen there decides the
+ * vehicle text, so the same car is never spelled two ways on two rules.
+ * Inactive categories cannot be given new rules.
+ */
+function resolveCategory(b: RateInput): { error?: string } {
+  if (!b.categoryId) return {};
+  const cat = q.get<any>('SELECT id, name, is_active FROM vehicle_categories WHERE id = @id', { id: b.categoryId });
+  if (!cat) return { error: 'That vehicle category no longer exists.' };
+  if (!cat.is_active) return { error: `"${cat.name}" is deactivated, so it cannot be given a new or changed fare rule. Reactivate it under Masters first.` };
+  b.vehicleCategory = cat.name;
+  return {};
+}
 const selectFrom = (alias: string) => COLUMNS.map((c) => `${alias}.${c}`).join(', ');
 
 // --- list, optionally for one vendor ----------------------------------------
-router.get('/', requirePermission('vendors.view'), (req, res) => {
+router.get('/', requirePermission('vendors.view', 'masters.view'), (req, res) => {
   const vendorId = req.query.vendorId ? Number(req.query.vendorId) : 0;
   const rows = q.all<any>(
     `SELECT ${selectFrom('r')}, v.vendor_name, v.code AS vendor_code
@@ -101,14 +153,16 @@ router.get('/', requirePermission('vendors.view'), (req, res) => {
  * The page needs this to say "these rows are public" out loud, and it creates
  * the reserved record on first use so the Master is usable on a fresh install.
  */
-router.get('/public-vendor', requirePermission('vendors.view'), (_req, res) => {
+router.get('/public-vendor', requirePermission('vendors.view', 'masters.view'), (_req, res) => {
   const v = ensureDirectVendor();
   res.json({ data: { id: v.id, code: v.code, vendorName: v.vendor_name } });
 });
 
 // --- create ------------------------------------------------------------------
-router.post('/', requirePermission('vendors.update'), validateBody(rateSchema), (req, res) => {
+router.post('/', requirePermission('vendors.update', 'masters.create'), validateBody(rateSchema), (req, res) => {
   const b = req.body as RateInput;
+  const cat = resolveCategory(b);
+  if (cat.error) return res.status(400).json({ error: cat.error });
 
   const vendor = q.get<any>('SELECT id, vendor_name FROM vendors WHERE id = @id', { id: b.vendorId });
   if (!vendor) return res.status(400).json({ error: 'That vendor no longer exists.' });
@@ -127,11 +181,17 @@ router.post('/', requirePermission('vendors.update'), validateBody(rateSchema), 
   const info = q.run(
     `INSERT INTO rate_cards (vendor_id, vehicle_category, plan_type, plan_label,
         included_hours, included_km, base_fare, extra_hour_rate, extra_km_rate,
-        per_km_rate, min_km_per_day, driver_allowance, notes, is_active, display_order)
+        per_km_rate, min_km_per_day, driver_allowance, notes, is_active, display_order,
+        category_id, min_daily_charge, night_charge, waiting_rate, free_waiting_minutes,
+        toll_included, parking_included, state_tax, other_charge, other_charge_label,
+        discount_percent, tax_mode, tax_rate, effective_from, effective_to)
      VALUES (@vendorId, @vehicleCategory, @planType, @planLabel,
         @includedHours, @includedKm, @baseFare, @extraHourRate, @extraKmRate,
-        @perKmRate, @minKmPerDay, @driverAllowance, @notes, @isActive, @displayOrder)`,
-    { ...b, isActive: b.isActive ? 1 : 0 }
+        @perKmRate, @minKmPerDay, @driverAllowance, @notes, @isActive, @displayOrder,
+        @categoryId, @minDailyCharge, @nightCharge, @waitingRate, @freeWaitingMinutes,
+        @tollIncluded, @parkingIncluded, @stateTax, @otherCharge, @otherChargeLabel,
+        @discountPercent, @taxMode, @taxRate, @effectiveFrom, @effectiveTo)`,
+    { ...b, ...extraParams(b), isActive: b.isActive ? 1 : 0 }
   );
 
   const row = q.get<any>('SELECT * FROM rate_cards WHERE id = @id', { id: info.lastInsertRowid });
@@ -143,12 +203,21 @@ router.post('/', requirePermission('vendors.update'), validateBody(rateSchema), 
 });
 
 // --- update ------------------------------------------------------------------
-router.put('/:id', requirePermission('vendors.update'), validateBody(rateSchema), (req, res) => {
+router.put('/:id', requirePermission('vendors.update', 'masters.update'), validateBody(rateSchema), (req, res) => {
   const id = Number(req.params.id);
   const existing = q.get<any>('SELECT * FROM rate_cards WHERE id = @id', { id });
   if (!existing) return res.status(404).json({ error: 'That rate row no longer exists.' });
 
   const b = req.body as RateInput;
+  // Moving a rule to a deactivated category is refused; a rule whose category
+  // was deactivated later can still be edited or switched off.
+  if (b.categoryId && b.categoryId !== existing.category_id) {
+    const cat = resolveCategory(b);
+    if (cat.error) return res.status(400).json({ error: cat.error });
+  } else if (b.categoryId) {
+    const c = q.get<any>('SELECT name FROM vehicle_categories WHERE id = @id', { id: b.categoryId });
+    if (c) b.vehicleCategory = c.name;
+  }
   const dup = q.get<any>(
     `SELECT id FROM rate_cards
       WHERE vendor_id = @v AND vehicle_category = @c AND plan_label = @p AND id <> @id`,
@@ -164,9 +233,14 @@ router.put('/:id', requirePermission('vendors.update'), validateBody(rateSchema)
         included_km=@includedKm, base_fare=@baseFare, extra_hour_rate=@extraHourRate,
         extra_km_rate=@extraKmRate, per_km_rate=@perKmRate, min_km_per_day=@minKmPerDay,
         driver_allowance=@driverAllowance, notes=@notes, is_active=@isActive,
-        display_order=@displayOrder, updated_at=datetime('now')
+        display_order=@displayOrder, category_id=@categoryId, min_daily_charge=@minDailyCharge,
+        night_charge=@nightCharge, waiting_rate=@waitingRate, free_waiting_minutes=@freeWaitingMinutes,
+        toll_included=@tollIncluded, parking_included=@parkingIncluded, state_tax=@stateTax,
+        other_charge=@otherCharge, other_charge_label=@otherChargeLabel, discount_percent=@discountPercent,
+        tax_mode=@taxMode, tax_rate=@taxRate, effective_from=@effectiveFrom, effective_to=@effectiveTo,
+        updated_at=datetime('now')
       WHERE id=@id`,
-    { ...b, isActive: b.isActive ? 1 : 0, id }
+    { ...b, ...extraParams(b), isActive: b.isActive ? 1 : 0, id }
   );
 
   audit(req, 'RATE_UPDATED', {
@@ -177,10 +251,22 @@ router.put('/:id', requirePermission('vendors.update'), validateBody(rateSchema)
 });
 
 // --- delete ------------------------------------------------------------------
-router.delete('/:id', requirePermission('vendors.delete'), (req, res) => {
+router.delete('/:id', requirePermission('vendors.delete', 'masters.delete'), (req, res) => {
   const id = Number(req.params.id);
   const existing = q.get<any>('SELECT * FROM rate_cards WHERE id = @id', { id });
   if (!existing) return res.status(404).json({ error: 'That rate row no longer exists.' });
+
+  // A rule that has priced a trip stays, switched off: the trip keeps its own
+  // snapshot, but the link must not point at nothing.
+  const used = q.get<any>('SELECT COUNT(*) c FROM booking_charges WHERE fare_rule_id = @id', { id })!.c;
+  if (used > 0) {
+    q.run(`UPDATE rate_cards SET is_active = 0, updated_at = datetime('now') WHERE id = @id`, { id });
+    audit(req, 'RATE_UPDATED', {
+      entityType: 'rate_card', entityId: id,
+      description: `${existing.vehicle_category} ${existing.plan_label} deactivated (used on ${used} trip(s))`,
+    });
+    return res.json({ ok: true, deactivated: true, message: `This rule priced ${used} trip(s), so it was switched off instead of deleted.` });
+  }
 
   q.run('DELETE FROM rate_cards WHERE id = @id', { id });
   audit(req, 'RATE_DELETED', {
@@ -197,7 +283,7 @@ router.delete('/:id', requirePermission('vendors.delete'), (req, res) => {
  * from an existing account by a few per cent. Existing rows are left alone, so
  * this cannot overwrite a negotiated rate by accident.
  */
-router.post('/copy', requirePermission('vendors.update'), (req, res) => {
+router.post('/copy', requirePermission('vendors.update', 'masters.create'), (req, res) => {
   const fromId = Number(req.body?.fromVendorId);
   const toId = Number(req.body?.toVendorId);
   if (!fromId || !toId || fromId === toId) {
@@ -269,7 +355,7 @@ const upload = multer({
 });
 
 /** A blank sheet in the shape the importer reads, with the vendor codes on it. */
-router.get('/template', requirePermission('vendors.view'), async (_req, res) => {
+router.get('/template', requirePermission('vendors.view', 'masters.view'), async (_req, res) => {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Gupta Tours & Travels';
   const ws = wb.addWorksheet('Rates');
@@ -344,7 +430,7 @@ router.get('/template', requirePermission('vendors.view'), async (_req, res) => 
  * The same parse drives both, so the preview cannot promise something the
  * import then does differently. `dryRun` decides which.
  */
-router.post('/import', requirePermission('vendors.update'), upload.single('file'), async (req, res) => {
+router.post('/import', requirePermission('vendors.update', 'masters.create'), upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Choose a spreadsheet to upload.' });
 
   const dryRun = String(req.body?.dryRun ?? 'true') !== 'false';

@@ -336,3 +336,175 @@ export const IconArrowRight = (p: P) => (
     <path d="M4 12h15M13 6l6 6-6 6" />
   </Base>
 );
+
+/* --- added with the portal redesign: masters, fleet, OnSheet, tables --- */
+
+export const IconCar = (p: P) => (
+  <Base {...p}>
+    <path d="M5 16.5h14M6.5 16.5V19M17.5 16.5V19" />
+    <path d="M4 16.5v-4.2l1.8-4.6A2 2 0 0 1 7.7 6.5h8.6a2 2 0 0 1 1.9 1.2l1.8 4.6v4.2" />
+    <path d="M4.5 12.3h15" />
+    <circle cx="8" cy="14.4" r=".6" />
+    <circle cx="16" cy="14.4" r=".6" />
+  </Base>
+);
+
+export const IconLayers = (p: P) => (
+  <Base {...p}>
+    <path d="m12 3.5 8.5 4.3L12 12 3.5 7.8 12 3.5Z" />
+    <path d="m3.5 12 8.5 4.3 8.5-4.3" />
+    <path d="m3.5 16.2 8.5 4.3 8.5-4.3" />
+  </Base>
+);
+
+export const IconSheet = (p: P) => (
+  <Base {...p}>
+    <rect x="3.5" y="3.5" width="17" height="17" rx="2" />
+    <path d="M3.5 9h17M3.5 14.5h17M9 3.5v17M14.5 9v11.5" />
+  </Base>
+);
+
+export const IconFilter = (p: P) => (
+  <Base {...p}>
+    <path d="M4 5h16l-6.2 7.4V19l-3.6-1.8v-4.8L4 5Z" />
+  </Base>
+);
+
+export const IconMore = (p: P) => (
+  <Base {...p}>
+    <circle cx="12" cy="5.5" r="1.1" fill="currentColor" />
+    <circle cx="12" cy="12" r="1.1" fill="currentColor" />
+    <circle cx="12" cy="18.5" r="1.1" fill="currentColor" />
+  </Base>
+);
+
+export const IconSort = (p: P) => (
+  <Base {...p}>
+    <path d="M8 4v16M4.5 7.5 8 4l3.5 3.5M16 20V4M12.5 16.5 16 20l3.5-3.5" />
+  </Base>
+);
+
+export const IconUpload = (p: P) => (
+  <Base {...p}>
+    <path d="M12 15V4M7.5 8.5 12 4l4.5 4.5" />
+    <path d="M4.5 15v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3" />
+  </Base>
+);
+
+export const IconInbox = (p: P) => (
+  <Base {...p}>
+    <path d="M4 13.5 6.4 5.6A1.5 1.5 0 0 1 7.8 4.5h8.4a1.5 1.5 0 0 1 1.4 1.1L20 13.5V18a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18v-4.5Z" />
+    <path d="M4 13.5h4.5l1.2 2.2h4.6l1.2-2.2H20" />
+  </Base>
+);
+
+export const IconRupee = (p: P) => (
+  <Base {...p}>
+    <path d="M7 5h10M7 9h10M8 5c3.8 0 5.8 1.6 5.8 4S11.8 13 8 13l6.5 6" />
+  </Base>
+);
+
+export const IconTrend = (p: P) => (
+  <Base {...p}>
+    <path d="M3.5 17 9 11.5l3.5 3.5 8-8" />
+    <path d="M15 7h5.5v5.5" />
+  </Base>
+);
+
+export const IconSparkle = (p: P) => (
+  <Base {...p}>
+    <path d="M12 3.5 13.7 9 19 10.7 13.7 12.4 12 18l-1.7-5.6L5 10.7 10.3 9 12 3.5Z" />
+    <path d="M18.5 16v4M16.5 18h4" />
+  </Base>
+);
+
+export const IconBolt = (p: P) => (
+  <Base {...p}>
+    <path d="M13 3 5.5 13.5H12L11 21l7.5-10.5H12L13 3Z" />
+  </Base>
+);
+
+export const IconIdCard = (p: P) => (
+  <Base {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="9" cy="11" r="2.2" />
+    <path d="M5.8 16.2c.6-1.6 1.8-2.4 3.2-2.4s2.6.8 3.2 2.4M14.5 10h4M14.5 13.5h3" />
+  </Base>
+);
+
+export const IconChat = (p: P) => (
+  <Base {...p}>
+    <path d="M20 12a7.5 7.5 0 0 1-11 6.6L4.5 20l1.4-4.3A7.5 7.5 0 1 1 20 12Z" />
+    <path d="M9 11h6M9 14h4" />
+  </Base>
+);
+
+export const IconStar = (p: P) => (
+  <Base {...p}>
+    <path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.3l-4.8 2.6.9-5.4-3.9-3.8 5.4-.8L12 4Z" />
+  </Base>
+);
+
+export const IconBook = (p: P) => (
+  <Base {...p}>
+    <path d="M4.5 5.5A2 2 0 0 1 6.5 3.5h12v14h-12a2 2 0 0 0-2 2v-14Z" />
+    <path d="M4.5 19.5a2 2 0 0 0 2 2h12v-4M9 7.5h6" />
+  </Base>
+);
+
+export const IconHistory = (p: P) => (
+  <Base {...p}>
+    <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" />
+    <path d="M4 4v4.5h4.5M12 8v4.5l3 2" />
+  </Base>
+);
+
+export const IconBell = (p: P) => (
+  <Base {...p}>
+    <path d="M18 8.5a6 6 0 1 0-12 0c0 7-3 8.5-3 8.5h18s-3-1.5-3-8.5" />
+    <path d="M13.7 20.5a2 2 0 0 1-3.4 0" />
+  </Base>
+);
+
+export const IconChevronLeft = (p: P) => (
+  <Base {...p}>
+    <path d="m15 5-7 7 7 7" />
+  </Base>
+);
+
+export const IconChevronRight = (p: P) => (
+  <Base {...p}>
+    <path d="m9 5 7 7-7 7" />
+  </Base>
+);
+
+export const IconRoute = (p: P) => (
+  <Base {...p}>
+    <circle cx="6" cy="18" r="2.2" />
+    <circle cx="18" cy="6" r="2.2" />
+    <path d="M8.2 18h7.3a3 3 0 0 0 0-6h-7a3 3 0 0 1 0-6h7.3" />
+  </Base>
+);
+
+export const IconGauge = (p: P) => (
+  <Base {...p}>
+    <path d="M4.2 16.5a8.5 8.5 0 1 1 15.6 0" />
+    <path d="m12 13 3.5-4.5" />
+    <circle cx="12" cy="13.5" r="1.3" />
+  </Base>
+);
+
+export const IconFile = (p: P) => (
+  <Base {...p}>
+    <path d="M13.5 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9l-5.5-5.5Z" />
+    <path d="M13.5 3.5V9H19M8.5 13h7M8.5 16.5h5" />
+  </Base>
+);
+
+/* --- language switch --- */
+export const IconGlobe = (p: P) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3Z" />
+  </Base>
+);

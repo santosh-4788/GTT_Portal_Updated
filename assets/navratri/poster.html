@@ -1,0 +1,318 @@
+<!doctype html>
+<!--
+  Navratri Special posters for Gupta Tours & Travels — version 2.
+
+  Two designs, two sizes, picked with the address:
+    poster.html?design=greeting&size=feed    1080 × 1350  (Instagram / Facebook / WhatsApp)
+    poster.html?design=garba&size=story      1080 × 1920  (WhatsApp status / Instagram story)
+
+  The Devi photo is the hero: it fills the top of the poster and melts into
+  the logo's navy, with gold foil lettering, glowing bokeh and sparkles over it.
+  Rendered to PNG by render.js in this folder (headless Edge).
+
+  Devi images: devi-1.jpg (greeting) and devi-2.jpg (Garba), supplied by the
+  office. Replace either file to change the photo; nothing else needs editing.
+  Logo: the website's car mark (gtt-car.svg = frontend/public/assets/art-car-line-bold.svg).
+  The previous framed design is kept as poster-v1-framed.html.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Navratri Special</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cinzel+Decorative:wght@700;900&family=Great+Vibes&family=Poppins:wght@400;500;600;700;800&family=Sora:wght@600;700&family=Yatra+One&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #06152B; }
+  body { font-family: 'Poppins', sans-serif; }
+
+  .poster { position: relative; width: 1080px; overflow: hidden; color: #FFF6E0; background: #071A35; }
+  .feed { height: 1350px; }
+  .story { height: 1920px; }
+  .layer { position: absolute; inset: 0; pointer-events: none; }
+
+  /* ---- hero photo ---------------------------------------------------------- */
+  .hero { position: absolute; left: 0; right: 0; top: 0; overflow: hidden; }
+  .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* melt the photo into the navy below and darken its edges */
+  .hero::after {
+    content: ''; position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, rgba(7, 26, 53, .55) 0%, rgba(7, 26, 53, 0) 18%, rgba(7, 26, 53, 0) 52%, rgba(7, 26, 53, .85) 82%, #071A35 100%),
+      radial-gradient(ellipse 75% 80% at 50% 45%, transparent 55%, rgba(4, 14, 30, .75) 100%);
+  }
+  /* soft blue glow rising from the bottom, the logo's sky blue */
+  .glow-blue {
+    background:
+      radial-gradient(ellipse 70% 30% at 50% 62%, rgba(26, 143, 208, .35), transparent 70%),
+      radial-gradient(ellipse 90% 40% at 50% 104%, rgba(56, 182, 240, .30), transparent 70%);
+  }
+
+  /* ---- frame ------------------------------------------------------------------ */
+  .frame {
+    position: absolute; inset: 22px; border-radius: 26px;
+    border: 2.5px solid rgba(240, 199, 102, .9);
+    box-shadow: inset 0 0 0 8px rgba(7, 26, 53, 0), inset 0 0 0 10px rgba(240, 199, 102, .35);
+  }
+
+  /* ---- gold foil type ----------------------------------------------------------- */
+  .foil {
+    background: linear-gradient(100deg, #B9822A 0%, #FFE9A8 18%, #F2C14E 34%, #FFF6D2 48%, #D9A23B 62%, #FFE08A 78%, #B07622 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 0 rgba(30, 15, 0, .55)) drop-shadow(0 0 22px rgba(255, 200, 90, .35));
+  }
+  .center { position: absolute; left: 0; right: 0; text-align: center; }
+  .hindi { font-family: 'Yatra One', serif; }
+  .script { font-family: 'Great Vibes', cursive; }
+  .eyebrow-pill {
+    display: inline-flex; align-items: center; gap: 14px;
+    padding: 12px 30px; border-radius: 999px;
+    background: rgba(7, 26, 53, .55); backdrop-filter: blur(6px);
+    border: 1.5px solid rgba(240, 199, 102, .75);
+    font-family: 'Cinzel', serif; font-weight: 800; font-size: 24px; letter-spacing: .3em; color: #FFE7A6;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  }
+  .eyebrow-pill i { width: 9px; height: 9px; background: #F2C14E; transform: rotate(45deg); display: block; }
+
+  .lotus-divider { display: flex; align-items: center; justify-content: center; gap: 16px; }
+  .lotus-divider span { height: 2px; width: 170px; background: linear-gradient(90deg, transparent, #F2C14E); }
+  .lotus-divider span:last-child { background: linear-gradient(270deg, transparent, #F2C14E); }
+  .lotus-divider svg { width: 54px; height: 30px; }
+
+  /* ---- logo card, as on the website ------------------------------------------- */
+  .logo-card {
+    display: inline-flex; align-items: center; gap: 24px;
+    padding: 16px 34px 16px 26px; border-radius: 24px;
+    background: linear-gradient(135deg, #FFFFFF 0%, #EEF6FD 100%);
+    box-shadow: 0 0 0 3px #F0C766, 0 0 0 9px rgba(240, 199, 102, .22), 0 18px 40px rgba(0, 0, 0, .5);
+    text-align: left;
+  }
+  .logo-card img { width: 160px; height: auto; display: block; }
+  .logo-card b {
+    display: block; font-family: 'Sora', 'Poppins', sans-serif; font-weight: 700; font-size: 40px;
+    line-height: 1.05; letter-spacing: -0.01em; color: #10233F; white-space: nowrap;
+  }
+  .logo-card small {
+    display: block; margin-top: 8px; font-weight: 700; font-size: 19px; letter-spacing: .26em; color: #1A8FD0;
+  }
+
+  .contact { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; font-size: 24px; font-weight: 500; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 12px; padding: 12px 24px; border-radius: 999px;
+    background: rgba(255, 255, 255, .08); border: 1.5px solid rgba(240, 199, 102, .55); color: #FFF3DA;
+    backdrop-filter: blur(4px);
+  }
+  .chip svg { width: 27px; height: 27px; flex-shrink: 0; }
+
+  /* ---- Garba ---------------------------------------------------------------------- */
+  .ribbon {
+    display: inline-block; position: relative; padding: 14px 70px;
+    background: linear-gradient(180deg, #1A8FD0, #0F5E9C);
+    font-family: 'Cinzel', serif; font-weight: 900; color: #fff; letter-spacing: .08em;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, .4), inset 0 2px 0 rgba(255, 255, 255, .35);
+    clip-path: polygon(0 0, 100% 0, 96% 50%, 100% 100%, 0 100%, 4% 50%);
+  }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; width: 900px; margin: 0 auto; }
+  .tile {
+    display: flex; align-items: center; gap: 18px; text-align: left;
+    padding: 20px 22px; border-radius: 22px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .04));
+    border: 1.5px solid rgba(240, 199, 102, .45);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .15);
+    font-size: 24px; font-weight: 500; line-height: 1.3; color: #FFF5E4;
+  }
+  .tile b { display: block; font-weight: 700; font-size: 26px; color: #FFE3A0; }
+  .tile .ico {
+    width: 64px; height: 64px; border-radius: 18px; flex-shrink: 0; display: grid; place-items: center;
+    background: linear-gradient(160deg, #FFE59A, #D19A2E);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, .35), inset 0 2px 0 rgba(255, 255, 255, .5);
+  }
+  .tile .ico svg { width: 34px; height: 34px; }
+  .cta {
+    display: inline-flex; align-items: center; gap: 18px; padding: 22px 50px; border-radius: 999px;
+    background: linear-gradient(180deg, #FFEBA8 0%, #F2C14E 50%, #D3962A 100%);
+    color: #0A1F3D; font-weight: 800; font-size: 38px;
+    box-shadow: 0 0 0 6px rgba(240, 199, 102, .25), 0 18px 36px rgba(0, 0, 0, .5), inset 0 2px 0 rgba(255, 255, 255, .7);
+  }
+  .cta svg { width: 44px; height: 44px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const P = new URLSearchParams(location.search);
+const design = P.get('design') === 'garba' ? 'garba' : 'greeting';
+const size = P.get('size') === 'story' ? 'story' : 'feed';
+const story = size === 'story';
+const H = story ? 1920 : 1350;
+
+const C = { phone: '99673 81555', email: 'vinaykumar87674@gmail.com', area: '24×7 · MUMBAI', address: 'Goregaon (W), Mumbai' };
+
+/* deterministic random, so every render is identical */
+let seed = design === 'garba' ? 11 : 5;
+const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+
+/* glowing bokeh discs, gold and sky blue */
+function bokeh(n, top, height) {
+  let s = `<svg class="layer" width="1080" height="${H}"><defs><filter id="bl"><feGaussianBlur stdDeviation="6"/></filter></defs>`;
+  for (let i = 0; i < n; i++) {
+    const x = rnd() * 1080, y = top + rnd() * height, r = 6 + rnd() * 26;
+    const col = rnd() < .62 ? '#F7CF64' : '#5EC8F5';
+    s += `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}" opacity="${.08 + rnd() * .2}" filter="url(#bl)"/>`;
+  }
+  return s + '</svg>';
+}
+/* four-point sparkles */
+function sparkles(n, top, height) {
+  let s = `<svg class="layer" width="1080" height="${H}">`;
+  for (let i = 0; i < n; i++) {
+    const x = rnd() < .5 ? 40 + rnd() * 170 : 870 + rnd() * 170, y = top + rnd() * height, k = 6 + rnd() * 14;
+    s += `<path d="M${x} ${y - k}Q${x} ${y} ${x + k} ${y}Q${x} ${y} ${x} ${y + k}Q${x} ${y} ${x - k} ${y}Q${x} ${y} ${x} ${y - k}Z" fill="#FFF3C4" opacity="${.5 + rnd() * .5}"/>`;
+  }
+  return s + '</svg>';
+}
+function toran(width, x0) {
+  const n = 15, step = width / (n - 1);
+  let s = `<svg class="layer" width="1080" height="160"><defs><radialGradient id="mg"><stop offset="0" stop-color="#fff59d"/><stop offset="1" stop-color="#e65100" stop-opacity="0"/></radialGradient></defs>`;
+  s += `<path d="M${x0} 30 Q540 64 ${x0 + width} 30" stroke="#C8902B" stroke-width="3" fill="none"/>`;
+  for (let i = 0; i < n; i++) {
+    const x = x0 + i * step, y = 30 + Math.sin((i / (n - 1)) * Math.PI) * 32;
+    s += `<g transform="translate(${x} ${y})">`;
+    if (i % 2) s += `<path d="M0 0 C-14 22 -10 50 0 64 C10 50 14 22 0 0Z" fill="#2E7D32"/><path d="M0 4 V60" stroke="#1B5E20" stroke-width="1.5"/>`;
+    else for (let k = 0; k < 4; k++) {
+      const cy = 14 + k * 23, col = k % 2 ? '#FFB300' : '#FF6F00';
+      s += `<circle cx="0" cy="${cy}" r="12" fill="${col}"/><circle cx="0" cy="${cy}" r="12" fill="url(#mg)" opacity=".55"/>`;
+    }
+    s += `</g>`;
+  }
+  return s + '</svg>';
+}
+function diya(x, y, w) {
+  return `<svg class="layer" style="inset:auto; left:${x}px; top:${y}px; width:${w}px; height:${w}px" viewBox="0 0 120 120">
+    <defs>
+      <radialGradient id="fl${x}" cx="50%" cy="70%"><stop offset="0" stop-color="#fffde7"/><stop offset=".45" stop-color="#ffd54f"/><stop offset="1" stop-color="#ff6f00"/></radialGradient>
+      <linearGradient id="cl${x}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#F2C14E"/><stop offset="1" stop-color="#9A5E12"/></linearGradient>
+    </defs>
+    <ellipse cx="60" cy="38" rx="40" ry="40" fill="#ffb300" opacity=".22"/>
+    <path d="M60 10 C71 28 71 44 60 52 C49 44 49 28 60 10Z" fill="url(#fl${x})"/>
+    <path d="M12 64 Q60 56 108 64 Q100 100 60 102 Q20 100 12 64Z" fill="url(#cl${x})"/>
+    <path d="M12 64 Q60 72 108 64" stroke="#FFF1B8" stroke-width="3" fill="none"/>
+    <circle cx="38" cy="83" r="4" fill="#FFF1B8"/><circle cx="60" cy="88" r="4" fill="#FFF1B8"/><circle cx="82" cy="83" r="4" fill="#FFF1B8"/>
+  </svg>`;
+}
+function dandiya(x, y, w, flip) {
+  return `<svg class="layer" style="inset:auto; left:${x}px; top:${y}px; width:${w}px; height:${w}px; ${flip ? 'transform:scaleX(-1)' : ''}" viewBox="0 0 230 230">
+    ${[[-38, ['#D81B60', '#1E88E5', '#43A047']], [38, ['#7B1FA2', '#FB8C00', '#00897B']]].map(([a, c]) => `
+    <g transform="rotate(${a} 115 115)">
+      <rect x="105" y="10" width="16" height="210" rx="8" fill="#F2C14E"/>
+      <rect x="105" y="40" width="16" height="22" fill="${c[0]}"/><rect x="105" y="90" width="16" height="22" fill="${c[1]}"/>
+      <rect x="105" y="140" width="16" height="22" fill="${c[2]}"/>
+      <circle cx="113" cy="12" r="11" fill="${c[0]}"/><circle cx="113" cy="218" r="11" fill="${c[0]}"/>
+    </g>`).join('')}
+  </svg>`;
+}
+const lotus = `<svg viewBox="0 0 54 30"><path d="M27 2c5 6 6 14 0 24-6-10-5-18 0-24Z" fill="#F2C14E"/><path d="M27 26C20 22 12 14 8 10c8 0 15 5 19 16Zm0 0c7-4 15-12 19-16-8 0-15 5-19 16Z" fill="#E0A73A"/><path d="M27 26C18 25 6 20 1 16c9-1 18 2 26 10Zm0 0c9-1 21-6 26-10-9-1-18 2-26 10Z" fill="#C8902B"/></svg>`;
+
+const ICON = {
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="#F2C14E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z"/></svg>',
+  whatsapp: (c) => `<svg viewBox="0 0 24 24" fill="${c}"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.4 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-3.2-.7-2.7-1.1-4.4-3.8-4.5-4-.1-.2-1.1-1.4-1.1-2.7s.7-1.9.9-2.2c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.1.1.3 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.7 1.2 1.6 2 1.1.9 2 1.2 2.3 1.4.3.1.4.1.6-.1l.8-1c.2-.3.4-.2.6-.1l1.8.9c.3.1.4.2.5.3.1.2.1.7-.1 1.3Z"/></svg>`,
+  mail: '<svg viewBox="0 0 24 24" fill="none" stroke="#F2C14E" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="#0A1F3D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="#0A1F3D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>',
+  car: '<svg viewBox="0 0 24 24" fill="none" stroke="#0A1F3D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5v5Z"/><circle cx="7.5" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/><path d="M5 12h14"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="#0A1F3D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+};
+
+const logo = (top) => `
+  <div class="center" style="top:${top}px">
+    <div class="logo-card"><img src="gtt-car.svg" alt=""><div><b>Gupta Tours &amp; Travels</b><small>${C.area}</small></div></div>
+  </div>`;
+
+/* ---------------------------------------------------------------- greeting */
+function greeting() {
+  const heroH = story ? 1230 : 860;
+  const t = story ? 1010 : 690;           // where the lettering starts, over the fade
+  return `
+    <div class="hero" style="height:${heroH}px"><img src="devi-1.jpg" style="object-position:50% ${story ? 30 : 26}%"></div>
+    <div class="layer glow-blue"></div>
+    ${bokeh(story ? 46 : 34, 0, H)}
+    ${sparkles(story ? 34 : 26, 120, H * .8)}
+    ${toran(1000, 40)}
+    <div class="frame"></div>
+    ${diya(70, t - 60, 130)}${diya(880, t - 60, 130)}
+
+    <div class="center" style="top:${story ? 150 : 128}px">
+      <span class="eyebrow-pill"><i></i>NAVRATRI SPECIAL<i></i></span>
+    </div>
+
+    <div class="center" style="top:${t}px">
+      <p class="hindi foil" style="font-size:${story ? 112 : 96}px; line-height:1.15">शुभ नवरात्रि</p>
+      <p class="script foil" style="font-size:${story ? 120 : 100}px; line-height:1; margin-top:-8px">Happy Navratri</p>
+      <div class="lotus-divider" style="margin:${story ? 24 : 14}px 0 ${story ? 20 : 12}px"><span></span>${lotus}<span></span></div>
+      <p style="font-size:${story ? 33 : 27}px; line-height:1.5; color:#EAF6FF; padding:0 ${story ? 110 : 140}px">
+        May Maa Durga bless you and your family with strength, happiness and safe journeys.
+      </p>
+    </div>
+
+    ${logo(story ? 1570 : 1110)}
+    <div class="center" style="top:${story ? 1745 : 1262}px">
+      <div class="contact" style="font-size:${story ? 24 : 22}px">
+        <span class="chip">${ICON.phone} ${C.phone}</span>
+        ${story ? `<span class="chip">${ICON.whatsapp('#F2C14E')} WhatsApp</span>` : ''}
+        <span class="chip">${ICON.mail} ${C.email}</span>
+      </div>
+    </div>`;
+}
+
+/* ------------------------------------------------------------------ garba */
+function garba() {
+  const heroH = story ? 1000 : 620;
+  const t = story ? 760 : 436;            // title block, over the fade
+  const tilesTop = story ? 1170 : 760;
+  return `
+    <div class="hero" style="height:${heroH}px"><img src="devi-2.jpg" style="object-position:50% ${story ? 30 : 37}%; transform:scale(1.14); transform-origin:48% 40%"></div>
+    <div class="layer glow-blue"></div>
+    ${bokeh(story ? 50 : 38, 0, H)}
+    ${sparkles(story ? 26 : 20, 60, H * .4)}
+    <div class="frame"></div>
+    ${dandiya(story ? 40 : 30, story ? 120 : 70, story ? 220 : 180, false)}
+    ${dandiya(story ? 820 : 870, story ? 120 : 70, story ? 220 : 180, true)}
+
+    <div class="center" style="top:${story ? 64 : 50}px">
+      <span class="eyebrow-pill" style="font-size:${story ? 24 : 21}px"><i></i>NAVRATRI SPECIAL<i></i></span>
+    </div>
+
+    <div class="center" style="top:${t}px">
+      <p class="foil" style="font-family:'Cinzel Decorative',serif; font-weight:900; font-size:${story ? 118 : 104}px; line-height:1">Garba Night</p>
+      <div style="margin-top:${story ? 22 : 16}px"><span class="ribbon" style="font-size:${story ? 52 : 44}px">PICKUP &amp; DROP</span></div>
+      <p class="hindi" style="font-size:${story ? 38 : 32}px; color:#FFD98A; margin-top:${story ? 22 : 16}px">गरबा / डांडिया के लिए सुरक्षित सवारी</p>
+    </div>
+
+    <div class="center" style="top:${tilesTop}px">
+      <div class="tiles" style="gap:${story ? 22 : 16}px">
+        <div class="tile"><span class="ico">${ICON.shield}</span><span><b>Safe rides</b>to &amp; from Garba venues</span></div>
+        <div class="tile"><span class="ico">${ICON.moon}</span><span><b>Late-night</b>pickups, 24×7</span></div>
+        <div class="tile"><span class="ico">${ICON.car}</span><span><b>Clean AC cabs</b>Sedan · SUV · Innova</span></div>
+        <div class="tile"><span class="ico">${ICON.user}</span><span><b>Verified</b>courteous drivers</span></div>
+      </div>
+    </div>
+
+    <div class="center" style="top:${story ? 1475 : 1012}px">
+      <span class="cta">${ICON.whatsapp('#0A1F3D')} Book now: ${C.phone}</span>
+    </div>
+
+    ${logo(story ? 1640 : 1150)}
+    ${story ? `<div class="center" style="top:1800px"><div class="contact" style="font-size:23px"><span class="chip">${ICON.mail} ${C.email}</span></div></div>` : ''}`;
+}
+
+const root = document.getElementById('root');
+root.className = `poster ${size} ${design}`;
+root.innerHTML = design === 'garba' ? garba() : greeting();
+
+// render.js waits for this before taking the picture
+Promise.all([document.fonts.ready, ...[...document.images].map((i) => i.decode().catch(() => {}))])
+  .then(() => { document.body.dataset.ready = '1'; });
+</script>
+</body>
+</html>

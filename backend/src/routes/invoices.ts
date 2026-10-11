@@ -16,6 +16,9 @@ import { sendMail, mailConfig } from '../services/mailer';
 import { invoiceEmail } from '../services/emailTemplates';
 import { portalUrl, recordTripEvent } from '../services/tripFlow';
 import { ensureLocalFile } from '../services/fileStore';
+import { generateInvoices, generateSchema, type GenerateInput } from '../services/invoiceGenerate';
+import { sendTable, filterNote } from '../utils/exportSheet';
+import PizZip from 'pizzip';
 
 const router = Router();
 router.use(requireAuth);
@@ -23,47 +26,148 @@ router.use(requireAuth);
 // ---------------------------------------------------------------------------
 // List
 // ---------------------------------------------------------------------------
-router.get('/', requirePermission('invoices.view'), (req, res) => {
-  const p = req.query as Record<string, string>;
+/**
+ * The status shown to people. The stored status says what has happened to the
+ * invoice (generated, sent, part-paid, paid, cancelled); OVERDUE is derived
+ * from it and the due date, so it can never be stale.
+ */
+const DISPLAY_STATUS = `CASE
+    WHEN i.status IN ('CANCELLED','PAID') THEN i.status
+    WHEN i.outstanding_amount > 0.009 AND i.due_date IS NOT NULL AND i.due_date < date('now','localtime') THEN 'OVERDUE'
+    ELSE i.status END`;
+
+function listFilters(p: Record<string, string>) {
   const params = {
-    search: p.search ?? '',
+    search: (p.search ?? '').trim(),
     vendorId: p.vendorId ? Number(p.vendorId) : 0,
     from: p.from ?? '',
     to: p.to ?? '',
+    dueFrom: p.dueFrom ?? '',
+    dueTo: p.dueTo ?? '',
     status: p.status ?? '',
-    limit: Math.min(Number(p.limit ?? 50), 500),
-    offset: Number(p.offset ?? 0),
+    taxMode: p.taxMode ?? '',
   };
   const where = `
-    WHERE (@search = '' OR i.invoice_number LIKE '%'||@search||'%' OR v.vendor_name LIKE '%'||@search||'%')
+    WHERE (@search = '' OR i.invoice_number LIKE '%'||@search||'%' OR v.vendor_name LIKE '%'||@search||'%'
+                        OR i.bill_to_name LIKE '%'||@search||'%'
+                        OR EXISTS (SELECT 1 FROM invoice_items ii JOIN bookings b ON b.id = ii.booking_id
+                                    WHERE ii.invoice_id = i.id AND (b.trip_id LIKE '%'||@search||'%'
+                                       OR b.booking_code LIKE '%'||@search||'%' OR b.passenger_name LIKE '%'||@search||'%')))
       AND (@vendorId = 0 OR i.vendor_id = @vendorId)
       AND (@from = '' OR i.invoice_date >= @from)
       AND (@to = '' OR i.invoice_date <= @to)
-      AND (@status = '' OR i.status = @status)`;
+      AND (@dueFrom = '' OR i.due_date >= @dueFrom)
+      AND (@dueTo = '' OR i.due_date <= @dueTo)
+      AND (@taxMode = '' OR (@taxMode = 'GST' AND i.tax_mode <> 'NONE') OR i.tax_mode = @taxMode)
+      AND (@status = '' OR i.status = @status
+           OR (@status = 'OVERDUE' AND (${DISPLAY_STATUS}) = 'OVERDUE')
+           OR (@status = 'UNPAID' AND i.status NOT IN ('CANCELLED','PAID') AND i.outstanding_amount > 0.009)
+           OR (@status = 'ISSUED' AND i.status IN ('GENERATED','SENT')))`;
+  return { params, where };
+}
 
-  const data = q.all<any>(
-    `SELECT i.*, v.vendor_name, v.code AS vendor_code, v.company_name,
-            u.full_name AS generated_by_name
-       FROM invoices i JOIN vendors v ON v.id = i.vendor_id
-       LEFT JOIN users u ON u.id = i.generated_by
-       ${where}
-      ORDER BY i.invoice_date DESC, i.id DESC LIMIT @limit OFFSET @offset`,
-    params
-  );
+const LIST_SQL = (where: string) => `
+    SELECT i.*, v.vendor_name, v.code AS vendor_code, v.company_name,
+           u.full_name AS generated_by_name, (${DISPLAY_STATUS}) AS display_status,
+           CASE WHEN i.due_date < date('now','localtime') AND i.outstanding_amount > 0.009 AND i.status NOT IN ('CANCELLED','PAID')
+                THEN CAST(julianday('now','localtime') - julianday(i.due_date) AS INTEGER) ELSE 0 END AS days_overdue,
+           (SELECT group_concat(b.trip_id, ', ') FROM invoice_items ii JOIN bookings b ON b.id = ii.booking_id
+             WHERE ii.invoice_id = i.id) AS trip_ids
+      FROM invoices i JOIN vendors v ON v.id = i.vendor_id
+      LEFT JOIN users u ON u.id = i.generated_by
+      ${where}`;
+
+const SORTS: Record<string, string> = {
+  date_desc: 'i.invoice_date DESC, i.id DESC', date_asc: 'i.invoice_date ASC, i.id ASC',
+  number_desc: 'i.invoice_number DESC', number_asc: 'i.invoice_number ASC',
+  total_desc: 'i.total_amount DESC', outstanding_desc: 'i.outstanding_amount DESC',
+  due_asc: 'i.due_date ASC', vendor_asc: 'v.vendor_name ASC, i.invoice_date DESC',
+};
+
+router.get('/', requirePermission('invoices.view'), (req, res) => {
+  const p = req.query as Record<string, string>;
+  const { params, where } = listFilters(p);
+  const limit = Math.min(Number(p.limit ?? 50), 500);
+  const offset = Math.max(0, Number(p.offset ?? 0));
+  const order = SORTS[p.sort ?? ''] ?? SORTS.date_desc;
+
+  const data = q.all<any>(`${LIST_SQL(where)} ORDER BY ${order} LIMIT @limit OFFSET @offset`, { ...params, limit, offset });
   const agg = q.get<any>(
-    `SELECT COUNT(*) total, COALESCE(SUM(i.total_amount),0) amount,
-            COALESCE(SUM(i.paid_amount),0) paid, COALESCE(SUM(i.outstanding_amount),0) outstanding
+    `SELECT COUNT(*) total, COALESCE(SUM(CASE WHEN i.status <> 'CANCELLED' THEN i.total_amount END),0) amount,
+            COALESCE(SUM(CASE WHEN i.status <> 'CANCELLED' THEN i.paid_amount END),0) paid,
+            COALESCE(SUM(CASE WHEN i.status NOT IN ('CANCELLED','PAID') THEN i.outstanding_amount END),0) outstanding,
+            COALESCE(SUM(CASE WHEN (${DISPLAY_STATUS}) = 'OVERDUE' THEN i.outstanding_amount END),0) overdue
        FROM invoices i JOIN vendors v ON v.id = i.vendor_id ${where}`,
     params
   );
-  res.json({ data, ...agg });
+  const counts = q.all<any>(
+    `SELECT (${DISPLAY_STATUS}) AS status, COUNT(*) AS count FROM invoices i GROUP BY 1`
+  );
+  res.json({ data, ...agg, counts });
+});
+
+/** The invoice register as Excel, with the list's filters applied. */
+router.get('/export', requirePermission('invoices.view'), async (req, res) => {
+  const p = req.query as Record<string, string>;
+  const { params, where } = listFilters(p);
+  const rows = q.all<any>(`${LIST_SQL(where)} ORDER BY ${SORTS[p.sort ?? ''] ?? SORTS.date_desc}`, params);
+  audit(req, 'DATA_EXPORTED', { description: `Invoice register export — ${rows.length} row(s)`, meta: params });
+  await sendTable(res, 'invoice-register', {
+    name: 'Invoices', title: 'Invoice register',
+    notes: [filterNote({ Search: params.search, From: params.from, To: params.to, Status: params.status })],
+    columns: [
+      { key: 'invoice_number', header: 'Invoice no.', kind: 'id' }, { key: 'invoice_date', header: 'Invoice date', kind: 'date' },
+      { key: 'due_date', header: 'Due date', kind: 'date' }, { key: 'vendor_name', header: 'Vendor' },
+      { key: 'bill_to_name', header: 'Billed to', value: (r) => r.bill_to_name || r.company_name || r.vendor_name },
+      { key: 'bill_to_gstin', header: 'GSTIN', kind: 'id' }, { key: 'trip_ids', header: 'Trip IDs', width: 30 },
+      { key: 'booking_count', header: 'Trips', kind: 'number' },
+      { key: 'taxable_amount', header: 'Taxable', kind: 'money' }, { key: 'tax_mode', header: 'Tax type' },
+      { key: 'tax_rate', header: 'Tax %', kind: 'number' }, { key: 'cgst', header: 'CGST', kind: 'money' },
+      { key: 'sgst', header: 'SGST', kind: 'money' }, { key: 'igst', header: 'IGST', kind: 'money' },
+      { key: 'non_taxable_amount', header: 'Toll/parking/state tax', kind: 'money' },
+      { key: 'total_amount', header: 'Total', kind: 'money' }, { key: 'paid_amount', header: 'Received', kind: 'money' },
+      { key: 'outstanding_amount', header: 'Outstanding', kind: 'money' },
+      { key: 'display_status', header: 'Status' }, { key: 'days_overdue', header: 'Days overdue', kind: 'number' },
+      { key: 'sent_at', header: 'Emailed', kind: 'datetime' }, { key: 'generated_by_name', header: 'Generated by' },
+    ],
+    rows,
+    totals: ['taxable_amount', 'cgst', 'sgst', 'igst', 'non_taxable_amount', 'total_amount', 'paid_amount', 'outstanding_amount'],
+  }, p.format);
+});
+
+/** Several invoice documents in one ZIP. */
+router.post('/bulk-download', requirePermission('invoices.view'), (req, res) => {
+  const ids = Array.isArray(req.body?.invoiceIds) ? req.body.invoiceIds.map(Number).filter((n: number) => n > 0) : [];
+  if (!ids.length) return res.status(400).json({ error: 'Select at least one invoice.' });
+  if (ids.length > 200) return res.status(400).json({ error: 'Download at most 200 invoices at a time.' });
+  const rows = q.all<any>(`SELECT id, invoice_number, file_path FROM invoices WHERE id IN (${ids.join(',')})`);
+  const zip = new PizZip();
+  const missing: string[] = [];
+  for (const r of rows) {
+    if (!r.file_path) { missing.push(r.invoice_number); continue; }
+    const abs = path.join(config.paths.invoices, r.file_path);
+    if (!abs.startsWith(config.paths.invoices) || !ensureLocalFile(abs)) { missing.push(r.invoice_number); continue; }
+    const pdfTwin = abs.replace(/\.[^.]+$/, '.pdf');
+    const file = ensureLocalFile(pdfTwin) ? pdfTwin : abs;
+    zip.file(path.basename(file), fs.readFileSync(file));
+  }
+  if (missing.length === rows.length) {
+    return res.status(404).json({ error: 'None of the selected invoices has a generated file. Regenerate them first.' });
+  }
+  if (missing.length) zip.file('_missing.txt', `These invoices have no generated file and were left out:\r\n${missing.join('\r\n')}\r\n`);
+  const buf = zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
+  audit(req, 'INVOICE_BULK_DOWNLOADED', { description: `${rows.length - missing.length} invoice file(s) downloaded as ZIP`, meta: { ids } });
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="invoices_${new Date().toISOString().slice(0, 10)}.zip"`);
+  res.send(buf);
 });
 
 // ---------------------------------------------------------------------------
 router.get('/:id', requirePermission('invoices.view'), (req, res) => {
   const invoice = q.get<any>(
     `SELECT i.*, v.vendor_name, v.code AS vendor_code, v.company_name, v.gst_number,
-            v.billing_address, t.name AS template_name, u.full_name AS generated_by_name
+            v.billing_address, t.name AS template_name, u.full_name AS generated_by_name,
+            (${DISPLAY_STATUS}) AS display_status
        FROM invoices i JOIN vendors v ON v.id = i.vendor_id
        LEFT JOIN invoice_templates t ON t.id = i.template_id
        LEFT JOIN users u ON u.id = i.generated_by
@@ -81,7 +185,9 @@ router.get('/:id', requirePermission('invoices.view'), (req, res) => {
     { id: req.params.id }
   );
   const payments = q.all<any>(
-    'SELECT * FROM payments WHERE invoice_id = @id ORDER BY payment_date DESC', { id: req.params.id }
+    `SELECT p.*, u.full_name AS created_by_name, ru.full_name AS reversed_by_name
+       FROM payments p LEFT JOIN users u ON u.id = p.created_by LEFT JOIN users ru ON ru.id = p.reversed_by
+      WHERE p.invoice_id = @id ORDER BY p.payment_date DESC, p.id DESC`, { id: req.params.id }
   );
   const revisions = q.all<any>(
     'SELECT * FROM invoice_revisions WHERE invoice_id = @id ORDER BY revision DESC', { id: req.params.id }
@@ -92,270 +198,16 @@ router.get('/:id', requirePermission('invoices.view'), (req, res) => {
 // ---------------------------------------------------------------------------
 // Generate — the heart of the system
 // ---------------------------------------------------------------------------
-const generateSchema = z.object({
-  vendorId: z.coerce.number().int().positive('Choose a vendor.'),
-  bookingIds: z.array(z.coerce.number().int().positive()).min(1, 'Select at least one booking.'),
-  invoiceDate: isoDate.optional(),
-  periodFrom: z.union([isoDate, z.literal('')]).optional(),
-  periodTo: z.union([isoDate, z.literal('')]).optional(),
-  notes: z.string().trim().optional().default(''),
-  /** Force one invoice per booking even when the vendor allows consolidation. */
-  separateInvoices: z.coerce.boolean().default(false),
-});
-
-interface GenerateOutcome {
-  invoiceId: number;
-  invoiceNumber: string;
-  filePath: string | null;
-  fileType: string;
-  total: number;
-  warnings: string[];
-}
-
 router.post('/generate', requirePermission('invoices.create'), validateBody(generateSchema), async (req, res) => {
-  const input = req.body as z.infer<typeof generateSchema>;
-
-  const vendor = q.get<any>('SELECT * FROM vendors WHERE id = @id', { id: input.vendorId });
-  if (!vendor) return res.status(400).json({ error: 'The selected vendor no longer exists.' });
-
-  const placeholders = input.bookingIds.map(() => '?').join(',');
-  const bookings = getDb()
-    .prepare(
-      `SELECT b.*, c.* , b.id AS id
-         FROM bookings b LEFT JOIN booking_charges c ON c.booking_id = b.id
-        WHERE b.id IN (${placeholders}) ORDER BY b.travel_date, b.id`
-    )
-    .all(...input.bookingIds) as any[];
-
-  // ---- validation with plain-language errors ----
-  if (bookings.length !== input.bookingIds.length) {
-    return res.status(400).json({ error: 'One or more selected bookings no longer exist.' });
-  }
-  const wrongVendor = bookings.find((b) => b.vendor_id !== input.vendorId);
-  if (wrongVendor) {
-    return res.status(400).json({
-      error: `Booking ${wrongVendor.booking_code} belongs to a different vendor. An invoice can only cover one vendor.`,
-    });
-  }
-  const cancelled = bookings.find((b) => b.booking_status === 'CANCELLED');
-  if (cancelled) {
-    return res.status(400).json({ error: `Booking ${cancelled.booking_code} is cancelled and cannot be invoiced.` });
-  }
-  const alreadyInvoiced = getDb()
-    .prepare(
-      `SELECT b.booking_code, i.invoice_number
-         FROM invoice_items ii JOIN invoices i ON i.id = ii.invoice_id
-         JOIN bookings b ON b.id = ii.booking_id
-        WHERE ii.booking_id IN (${placeholders}) AND i.status <> 'CANCELLED' LIMIT 1`
-    )
-    .get(...input.bookingIds) as any;
-  if (alreadyInvoiced) {
+  const setting = q.get<{ value: string }>(`SELECT value FROM settings WHERE key = 'billing.requireApproval'`);
+  if (String(setting?.value ?? 'false').toLowerCase() === 'true') {
     return res.status(409).json({
-      error: `Booking ${alreadyInvoiced.booking_code} has already been invoiced on ${alreadyInvoiced.invoice_number}.`,
+      code: 'APPROVAL_REQUIRED',
+      error: 'Invoices from Billing need an approved batch (Settings → Invoice defaults). Create a billing batch and send it for approval.',
     });
   }
-  const unpriced = bookings.find((b) => !b.total_amount || Number(b.total_amount) <= 0);
-  if (unpriced) {
-    return res.status(400).json({
-      error: `Booking ${unpriced.booking_code} has no amount entered. Open it and enter the amount before invoicing.`,
-    });
-  }
-
-  const consolidating = bookings.length > 1 && !input.separateInvoices;
-  if (consolidating && !vendor.consolidation_allowed) {
-    return res.status(400).json({
-      error: `${vendor.vendor_name} is not configured for consolidated invoices. ` +
-        `Either enable "Consolidation allowed" on the vendor, or tick "Separate invoice per booking".`,
-    });
-  }
-
-  // Each booking stores the GST treatment it was priced with, and the booking
-  // form lets that differ from the vendor's default per job. Putting taxed and
-  // untaxed bookings on one invoice has no right answer, so say so rather than
-  // silently picking one of them.
-  const treatments = new Set(
-    bookings.map((b) => `${b.tax_mode ?? vendor.tax_mode}@${Number(b.tax_rate ?? vendor.tax_rate)}`)
-  );
-  if (consolidating && treatments.size > 1) {
-    return res.status(400).json({
-      error:
-        'The selected bookings were not all priced the same way — some carry GST and some do not, ' +
-        'or the rates differ. Tick "Separate invoice per booking", or edit the bookings so they agree.',
-    });
-  }
-
-  const template = vendor.invoice_template_id
-    ? q.get<any>('SELECT * FROM invoice_templates WHERE id = @id AND is_active = 1',
-        { id: vendor.invoice_template_id })
-    : null;
-
-  if (vendor.invoice_template_id && !template) {
-    return res.status(400).json({
-      error: `The invoice template assigned to ${vendor.vendor_name} is missing or deactivated. ` +
-        `Reassign one under Settings → Invoice Templates.`,
-    });
-  }
-  if (template && template.mode === 'single' && consolidating) {
-    return res.status(400).json({
-      error: `Template "${template.name}" only supports one booking per invoice. ` +
-        `Tick "Separate invoice per booking", or assign a consolidated template to ${vendor.vendor_name}.`,
-    });
-  }
-
-  const invoiceDate = input.invoiceDate ?? new Date().toISOString().slice(0, 10);
-  const fy = financialYearFor(invoiceDate);
-  if (!fy) {
-    return res.status(400).json({
-      error: `No financial year is configured for ${invoiceDate}. Add one under Settings → Financial Years.`,
-    });
-  }
-
-  const groups = consolidating ? [bookings] : bookings.map((b) => [b]);
-  const outcomes: GenerateOutcome[] = [];
-  const allWarnings: string[] = [];
-
-  try {
-    for (const group of groups) {
-      // Taken from the bookings so a "without GST" booking stays without GST.
-      const taxMode = ((group[0].tax_mode ?? vendor.tax_mode) ?? 'IGST') as TaxMode;
-      const taxRate = Number(group[0].tax_rate ?? vendor.tax_rate ?? 0);
-      const totals = consolidate(group, taxMode, taxRate);
-      // For a counter booking the invoice is addressed to the customer, not to
-      // the reserved Direct Customer record the booking hangs off.
-      const billTo = resolveBillTo(vendor, group);
-
-      // Reserve the number + write the DB rows atomically, then render the file.
-      const reserved = getDb().transaction(() => {
-        const { invoiceNumber } = buildInvoiceNumber({
-          prefix: vendor.invoice_prefix || 'GTT',
-          format: vendor.invoice_number_format || '{PREFIX}/{FY}/{SEQ:5}',
-          vendorCode: vendor.code,
-          perVendorSequence: /\{VENDOR\}/.test(vendor.invoice_number_format ?? ''),
-          financialYear: fy,
-          invoiceDate,
-        });
-
-        const dueDate = new Date(invoiceDate + 'T00:00:00');
-        dueDate.setDate(dueDate.getDate() + Number(vendor.payment_terms_days ?? 30));
-
-        const info = q.run(
-          `INSERT INTO invoices (invoice_number, vendor_id, template_id, financial_year_id, invoice_date,
-              due_date, period_from, period_to, booking_count, taxable_amount, tax_mode, tax_rate,
-              cgst, sgst, igst, tax_amount, non_taxable_amount, discount, total_amount,
-              paid_amount, outstanding_amount, status, revision, notes, generated_by,
-              bill_to_name, bill_to_address, bill_to_gstin, bill_to_mobile)
-           VALUES (@number, @vendorId, @templateId, @fyId, @date, @due, @pFrom, @pTo, @count,
-              @taxable, @taxMode, @taxRate, @cgst, @sgst, @igst, @tax, @nonTaxable, @discount,
-              @total, 0, @total, 'GENERATED', 1, @notes, @uid,
-              @billToName, @billToAddress, @billToGstin, @billToMobile)`,
-          {
-            number: invoiceNumber,
-            vendorId: vendor.id,
-            templateId: template?.id ?? null,
-            fyId: fy.id,
-            date: invoiceDate,
-            due: dueDate.toISOString().slice(0, 10),
-            pFrom: input.periodFrom || group[0].travel_date,
-            pTo: input.periodTo || group[group.length - 1].travel_date,
-            count: group.length,
-            taxable: totals.taxableAmount,
-            taxMode: totals.taxMode,
-            taxRate: totals.taxRate,
-            cgst: totals.cgst, sgst: totals.sgst, igst: totals.igst,
-            tax: totals.taxAmount,
-            nonTaxable: totals.nonTaxableAmount,
-            discount: totals.discount,
-            total: totals.totalAmount,
-            notes: input.notes,
-            uid: req.user!.id,
-            billToName: billTo.name,
-            billToAddress: billTo.address,
-            billToGstin: billTo.gstin,
-            billToMobile: billTo.mobile,
-          }
-        );
-        const invoiceId = Number(info.lastInsertRowid);
-
-        group.forEach((b, i) => {
-          q.run(
-            `INSERT INTO invoice_items (invoice_id, booking_id, line_no, particular, qty, rate, amount)
-             VALUES (@inv, @bk, @line, @particular, @qty, @rate, @amount)`,
-            {
-              inv: invoiceId, bk: b.id, line: i + 1,
-              particular: [b.duty_type, b.pickup_location && `${b.pickup_location} to ${b.drop_location ?? '-'}`]
-                .filter(Boolean).join(' — ') || 'Trip charges',
-              qty: b.extra_km || null,
-              rate: b.extra_km_rate || null,
-              amount: round2(Number(b.taxable_amount ?? 0)),
-            }
-          );
-          q.run(
-            `UPDATE bookings SET billing_status = 'INVOICED', updated_at = datetime('now') WHERE id = @id`,
-            { id: b.id }
-          );
-        });
-
-        return { invoiceId, invoiceNumber };
-      })();
-
-      // Render outside the transaction — file IO must not hold a DB lock.
-      const doc = await produceDocument({
-        vendor, template,
-        invoiceRow: {
-          invoiceNumber: reserved.invoiceNumber,
-          invoiceDate,
-          documentTitle: template?.document_title ?? vendor.document_title ?? 'Tax Invoice',
-          periodFrom: input.periodFrom || group[0].travel_date,
-          periodTo: input.periodTo || group[group.length - 1].travel_date,
-          amountInWords: amountInWords(totals.totalAmount),
-          notes: input.notes,
-        },
-        bookings: group,
-        billing: { ...totals },
-        fyCode: fy.code,
-      });
-
-      q.run(
-        `UPDATE invoices SET file_path = @p, file_type = @t, updated_at = datetime('now') WHERE id = @id`,
-        { p: doc.filePath, t: doc.fileType, id: reserved.invoiceId }
-      );
-      q.run(
-        `INSERT INTO invoice_revisions (invoice_id, revision, file_path, total_amount, reason, created_by)
-         VALUES (@id, 1, @p, @total, 'Initial generation', @uid)`,
-        { id: reserved.invoiceId, p: doc.filePath, total: totals.totalAmount, uid: req.user!.id }
-      );
-
-      allWarnings.push(...doc.warnings);
-      outcomes.push({
-        invoiceId: reserved.invoiceId,
-        invoiceNumber: reserved.invoiceNumber,
-        filePath: doc.filePath,
-        fileType: doc.fileType,
-        total: totals.totalAmount,
-        warnings: doc.warnings,
-      });
-
-      audit(req, 'INVOICE_GENERATED', {
-        entityType: 'invoice', entityId: reserved.invoiceId,
-        description: `${reserved.invoiceNumber} for ${vendor.vendor_name} — ${group.length} booking(s), ₹${totals.totalAmount}`,
-        meta: { bookingIds: group.map((b) => b.id), template: template?.name ?? 'built-in PDF' },
-      });
-    }
-  } catch (err: any) {
-    return res.status(500).json({
-      error: `Invoice generation failed: ${err.message}`,
-      partial: outcomes,
-    });
-  }
-
-  res.status(201).json({
-    ok: true,
-    invoices: outcomes,
-    warnings: Array.from(new Set(allWarnings)),
-    message: outcomes.length === 1
-      ? `Invoice ${outcomes[0].invoiceNumber} generated successfully.`
-      : `${outcomes.length} invoices generated successfully.`,
-  });
+  const r = await generateInvoices(req.body as GenerateInput, req);
+  res.status(r.status).json(r.body);
 });
 
 // ---------------------------------------------------------------------------

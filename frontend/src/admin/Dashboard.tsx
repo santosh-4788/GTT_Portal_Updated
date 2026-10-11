@@ -1,664 +1,415 @@
-import { useEffect, useState } from 'react';
+/**
+ * Dashboard — the business at a glance, for a chosen period.
+ *
+ * Every figure comes from GET /api/dashboard/overview, which counts each one
+ * the way its own module does, so a tile's number is the number of rows the
+ * tile opens. "Period" figures follow the date range; backlog figures (what is
+ * waiting, what is owed) are always as of now.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, Cell,
+  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart,
 } from 'recharts';
 import { api, errorMessage } from '../lib/api';
-import { inr, inrShort, dmy, monthLabel, humanise } from '../lib/format';
+import { inr, inrShort, dmy, dmyTime, monthLabel } from '../lib/format';
 import { useCountUp } from '../lib/animate';
-import { Loading, ErrorState, StatCard, StatusBadge, EmptyState, SectionCard } from '../components/ui';
-import {
-  IconVendors, IconBookings, IconReports, IconBilling,
-  IconInvoices, IconPayments, IconAudit, IconPlus,
-  IconMail, IconPhone, IconRoad, IconUsers,
-} from '../components/icons';
 import { useAuth } from '../lib/auth';
+import { ErrorState, StatusBadge, EmptyState } from '../components/ui';
+import { DateRange, Kpi, presetRange, DataTable } from '../components/data';
+import {
+  IconInbox, IconRoute, IconCheck, IconClose, IconInvoices, IconPayments, IconRupee, IconWarning,
+  IconBilling, IconCar, IconIdCard, IconVendors, IconSparkle, IconArrowRight, IconPlus, IconReports,
+  IconCalendar,
+} from '../components/icons';
 
-/* One accent, stepped in lightness. Categorical charts previously mixed the
-   accent with gold, which read as two meanings where there was only one. */
-const SERIES = ['#1CA3DE', '#0E82B8', '#0C6791', '#37ACDD', '#72C6EA', '#0F5474', '#A9DCF4', '#0F4560'];
-
-const TOOLTIP = {
-  contentStyle: {
-    borderRadius: 10,
-    border: '1px solid #E3E8EF',
-    fontSize: 12,
-    padding: '8px 10px',
-    boxShadow: '0 8px 28px -14px rgba(16,28,43,.32)',
-  },
-  labelStyle: { color: '#46586C', fontWeight: 600, marginBottom: 2 },
-  cursor: { fill: 'rgba(28,163,222,.06)' },
+const C = {
+  invoiced: '#2A5698', collected: '#12996A', outstanding: '#C1810E', trips: '#3465AD',
+  cancelled: '#DC3A2B', grid: '#E3E8EF', axis: '#7A8CA0', converted: '#12996A', received: '#9DB7DD',
 };
-
-const AXIS = { tick: { fontSize: 11, fill: '#7A8CA0' }, axisLine: false, tickLine: false } as const;
-
-/* --------------------------------------------------------------------------
-   The customer journey, on the dashboard.
-
-   How a job reached us matters operationally: a WhatsApp enquiry is answered
-   in the chat, an email enquiry gets a reply, a walk-in is already agreed. So
-   the sources are shown as their own row rather than folded into one "new
-   bookings" figure.
-   -------------------------------------------------------------------------- */
+const TOOLTIP = {
+  contentStyle: { borderRadius: 10, border: '1px solid #E3E8EF', fontSize: 12, padding: '8px 10px', boxShadow: '0 8px 28px -14px rgba(16,28,43,.32)' },
+  labelStyle: { color: '#46586C', fontWeight: 600, marginBottom: 2 },
+  cursor: { fill: 'rgba(52,101,173,.06)' },
+};
+const AXIS = { tick: { fontSize: 11, fill: C.axis }, axisLine: false, tickLine: false } as const;
 
 const SOURCE_LABEL: Record<string, string> = {
-  EMAIL: 'Email enquiries',
-  WHATSAPP: 'WhatsApp enquiries',
-  PORTAL: 'Portal bookings',
-  WALKIN: 'Walk-in / phone',
-  VENDOR: 'Vendor bookings',
+  EMAIL: 'Email', WHATSAPP: 'WhatsApp', PORTAL: 'Portal', WALKIN: 'Walk-in / phone', VENDOR: 'Vendor',
+};
+const PHASE_TONE: Record<string, string> = {
+  Enquiry: 'border-warn-100 bg-warn-50/60', Booking: 'border-brand-100 bg-brand-50/60',
+  Billing: 'border-ok-100 bg-ok-50/50', Closed: 'border-ink-200 bg-ink-50',
 };
 
-const SOURCE_ICON: Record<string, JSX.Element> = {
-  EMAIL: <IconMail />,
-  WHATSAPP: <IconPhone />,
-  PORTAL: <IconUsers />,
-  WALKIN: <IconRoad />,
-  VENDOR: <IconVendors />,
-};
-
-/** One line of "n things are waiting on you", linked to the list that has them. */
-function WaitingRow({
-  label, value, to, tone,
-}: {
-  label: string; value: number; to: string; tone: 'warn' | 'brand' | 'ok' | 'danger';
-}) {
-  const dot: Record<string, string> = {
-    warn: 'bg-warn-500', brand: 'bg-brand-500', ok: 'bg-ok-500', danger: 'bg-danger-500',
-  };
-  return (
-    <Link
-      to={to}
-      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
-        value > 0 ? 'bg-ink-50 hover:bg-ink-100' : 'opacity-55'
-      }`}
-    >
-      <span className={`h-2 w-2 shrink-0 rounded-full ${value > 0 ? dot[tone] : 'bg-ink-300'}`} />
-      <span className="min-w-0 flex-1 truncate text-sm text-ink-700">{label}</span>
-      <span className="shrink-0 text-lg font-bold tabular-nums text-ink-900">{value}</span>
-    </Link>
-  );
-}
-
-/** A stat whose number animates up on load. */
-function CountStat(props: Parameters<typeof StatCard>[0] & { count?: number; money?: boolean }) {
-  const { count, money, value, ...rest } = props;
-  const animated = useCountUp(count ?? 0);
-  if (count === undefined) return <StatCard {...rest} value={value} />;
-  return <StatCard {...rest} value={money ? inrShort(animated) : Math.round(animated).toLocaleString('en-IN')} />;
+function Count({ value, money }: { value: number; money?: boolean }) {
+  const v = useCountUp(Number(value) || 0);
+  return <>{money ? inrShort(v) : Math.round(v).toLocaleString('en-IN')}</>;
 }
 
 export default function Dashboard() {
-  const [data, setData] = useState<any>(null);
-  const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
+  const [range, setRange] = useState(() => presetRange('month'));
+  const [vendorId, setVendorId] = useState('');
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [d, setD] = useState<any>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
     setError('');
     try {
-      const res = await api.get('/dashboard');
-      setData(res.data);
+      const { data } = await api.get('/dashboard/overview', { params: { ...range, vendorId: vendorId || undefined } });
+      setD(data);
     } catch (err) {
-      setError(errorMessage(err));
+      setError(errorMessage(err, 'The dashboard could not be loaded.'));
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [range, vendorId]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    api.get('/vendors/options').then((r) => setVendors(r.data.data ?? [])).catch(() => {});
+  }, []);
 
-  useEffect(() => { load(); }, []);
-
-  if (error) return <ErrorState message={error} onRetry={load} />;
-  if (!data) return <Loading variant="cards" label="Loading your dashboard…" />;
-
-  const c = data.cards;
-  const trend = (data.monthlyTrend ?? []).map((r: any) => ({ ...r, label: monthLabel(r.month) }));
-  const invoiced = (data.monthlyInvoiced ?? []).map((r: any) => ({ ...r, label: monthLabel(r.month) }));
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  const trend = useMemo(() => (d?.trend ?? []).map((t: any) => ({ ...t, label: monthLabel(t.month) })), [d]);
+  const conversion = useMemo(() => (d?.conversion ?? []).map((c: any) => ({ ...c, label: SOURCE_LABEL[c.source] ?? c.source })), [d]);
+  const phases = useMemo(() => {
+    const out: Record<string, any[]> = {};
+    for (const s of d?.stages ?? []) (out[s.phase] ??= []).push(s);
+    return out;
+  }, [d]);
+
+  if (error && !d) return <ErrorState message={error} onRetry={load} />;
+
+  const t = d?.totals ?? {};
+  const n = d?.now ?? {};
+  const go = (to: string) => () => navigate(to);
+  const rq = `from=${range.from}&to=${range.to}`;
 
   return (
     <div className="page">
-      {/* ---------------- header ---------------- */}
+      {/* --------------------------------------------------------- header */}
       <header className="page-head animate-fade-down">
-        <div>
+        <div className="min-w-0">
           <p className="eyebrow">{today}</p>
           <h1 className="page-title mt-1">{greeting}, {user?.fullName?.split(' ')[0]}</h1>
           <p className="page-sub">
-            {c.todays_travel > 0
-              ? `${c.todays_travel} trip${c.todays_travel === 1 ? '' : 's'} travelling today.`
-              : 'No trips scheduled for today.'}
-            {c.pending_billing_count > 0 &&
-              ` ${c.pending_billing_count} booking${c.pending_billing_count === 1 ? '' : 's'} waiting to be billed.`}
+            {d
+              ? `${n.new_enquiries} new enquir${n.new_enquiries === 1 ? 'y' : 'ies'} waiting · ${n.awaiting_assignment} trip(s) need a vehicle · ${inr(n.outstanding)} outstanding.`
+              : 'Loading the latest figures…'}
           </p>
         </div>
         <div className="page-actions">
-          <Link to="/admin/bookings/new" className="btn-primary">
-            <IconPlus className="h-4 w-4" /> New Booking
-          </Link>
-          <Link to="/admin/billing" className="btn-outline">Billing</Link>
+          {can('bookings.create') && <button className="btn-primary btn-sm" onClick={go('/admin/trips?new=1')}><IconPlus className="h-3.5 w-3.5" /> New trip</button>}
+          {can('bookings.view') && <button className="btn-outline btn-sm" onClick={go('/admin/trips')}><IconRoute className="h-3.5 w-3.5" /> Manage trips</button>}
+          {can('billing.view') && <button className="btn-outline btn-sm" onClick={go('/admin/billing')}><IconBilling className="h-3.5 w-3.5" /> Generate invoices</button>}
+          {can('payments.create') && <button className="btn-outline btn-sm" onClick={go('/admin/payments?new=1')}><IconPayments className="h-3.5 w-3.5" /> Record payment</button>}
+          {can('reports.view') && <button className="btn-outline btn-sm" onClick={go(`/admin/reports?report=monthly-summary&${rq}`)}><IconReports className="h-3.5 w-3.5" /> Reports</button>}
         </div>
       </header>
 
-      {/* ---------------- what is waiting on somebody ---------------- */}
-      {data.journey?.new_inquiries > 0 && (
-        <Link
-          to="/admin/trips?status=INQUIRY"
-          className="animate-fade-up group flex flex-wrap items-center gap-4 rounded-xl border border-warn-200 bg-warn-50 p-4 transition-all duration-200 ease-smooth hover:border-warn-300 hover:shadow-raised sm:p-5"
-        >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-warn-500 text-white">
-            <IconMail className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-md font-semibold text-ink-900">
-              {data.journey.new_inquiries} customer enquir{data.journey.new_inquiries === 1 ? 'y' : 'ies'} waiting
-            </p>
-            <p className="mt-0.5 text-sm text-ink-600">
-              Nobody has picked {data.journey.new_inquiries === 1 ? 'it' : 'them'} up yet. Each already has a Trip ID.
-            </p>
-          </div>
-          <span className="btn-dark btn-sm shrink-0 transition-transform duration-200 group-hover:translate-x-0.5">
-            Open Trips →
-          </span>
-        </Link>
-      )}
+      {/* ---------------------------------------------------------- filters */}
+      <div className="card flex flex-wrap items-center gap-3 p-3">
+        <DateRange from={range.from} to={range.to} onChange={setRange} allowAll={false} label="Period" />
+        <select className="input h-9 w-auto text-[13px]" value={vendorId} onChange={(e) => setVendorId(e.target.value)} aria-label="Vendor">
+          <option value="">All vendors &amp; customers</option>
+          {vendors.map((v) => <option key={v.id} value={v.id}>{v.code === 'DIRECT' ? 'Walk-in customers' : v.vendor_name}</option>)}
+        </select>
+        {loading && <span className="text-xs text-ink-400">Updating…</span>}
+        <p className="ml-auto text-xs text-ink-400">Period figures follow the dates; backlog figures are as of now.</p>
+      </div>
 
-      {/* ---------------- the one thing to act on ---------------- */}
-      {c.pending_billing_count > 0 && (
-        <Link
-          to="/admin/billing"
-          className="animate-fade-up group flex flex-wrap items-center gap-4 rounded-xl border border-brand-200 bg-brand-50 p-4 transition-all duration-200 ease-smooth hover:border-brand-300 hover:shadow-raised sm:p-5"
-        >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-600 text-white">
-            <IconBilling className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-md font-semibold text-ink-900">
-              {c.pending_billing_count} booking{c.pending_billing_count === 1 ? '' : 's'} ready for billing
-            </p>
-            <p className="mt-0.5 text-sm text-ink-600">
-              {inr(c.pending_billing_amount)} across {data.pendingByVendor?.length ?? 0} vendor
-              {data.pendingByVendor?.length === 1 ? '' : 's'} — select and generate in one step.
-            </p>
-          </div>
-          <span className="btn-primary btn-sm shrink-0 transition-transform duration-200 group-hover:translate-x-0.5">
-            Generate invoices →
-          </span>
-        </Link>
-      )}
-
-      {/* ---------------- money ---------------- */}
-      <section className="flex flex-col gap-3">
-        <h2 className="eyebrow">Money</h2>
-        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <CountStat label="Billed this month" count={Number(c.month_billing)} money value=""
-            icon={<IconReports />} sub={`${c.month_bookings} booking${c.month_bookings === 1 ? '' : 's'}`} />
-          <CountStat label="Total invoiced" count={Number(c.total_invoiced_amount)} money value=""
-            tone="brand" icon={<IconInvoices />} sub={`${c.total_invoices} invoices raised`}
-            onClick={() => navigate('/admin/invoices')} />
-          <CountStat label="Received" count={Number(c.paid_amount)} money value=""
-            tone="success" icon={<IconPayments />} sub="Paid to date"
-            onClick={() => navigate('/admin/payments')} />
-          <CountStat label="Outstanding" count={Number(c.outstanding_amount)} money value=""
-            tone={Number(c.outstanding_amount) > 0 ? 'danger' : 'default'} icon={<IconAudit />}
-            sub={`${c.pending_payment_count} invoice${c.pending_payment_count === 1 ? '' : 's'} unpaid`}
-            onClick={() => navigate('/admin/billing')} />
-        </div>
-      </section>
-
-      {/* ---------------- operations ---------------- */}
-      <section className="flex flex-col gap-3">
-        <h2 className="eyebrow">Operations</h2>
-        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <CountStat label="Active vendors" count={Number(c.total_vendors)} value=""
-            icon={<IconVendors />} sub="Currently billable" onClick={() => navigate('/admin/vendors')} />
-          <CountStat label="Booked today" count={Number(c.todays_bookings)} value=""
-            icon={<IconBookings />} sub={`${c.todays_travel} travelling today`}
-            onClick={() => navigate('/admin/bookings')} />
-          <CountStat label="Awaiting billing" count={Number(c.pending_billing_count)} value=""
-            tone={c.pending_billing_count > 0 ? 'warning' : 'default'} icon={<IconBilling />}
-            sub={inr(c.pending_billing_amount)} onClick={() => navigate('/admin/billing')} />
-          <CountStat label="Invoiced bookings" count={Number(c.invoiced_bookings)} value=""
-            tone="success" icon={<IconInvoices />} sub="Closed out"
-            onClick={() => navigate('/admin/bookings?billingStatus=INVOICED')} />
-        </div>
-      </section>
-
-      {/* ---------------- where the work came from ---------------- */}
-      {data.journey && (
-        <section className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="eyebrow">Customer enquiries</h2>
-            <Link to="/admin/trips" className="text-xs font-semibold text-brand-700 hover:text-brand-800">
-              Open Trips →
+      {/* ---------------------------------------------------------- insights */}
+      {d?.insights?.length > 0 && (
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {d.insights.map((x: any) => (
+            <Link key={x.title} to={x.link}
+              className={`card card-hover flex items-start gap-3 p-4 ${x.tone === 'danger' ? 'border-danger-100' : x.tone === 'warn' ? 'border-warn-100' : ''}`}>
+              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
+                x.tone === 'danger' ? 'bg-danger-50 text-danger-600' : x.tone === 'warn' ? 'bg-warn-50 text-warn-600' : 'bg-brand-50 text-brand-600'}`}>
+                {x.tone === 'info' ? <IconSparkle className="h-4 w-4" /> : <IconWarning className="h-4 w-4" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink-900">{x.title}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-ink-500">{x.body}</span>
+              </span>
+              <IconArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-ink-300" />
             </Link>
-          </div>
-
-          <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {data.journey.bySource.map((s: any) => (
-              <StatCard
-                key={s.source}
-                label={SOURCE_LABEL[s.source] ?? s.source}
-                value={Number(s.count).toLocaleString('en-IN')}
-                tone={s.openInquiries > 0 ? 'warning' : 'default'}
-                icon={SOURCE_ICON[s.source]}
-                sub={
-                  s.openInquiries > 0
-                    ? `${s.openInquiries} not picked up · ${s.last7} in the last 7 days`
-                    : `${s.last7} in the last 7 days`
-                }
-                onClick={() => navigate(`/admin/trips?source=${s.source}`)}
-              />
-            ))}
-          </div>
-
-          <div className="grid gap-5 xl:grid-cols-[1.4fr,1fr]">
-            <SectionCard
-              title="Latest enquiries"
-              subtitle="Every channel, newest first"
-              actions={<Link to="/admin/trips" className="btn-outline btn-sm">All trips</Link>}
-              bodyClass=""
-            >
-              {data.journey.recent.length === 0 ? (
-                <EmptyState
-                  title="No customer enquiries yet"
-                  body="Enquiries from the website and WhatsApp will appear here the moment they arrive."
-                />
-              ) : (
-                <div className="table-wrap">
-                  <table className="tbl">
-                    <thead>
-                      <tr><th>Trip ID</th><th>From</th><th>Customer</th><th>Journey</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                      {data.journey.recent.map((t: any) => (
-                        <tr
-                          key={t.id}
-                          className="cursor-pointer"
-                          onClick={() => navigate(`/admin/trips?search=${encodeURIComponent(t.trip_id)}`)}
-                        >
-                          <td className="font-mono text-[11px] font-semibold text-brand-700">{t.trip_id}</td>
-                          <td className="text-xs text-ink-600">{SOURCE_LABEL[t.inquiry_source] ?? t.inquiry_source}</td>
-                          <td className="max-w-[10rem] truncate text-sm text-ink-800">{t.customer_name || '—'}</td>
-                          <td className="max-w-[14rem] truncate text-xs text-ink-600">
-                            {[t.pickup_location, t.drop_location].filter(Boolean).join('  →  ') || '—'}
-                            <span className="block text-2xs text-ink-400">{dmy(t.travel_date)}</span>
-                          </td>
-                          <td><StatusBadge value={t.booking_status} /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard title="Waiting on us" subtitle="The journey, from enquiry to invoice">
-              <div className="space-y-2.5">
-                <WaitingRow
-                  label="Enquiries not picked up" value={data.journey.new_inquiries}
-                  to="/admin/trips?status=INQUIRY" tone="warn"
-                />
-                <WaitingRow
-                  label="Confirmed, no vehicle allotted" value={data.journey.awaiting_vehicle}
-                  to="/admin/trips?status=CONFIRMED" tone="brand"
-                />
-                <WaitingRow
-                  label="Completed, not yet invoiced" value={data.journey.awaiting_invoice}
-                  to="/admin/trips?status=COMPLETED" tone="ok"
-                />
-                <WaitingRow
-                  label="Emails not yet delivered" value={data.journey.undelivered_emails}
-                  to="/admin/settings" tone="danger"
-                />
-              </div>
-              <p className="mt-4 border-t border-ink-200 pt-3 text-xs text-ink-500">
-                {data.journey.customer_accounts} customer{data.journey.customer_accounts === 1 ? '' : 's'} can sign
-                in to the website to follow their own trips and download invoices.
-              </p>
-            </SectionCard>
-          </div>
+          ))}
         </section>
       )}
 
-      {/* ---------------- performance ratios ---------------- */}
-      {data.ratios && data.ratios.total > 0 && (
-        <section className="flex flex-col gap-3">
-          <h2 className="eyebrow">Performance</h2>
+      {d && (
+        <>
+          {/* ------------------------------------------------- operations KPIs */}
+          <section>
+            <p className="eyebrow mb-2.5">Operations · this period</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+              <Kpi label="Enquiries received" value={<Count value={t.enquiries} />} tone="warning" icon={<IconInbox className="h-4 w-4" />}
+                sub={`${t.enquiries_converted} converted · ${t.conversion_rate}%`} onClick={go(`/admin/trips?createdFrom=${range.from}&createdTo=${range.to}`)} />
+              <Kpi label="Trips" value={<Count value={t.trips} />} tone="brand" icon={<IconRoute className="h-4 w-4" />}
+                sub={`Travel dates in the period`} onClick={go(`/admin/trips?from=${range.from}&to=${range.to}`)} />
+              <Kpi label="Confirmed (open)" value={<Count value={t.confirmed} />} tone="violet" icon={<IconCalendar className="h-4 w-4" />}
+                sub="Confirmed, allotted or on trip" onClick={go(`/admin/trips?stage=CONFIRMED_ALL&from=${range.from}&to=${range.to}`)} />
+              <Kpi label="Completed" value={<Count value={t.completed} />} tone="success" icon={<IconCheck className="h-4 w-4" />}
+                sub={`Trip value ${inrShort(t.trip_value)}`} onClick={go(`/admin/trips?status=COMPLETED&from=${range.from}&to=${range.to}`)} />
+              <Kpi label="Cancelled" value={<Count value={t.cancelled} />} tone="danger" icon={<IconClose className="h-4 w-4" />}
+                sub="Cancelled or no-show" onClick={go(`/admin/trips?stage=CANCELLED&from=${range.from}&to=${range.to}`)} />
+              <Kpi label="Need a vehicle" value={<Count value={n.awaiting_assignment} />} tone={n.awaiting_assignment ? 'warning' : 'default'} icon={<IconCar className="h-4 w-4" />}
+                sub={n.unallotted_soon ? `${n.unallotted_soon} travel today or tomorrow` : 'Confirmed, not allotted (now)'} onClick={go('/admin/trips?stage=AWAITING_ASSIGNMENT&sort=travel_asc')} />
+            </div>
+          </section>
 
-          <div className="grid gap-5 xl:grid-cols-[1fr,1.4fr]">
-            <SectionCard title="Booking outcomes" subtitle={`${data.ratios.total} bookings, excluding drafts`}>
-              {/* one stacked bar reads faster than four separate numbers */}
-              <div className="flex h-3 w-full overflow-hidden rounded-full bg-ink-100">
-                {data.ratios.byStatus.filter((s: any) => s.count > 0).map((s: any) => (
-                  <div
-                    key={s.status}
-                    title={`${humanise(s.status)} — ${s.count} (${s.percent}%)`}
-                    style={{ width: `${s.percent}%` }}
-                    className={
-                      s.status === 'COMPLETED' ? 'bg-ok-500'
-                      : s.status === 'CONFIRMED' ? 'bg-brand-500'
-                      : s.status === 'CANCELLED' ? 'bg-danger-500'
-                      : 'bg-warn-500'
-                    }
-                  />
-                ))}
+          {/* ------------------------------------------------------ money KPIs */}
+          <section>
+            <p className="eyebrow mb-2.5">Money</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+              <Kpi label="Invoiced" value={<Count value={t.invoiced} money />} tone="brand" icon={<IconInvoices className="h-4 w-4" />}
+                sub={`${t.invoices} invoice(s) in the period`} footnote={inr(t.invoiced)} onClick={go(`/admin/invoices?from=${range.from}&to=${range.to}`)} />
+              <Kpi label="Received" value={<Count value={t.received} money />} tone="success" icon={<IconRupee className="h-4 w-4" />}
+                sub={`${t.receipts} payment(s) in the period`} footnote={inr(t.received)} onClick={go(`/admin/payments?from=${range.from}&to=${range.to}`)} />
+              <Kpi label="Outstanding" value={<Count value={n.outstanding} money />} tone="warning" icon={<IconPayments className="h-4 w-4" />}
+                sub={`${n.unpaid_invoices} unpaid invoice(s), now`} footnote={inr(n.outstanding)} onClick={go('/admin/invoices?status=UNPAID')} />
+              <Kpi label="Overdue" value={<Count value={n.overdue} money />} tone={n.overdue ? 'danger' : 'default'} icon={<IconWarning className="h-4 w-4" />}
+                sub={`${n.overdue_invoices} past the due date`} footnote={inr(n.overdue)} onClick={go('/admin/invoices?status=OVERDUE')} />
+              <Kpi label="Ready to bill" value={<Count value={n.billing_queue} />} tone="teal" icon={<IconBilling className="h-4 w-4" />}
+                sub={`${inrShort(n.billing_queue_amount)} in the billing queue`} onClick={go('/admin/billing')} />
+              <Kpi label="Fleet available" value={`${n.available_vehicles}/${n.active_vehicles}`} tone="violet" icon={<IconIdCard className="h-4 w-4" />}
+                sub={`${n.available_drivers}/${n.active_drivers} drivers · ${n.active_vendors} vendors`} onClick={go('/admin/fleet?tab=availability')} />
+            </div>
+          </section>
+
+          {/* ------------------------------------------------- workflow backlog */}
+          <section>
+            <p className="eyebrow mb-2.5">Waiting on the office · now</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+              <Kpi label="Pending allocation" value={<Count value={n.awaiting_assignment} />} tone={n.awaiting_assignment ? 'warning' : 'default'} icon={<IconCar className="h-4 w-4" />}
+                sub="Confirmed, no vehicle / driver" onClick={go('/admin/trips?stage=AWAITING_ASSIGNMENT&sort=travel_asc')} />
+              <Kpi label="Pending completion" value={<Count value={n.awaiting_completion ?? 0} />} tone={n.awaiting_completion ? 'warning' : 'default'} icon={<IconCheck className="h-4 w-4" />}
+                sub="Travel day over, not completed" onClick={go(`/admin/trips?stage=CONFIRMED_ALL&to=${new Date(Date.now() - 86400000).toISOString().slice(0, 10)}&sort=travel_asc`)} />
+              <Kpi label="Pending billing" value={<Count value={n.awaiting_billing ?? 0} />} tone={n.awaiting_billing ? 'warning' : 'default'} icon={<IconBilling className="h-4 w-4" />}
+                sub="Completed, billing not confirmed" onClick={go('/admin/trips?stage=AWAITING_BILLING')} />
+              <Kpi label="Pending invoice" value={<Count value={n.awaiting_invoice ?? 0} />} tone="teal" icon={<IconInvoices className="h-4 w-4" />}
+                sub="Billing confirmed, no invoice" onClick={go('/admin/trips?stage=AWAITING_INVOICE')} />
+              <Kpi label="Unallocated receipts" value={<Count value={n.unallocated_receipts ?? 0} money />} tone={n.unallocated_receipts ? 'violet' : 'default'} icon={<IconRupee className="h-4 w-4" />}
+                sub="Received, not set against invoices" footnote={inr(n.unallocated_receipts ?? 0)} onClick={go('/admin/payments?tab=unallocated')} />
+              <Kpi label="Open events" value={<Count value={n.open_events ?? 0} />} tone="brand" icon={<IconCalendar className="h-4 w-4" />}
+                sub="Planned, confirmed or running" onClick={go('/admin/events')} />
+            </div>
+          </section>
+
+          {/* -------------------------------------------------- trip pipeline */}
+          <section className="card p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="card-title">Trip pipeline</h2>
+                <p className="card-sub">Every open trip, by the stage it is in now. Click a stage to work its list.</p>
               </div>
-
-              <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
-                {data.ratios.byStatus.map((s: any) => (
-                  <div key={s.status} className="flex items-baseline gap-2.5">
-                    <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
-                      s.status === 'COMPLETED' ? 'bg-ok-500'
-                      : s.status === 'CONFIRMED' ? 'bg-brand-500'
-                      : s.status === 'CANCELLED' ? 'bg-danger-500'
-                      : 'bg-warn-500'}`} />
-                    <div className="min-w-0">
-                      <dt className="truncate text-xs text-ink-500">{humanise(s.status)}</dt>
-                      <dd className="text-md font-bold tabular-nums text-ink-900">
-                        {s.percent}% <span className="text-xs font-medium text-ink-400">({s.count})</span>
-                      </dd>
-                    </div>
-                  </div>
-                ))}
-              </dl>
-
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                {[
-                  ['Completed', data.ratios.completionRate, 'text-ok-600'],
-                  ['Lost', data.ratios.cancellationRate, 'text-danger-600'],
-                  ['Collected', data.ratios.collectionRate, 'text-brand-700'],
-                ].map(([label, value, tone]) => (
-                  <div key={String(label)} className="rounded-xl bg-ink-50 p-3">
-                    <p className="text-2xs uppercase tracking-wide text-ink-500">{label}</p>
-                    <p className={`mt-1 text-lg font-bold tabular-nums ${tone}`}>{value}%</p>
-                  </div>
-                ))}
-              </div>
-
-              {data.ratios.drafts > 0 && (
-                <p className="mt-4 text-xs text-ink-500">
-                  {data.ratios.drafts} draft{data.ratios.drafts === 1 ? '' : 's'} excluded — drafts are not counted as work.
-                </p>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="Vendor-wise ratio"
-              subtitle="Share of all bookings, and how each account actually performs"
-              bodyClass="p-0"
-            >
-              <div className="table-wrap !rounded-none !border-0 !shadow-none">
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th>Vendor</th>
-                      <th className="text-right">Bookings</th>
-                      <th className="w-40">Share</th>
-                      <th className="text-right">Completed</th>
-                      <th className="text-right">Cancelled</th>
-                      <th className="text-right">Unbilled</th>
-                      <th className="text-right">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.ratios.vendorRatio.map((v: any) => (
-                      <tr key={v.id}>
-                        <td>
-                          <p className="font-medium text-ink-900">{v.name}</p>
-                          <p className="cell-meta">{v.code}</p>
-                        </td>
-                        <td className="td-num td-strong">{v.bookings}</td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-100">
-                              <div className="grad-brand h-full rounded-full transition-all duration-700 ease-smooth"
-                                style={{ width: `${Math.max(3, v.share)}%` }} />
-                            </div>
-                            <span className="w-11 shrink-0 text-right text-xs tabular-nums text-ink-600">{v.share}%</span>
-                          </div>
-                        </td>
-                        <td className="td-num text-ok-600">{v.completionRate}%</td>
-                        <td className={`td-num ${v.cancellationRate > 0 ? 'text-danger-600' : 'text-ink-400'}`}>
-                          {v.cancellationRate}%
-                        </td>
-                        <td className={`td-num ${v.uninvoiced > 0 ? 'text-warn-600' : 'text-ink-400'}`}>
-                          {v.uninvoiced}
-                        </td>
-                        <td className="td-num td-strong">{inrShort(v.amount)}</td>
-                      </tr>
+              <Link to="/admin/trips" className="text-sm font-semibold text-brand-700 hover:underline">Open Trips →</Link>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-4">
+              {['Enquiry', 'Booking', 'Billing', 'Closed'].map((ph) => (
+                <div key={ph} className={`rounded-xl border p-2.5 ${PHASE_TONE[ph]}`}>
+                  <p className="px-1.5 pb-1.5 text-2xs font-bold uppercase tracking-[0.1em] text-ink-500">{ph}</p>
+                  <div className="space-y-1">
+                    {(phases[ph] ?? []).map((s: any) => (
+                      <Link key={s.key} to={`/admin/trips?stage=${s.key}`}
+                        className={`flex items-center justify-between rounded-lg bg-white/80 px-3 py-2 text-sm shadow-xs transition hover:bg-white ${s.count ? '' : 'opacity-60'}`}>
+                        <span className="truncate text-ink-700">{s.label}</span>
+                        <span className="ml-2 font-display text-base font-bold tabular-nums text-ink-900">{s.count}</span>
+                      </Link>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </SectionCard>
-          </div>
-
-          <SectionCard title="Billing pipeline" subtitle="Where confirmed bookings currently sit">
-            <div className="grid gap-4 sm:grid-cols-3">
-              {data.ratios.byBilling.map((b: any) => (
-                <div key={b.status} className="rounded-xl bg-ink-50 p-4">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="text-xs font-semibold text-ink-600">{humanise(b.status)}</p>
-                    <p className="text-lg font-bold tabular-nums text-ink-900">{b.percent}%</p>
                   </div>
-                  <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white">
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 ease-smooth ${
-                        b.status === 'INVOICED' ? 'bg-ok-500' : b.status === 'READY' ? 'bg-brand-500' : 'bg-warn-500'
-                      }`}
-                      style={{ width: `${b.percent}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-2xs text-ink-500">{b.count} booking{b.count === 1 ? '' : 's'}</p>
                 </div>
               ))}
             </div>
-          </SectionCard>
-        </section>
-      )}
+          </section>
 
-      {/* ---------------- charts ---------------- */}
-      <div className="grid gap-5 xl:grid-cols-2">
-        <SectionCard title="Booking trend" subtitle="Bookings per month over the last year">
-          {trend.length === 0 ? (
-            <EmptyState title="No booking history yet" body="Create your first booking to see the trend." />
-          ) : (
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={trend} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gBookings" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#1CA3DE" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="#1CA3DE" stopOpacity={0.01} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#EDF1F6" vertical={false} />
-                <XAxis dataKey="label" {...AXIS} />
-                {/* wide enough for two-digit counts — 34px clipped "12" to "2" */}
-                <YAxis {...AXIS} allowDecimals={false} width={44} />
-                <Tooltip {...TOOLTIP} formatter={(v: any) => [v, 'Bookings']} />
-                <Area
-                  type="monotone" dataKey="bookings" stroke="#0E82B8" strokeWidth={2.25}
-                  fill="url(#gBookings)"
-                  dot={{ r: 0 }} activeDot={{ r: 4, strokeWidth: 2, stroke: '#fff' }}
-                  animationDuration={700}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </SectionCard>
+          {/* --------------------------------------------------------- charts */}
+          <div className="grid gap-4 xl:grid-cols-3">
+            <section className="card p-4 xl:col-span-2">
+              <h2 className="card-title">Revenue, collections and outstanding</h2>
+              <p className="card-sub">Last 12 months · invoiced and collected per month, and what was owed at each month end.</p>
+              <div className="mt-3 h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke={C.grid} />
+                    <XAxis dataKey="label" {...AXIS} />
+                    <YAxis {...AXIS} tickFormatter={(v) => inrShort(v)} width={56} />
+                    <Tooltip {...TOOLTIP} formatter={(v: any, name: any) => [inr(v), name]} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="invoiced" name="Invoiced" fill={C.invoiced} radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="collected" name="Collected" fill={C.collected} radius={[4, 4, 0, 0]} maxBarSize={22} />
+                    <Line type="linear" dataKey="outstanding" name="Outstanding at month end" stroke={C.outstanding} strokeWidth={2} dot={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+            <section className="card p-4">
+              <h2 className="card-title">Enquiry conversion by channel</h2>
+              <p className="card-sub">Enquiries received in the period, and how many became bookings.</p>
+              {conversion.length === 0 ? (
+                <EmptyState title="No enquiries in this period" />
+              ) : (
+                <div className="mt-3 h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={conversion} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 0 }}>
+                      <CartesianGrid horizontal={false} stroke={C.grid} />
+                      <XAxis type="number" {...AXIS} allowDecimals={false} />
+                      <YAxis type="category" dataKey="label" {...AXIS} width={96} />
+                      <Tooltip {...TOOLTIP} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="received" name="Received" fill={C.received} radius={[0, 4, 4, 0]} maxBarSize={16} />
+                      <Bar dataKey="converted" name="Converted" fill={C.converted} radius={[0, 4, 4, 0]} maxBarSize={16} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </section>
+          </div>
 
-        <SectionCard title="Invoiced vs. received" subtitle="Monthly invoice value against payments collected">
-          {invoiced.length === 0 ? (
-            <EmptyState title="No invoices yet" body="Generate an invoice from the Billing screen." />
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={invoiced} margin={{ top: 6, right: 6, left: -8, bottom: 0 }} barGap={3}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#EDF1F6" vertical={false} />
+          <section className="card p-4">
+            <h2 className="card-title">Trips per month</h2>
+            <p className="card-sub">Trips run (by travel date) and cancellations, last 12 months.</p>
+            <div className="mt-3 h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke={C.grid} />
                   <XAxis dataKey="label" {...AXIS} />
-                  <YAxis {...AXIS} tickFormatter={(v) => inrShort(v)} width={54} />
-                  <Tooltip {...TOOLTIP} formatter={(v: any, n: any) => [inr(v), n === 'amount' ? 'Invoiced' : 'Received']} />
-                  <Bar dataKey="amount" fill="#0E82B8" radius={[3, 3, 0, 0]} maxBarSize={26} animationDuration={600} />
-                  <Bar dataKey="paid" fill="#A9DCF4" radius={[3, 3, 0, 0]} maxBarSize={26} animationDuration={600} />
+                  <YAxis {...AXIS} allowDecimals={false} width={36} />
+                  <Tooltip {...TOOLTIP} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="trips" name="Trips" stackId="t" fill={C.trips} maxBarSize={26} />
+                  <Bar dataKey="cancelled" name="Cancelled" stackId="t" fill={C.cancelled} radius={[4, 4, 0, 0]} maxBarSize={26} />
                 </BarChart>
               </ResponsiveContainer>
-              <div className="mt-3 flex items-center gap-5 text-xs text-ink-600">
-                <span className="flex items-center gap-1.5">
-                  <i className="h-2.5 w-2.5 rounded-sm bg-brand-600" /> Invoiced
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <i className="h-2.5 w-2.5 rounded-sm bg-brand-200" /> Received
-                </span>
-              </div>
-            </>
-          )}
-        </SectionCard>
-
-        <SectionCard title="Top vendors" subtitle="By billed value">
-          {data.vendorBookings?.length === 0 ? (
-            <EmptyState title="No vendor activity yet" />
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={data.vendorBookings} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#EDF1F6" horizontal={false} />
-                <XAxis type="number" {...AXIS} tickFormatter={(v) => inrShort(v)} />
-                <YAxis type="category" dataKey="name" width={116}
-                  tick={{ fontSize: 11, fill: '#46586C' }} axisLine={false} tickLine={false} />
-                <Tooltip {...TOOLTIP} formatter={(v: any) => [inr(v), 'Billed']} />
-                <Bar dataKey="amount" radius={[0, 4, 4, 0]} maxBarSize={22} animationDuration={650}>
-                  {data.vendorBookings.map((_: any, i: number) => (
-                    <Cell key={i} fill={SERIES[i % SERIES.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="Awaiting billing"
-          subtitle="Grouped by vendor — an invoice covers one vendor"
-          actions={<Link to="/admin/billing" className="btn-outline btn-sm">Open billing</Link>}
-          bodyClass="p-2.5"
-        >
-          {data.pendingByVendor?.length === 0 ? (
-            <EmptyState title="Nothing pending" body="Every completed booking has been invoiced." />
-          ) : (
-            <div className="stagger flex flex-col gap-1">
-              {data.pendingByVendor.map((v: any) => (
-                <Link
-                  key={v.vendor_id}
-                  to={`/admin/billing?vendorId=${v.vendor_id}`}
-                  className="group flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors duration-150 hover:bg-brand-50"
-                >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink-900 font-mono text-2xs font-bold text-white">
-                    {v.code?.slice(0, 3)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-ink-900">{v.vendor_name}</p>
-                    <p className="text-xs text-ink-500">
-                      {v.count} booking{v.count === 1 ? '' : 's'}
-                      {v.consolidation_allowed ? ' · can consolidate' : ' · one invoice each'}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-sm font-bold tabular-nums text-ink-900">{inr(v.amount)}</span>
-                </Link>
-              ))}
             </div>
-          )}
-        </SectionCard>
-      </div>
+          </section>
 
-      {/* ---------------- activity ---------------- */}
-      <div className="grid gap-5 xl:grid-cols-2">
-        <SectionCard
-          title="Recent bookings"
-          actions={<Link to="/admin/bookings" className="link text-xs">View all →</Link>}
-          bodyClass="p-0"
-        >
-          {data.recentBookings?.length === 0 ? (
-            <EmptyState title="No bookings yet"
-              action={<Link to="/admin/bookings/new" className="btn-primary btn-sm">Create the first booking</Link>} />
-          ) : (
-            <ul className="divide-y divide-ink-100">
-              {data.recentBookings.map((b: any) => (
-                <li key={b.id}>
-                  <Link to={`/admin/bookings/${b.id}/edit`}
-                    className="flex items-center gap-3 px-5 py-3 transition-colors duration-150 hover:bg-ink-50">
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2">
-                        <span className="cell-code">{b.booking_code}</span>
-                        <span className="truncate text-sm font-medium text-ink-900">{b.passenger_name}</span>
-                      </p>
-                      <p className="cell-meta truncate">
-                        {b.vendor_name} · {dmy(b.travel_date)} · {b.pickup_location}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-semibold tabular-nums text-ink-900">{inr(b.total_amount)}</p>
-                      <StatusBadge value={b.billing_status} className="mt-1" />
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
+          {/* ------------------------------------------------ today & upcoming */}
+          <div className="grid gap-4 xl:grid-cols-2">
+            <TripList title="Today's trips" empty="No trips today." rows={d.todaysTrips} link="/admin/trips?stage=CONFIRMED_ALL&sort=travel_asc" />
+            <TripList title="Next 7 days" empty="Nothing booked for the coming week." rows={d.upcoming} link="/admin/trips?stage=CONFIRMED_ALL&sort=travel_asc" showDate />
+          </div>
 
-        <SectionCard
-          title={data.overdue?.length > 0 ? 'Overdue payments' : 'Recent invoices'}
-          subtitle={data.overdue?.length > 0 ? 'Past their due date' : undefined}
-          actions={
-            <Link to={data.overdue?.length > 0 ? '/admin/payments' : '/admin/invoices'} className="link text-xs">
-              View all →
-            </Link>
-          }
-          bodyClass="p-0"
-        >
-          {data.overdue?.length > 0 ? (
-            <ul className="divide-y divide-ink-100">
-              {data.overdue.map((i: any) => (
-                <li key={i.id}>
-                  <Link to={`/admin/invoices/${i.id}`}
-                    className="flex items-center gap-3 px-5 py-3 transition-colors duration-150 hover:bg-danger-50/50">
-                    <div className="min-w-0 flex-1">
-                      <p className="cell-code truncate">{i.invoice_number}</p>
-                      <p className="cell-meta truncate">{i.vendor_name} · due {dmy(i.due_date)}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-semibold tabular-nums text-danger-600">{inr(i.outstanding_amount)}</p>
-                      <p className="text-2xs text-danger-600">{i.days_overdue} days overdue</p>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : data.recentInvoices?.length === 0 ? (
-            <EmptyState title="No invoices yet" body="Invoices appear here once you generate them from Billing." />
-          ) : (
-            <ul className="divide-y divide-ink-100">
-              {data.recentInvoices.map((i: any) => (
-                <li key={i.id}>
-                  <Link to={`/admin/invoices/${i.id}`}
-                    className="flex items-center gap-3 px-5 py-3 transition-colors duration-150 hover:bg-ink-50">
-                    <div className="min-w-0 flex-1">
-                      <p className="cell-code truncate">{i.invoice_number}</p>
-                      <p className="cell-meta truncate">
-                        {i.vendor_name} · {dmy(i.invoice_date)} · {i.booking_count} booking{i.booking_count === 1 ? '' : 's'}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-semibold tabular-nums text-ink-900">{inr(i.total_amount)}</p>
-                      <StatusBadge value={i.status} className="mt-1" />
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-      </div>
+          {/* -------------------------------------------------- vendor money */}
+          <section className="table-wrap">
+            <div className="card-head">
+              <div>
+                <h2 className="card-title">Vendor-wise summary</h2>
+                <p className="card-sub">Receivables only. Trips and invoiced/received follow the period; unbilled and outstanding are as of now.</p>
+              </div>
+              <Link to={`/admin/reports?report=vendor-billing&${rq}`} className="text-sm font-semibold text-brand-700 hover:underline">Vendor reports →</Link>
+            </div>
+            <DataTable
+              rows={d.vendors} rowKey={(r: any) => r.id}
+              onRowClick={(r: any) => navigate(`/admin/invoices?vendorId=${r.id}`)}
+              empty={<EmptyState title="No vendor activity" icon={<IconVendors className="h-5 w-5" />} />}
+              columns={[
+                { key: 'vendor_name', header: 'Vendor', render: (r: any) => <span className="font-medium text-ink-900">{r.code === 'DIRECT' ? 'Walk-in customers' : r.vendor_name}</span> },
+                { key: 'trips', header: 'Trips', align: 'right' },
+                { key: 'unbilled', header: 'Unbilled', align: 'right', render: (r: any) => inr(r.unbilled) },
+                { key: 'invoiced', header: 'Invoiced', align: 'right', render: (r: any) => inr(r.invoiced) },
+                { key: 'received', header: 'Received', align: 'right', render: (r: any) => <span className="text-ok-700">{inr(r.received)}</span> },
+                { key: 'outstanding', header: 'Outstanding', align: 'right', render: (r: any) => <span className="font-semibold text-ink-900">{inr(r.outstanding)}</span> },
+                { key: 'overdue', header: 'Overdue', align: 'right', render: (r: any) => r.overdue > 0 ? <span className="font-semibold text-danger-600">{inr(r.overdue)}</span> : '—' },
+              ]}
+            />
+          </section>
+
+          {/* ---------------------------------------------- recent activity */}
+          <div className="grid gap-4 xl:grid-cols-2">
+            <section className="card">
+              <div className="card-head">
+                <h2 className="card-title">Latest enquiries</h2>
+                <Link to="/admin/trips?stage=NEW" className="text-sm font-semibold text-brand-700 hover:underline">All new →</Link>
+              </div>
+              <ul className="divide-y divide-ink-100">
+                {d.recentEnquiries.length === 0 && <li className="px-5 py-6 text-sm text-ink-500">No enquiries yet.</li>}
+                {d.recentEnquiries.map((e: any) => (
+                  <li key={e.id}>
+                    <Link to={`/admin/trips?open=${e.id}`} className="flex items-center gap-3 px-5 py-2.5 hover:bg-ink-50">
+                      <span className="cell-code w-36 shrink-0">{e.trip_id}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-ink-800">{e.customer}</span>
+                        <span className="block truncate text-xs text-ink-500">{SOURCE_LABEL[e.inquiry_source]} · {[e.pickup_location, e.drop_location].filter(Boolean).join(' → ')}</span>
+                      </span>
+                      <span className="hidden shrink-0 text-xs text-ink-400 sm:block">{dmyTime(e.created_at)}</span>
+                      <StatusBadge value={e.booking_status} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <section className="card">
+              <div className="card-head">
+                <h2 className="card-title">Latest invoices</h2>
+                <Link to="/admin/invoices" className="text-sm font-semibold text-brand-700 hover:underline">All invoices →</Link>
+              </div>
+              <ul className="divide-y divide-ink-100">
+                {d.recentInvoices.length === 0 && <li className="px-5 py-6 text-sm text-ink-500">No invoices yet.</li>}
+                {d.recentInvoices.map((i: any) => {
+                  const overdue = i.status !== 'PAID' && i.status !== 'CANCELLED' && i.outstanding_amount > 0 && i.due_date && i.due_date < new Date().toISOString().slice(0, 10);
+                  return (
+                    <li key={i.id}>
+                      <Link to={`/admin/invoices/${i.id}`} className="flex items-center gap-3 px-5 py-2.5 hover:bg-ink-50">
+                        <span className="cell-code w-36 shrink-0">{i.invoice_number}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm text-ink-800">{i.billed_to}</span>
+                        <span className="shrink-0 text-xs text-ink-400">{dmy(i.invoice_date)}</span>
+                        <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-ink-900">{inr(i.total_amount)}</span>
+                        <StatusBadge value={overdue ? 'OVERDUE' : i.status} />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          </div>
+
+        </>
+      )}
     </div>
   );
 }
+
+function TripList({ title, rows, empty, link, showDate }: { title: string; rows: any[]; empty: string; link: string; showDate?: boolean }) {
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2 className="card-title">{title} <span className="ml-1 text-sm font-normal text-ink-400">{rows.length}</span></h2>
+        <Link to={link} className="text-sm font-semibold text-brand-700 hover:underline">Open →</Link>
+      </div>
+      <ul className="divide-y divide-ink-100">
+        {rows.length === 0 && <li className="px-5 py-6 text-sm text-ink-500">{empty}</li>}
+        {rows.map((r) => (
+          <li key={r.id}>
+            <Link to={`/admin/trips?open=${r.id}`} className="flex items-center gap-3 px-5 py-2.5 hover:bg-ink-50">
+              <span className="w-16 shrink-0 text-center">
+                <span className="block font-display text-sm font-bold tabular-nums text-ink-900">{r.reporting_time || '—'}</span>
+                {showDate && <span className="block text-2xs text-ink-500">{dmy(r.travel_date)}</span>}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-ink-800">{r.customer} <span className="text-ink-400">· {r.trip_id}</span></span>
+                <span className="block truncate text-xs text-ink-500">{[r.pickup_location, r.drop_location].filter(Boolean).join(' → ')}</span>
+              </span>
+              <span className="hidden min-w-[7rem] shrink-0 text-right text-xs sm:block">
+                {r.vehicle_number
+                  ? <><span className="block font-mono text-ink-700">{r.vehicle_number}</span><span className="block text-ink-400">{r.driver_name}</span></>
+                  : <span className="font-semibold text-warn-700">No vehicle yet</span>}
+              </span>
+              <StatusBadge value={r.booking_status} />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+

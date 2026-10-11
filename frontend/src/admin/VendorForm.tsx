@@ -13,7 +13,23 @@ const EMPTY = {
   invoiceNumberFormat: '{PREFIX}/{FY}/{SEQ:5}', documentTitle: 'Tax Invoice',
   taxMode: 'IGST', taxRate: '5', tollParkingTaxable: false, consolidationAllowed: false,
   billingCycle: 'PER_TRIP', bookingMessageFormat: 'AUTO', notes: '',
+  aliases: '', companyType: 'CORPORATE',
+  /** Extra label words per field, one comma-separated line each. */
+  parserLabels: {} as Record<string, string>, noReference: false,
 };
+
+/** Fields a company's own label words can be added for. */
+const PARSER_FIELDS: [string, string, string][] = [
+  ['vendorBookingRef', 'Booking reference', 'e.g. duty no, job id'],
+  ['passengerName', 'Passenger name', 'e.g. guest, traveller name'],
+  ['vehicleType', 'Vehicle', 'e.g. car required'],
+  ['dutyType', 'Duty type', 'e.g. usage, package'],
+  ['travelDateRaw', 'Travel date', 'e.g. duty on, journey date'],
+  ['reportingTime', 'Reporting time', 'e.g. pick time'],
+  ['pickupAddress', 'Pickup address', 'e.g. boarding point'],
+  ['dropAddress', 'Drop address', 'e.g. drop point, release at'],
+  ['remarks', 'Remarks', 'e.g. special note'],
+];
 type Form = typeof EMPTY;
 
 function Card({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
@@ -67,6 +83,15 @@ export default function VendorForm() {
             consolidationAllowed: !!v.consolidation_allowed,
             billingCycle: v.billing_cycle, bookingMessageFormat: v.booking_message_format ?? 'AUTO',
             notes: v.notes ?? '',
+            aliases: v.aliases ?? '', companyType: v.company_type ?? 'CORPORATE',
+            ...(() => {
+              try {
+                const c = v.parser_config ? JSON.parse(v.parser_config) : {};
+                const labels: Record<string, string> = {};
+                for (const [k, list] of Object.entries(c.labels ?? {})) labels[k] = Array.isArray(list) ? (list as string[]).join(', ') : String(list);
+                return { parserLabels: labels, noReference: !!c.noReference };
+              } catch { return { parserLabels: {}, noReference: false }; }
+            })(),
           });
         }
       } catch (err) {
@@ -106,8 +131,15 @@ export default function VendorForm() {
     if (!validate()) return;
     setSaving(true);
     try {
+      const labels: Record<string, string[]> = {};
+      for (const [k, v] of Object.entries(form.parserLabels)) {
+        const list = v.split(',').map((x) => x.trim()).filter(Boolean);
+        if (list.length) labels[k] = list;
+      }
+      const { parserLabels: _pl, noReference: _nr, ...rest } = form;
       const payload = {
-        ...form,
+        ...rest,
+        parserConfig: Object.keys(labels).length || form.noReference ? { labels, noReference: form.noReference } : null,
         paymentTermsDays: Number(form.paymentTermsDays) || 0,
         taxRate: Number(form.taxRate) || 0,
         invoiceTemplateId: form.invoiceTemplateId ? Number(form.invoiceTemplateId) : null,
@@ -117,7 +149,7 @@ export default function VendorForm() {
       toast.success(isEdit ? `${form.vendorName} updated` : `${form.vendorName} added`);
       navigate('/admin/vendors');
     } catch (err) {
-      toast.error('Could not save the vendor', errorMessage(err));
+      toast.error('Could not save the company', errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -140,9 +172,9 @@ export default function VendorForm() {
     <div className="page mx-auto max-w-5xl pb-24">
       <div className="page-head animate-fade-down">
         <div>
-          <h1 className="page-title">{isEdit ? 'Edit vendor' : 'Add vendor'}</h1>
+          <h1 className="page-title">{isEdit ? 'Edit company' : 'Add company'}</h1>
           <p className="page-sub">
-            Vendor settings drive how bookings are priced and how their invoice is produced.
+            A company (corporate client or travel partner) — how its bookings are read, priced and invoiced.
           </p>
         </div>
         <Link to="/admin/vendors" className="btn-outline btn-sm">Cancel</Link>
@@ -166,18 +198,18 @@ export default function VendorForm() {
         </div>
       )}
 
-      <Card title="Vendor identity">
+      <Card title="Company identity">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Vendor code" required error={errors.code}
+          <Field label="Company code" required error={errors.code}
             hint="Short code used in invoice numbers and folder names">
             <input className={`input uppercase ${errors.code ? 'input-error' : ''}`}
               value={form.code} onChange={set('code')} placeholder="WAGON" />
           </Field>
-          <Field label="Vendor name" required error={errors.vendorName}>
+          <Field label="Company name" required error={errors.vendorName}>
             <input className={`input ${errors.vendorName ? 'input-error' : ''}`}
               value={form.vendorName} onChange={set('vendorName')} />
           </Field>
-          <Field label="Company name (as it appears on the invoice)">
+          <Field label="Legal name (as it appears on the invoice)">
             <input className="input" value={form.companyName} onChange={set('companyName')} />
           </Field>
           <Field label="Contact person">
@@ -200,8 +232,20 @@ export default function VendorForm() {
               <option value="INACTIVE">Inactive</option>
             </select>
           </Field>
+          <Field label="Type">
+            <select className="input" value={form.companyType} onChange={set('companyType')}>
+              <option value="CORPORATE">Corporate client</option>
+              <option value="TRAVEL_AGENT">Travel partner / agent</option>
+            </select>
+          </Field>
+          <Field label="Other names (aliases)" className="lg:col-span-2"
+            hint="Comma-separated — how the company signs its messages, e.g. Shreedestinations, Shree Destinations">
+            <input className="input" value={form.aliases} onChange={set('aliases')} />
+          </Field>
         </div>
       </Card>
+
+      <ParserRules form={form} setForm={setForm} vendorId={isEdit ? Number(id) : null} />
 
       <Card title="Address & statutory details">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -279,7 +323,7 @@ export default function VendorForm() {
           </Field>
 
           <Field label="Booking message format" className="lg:col-span-3"
-            hint="Helps the paste-parser recognise which vendor sent a message">
+            hint="Helps the paste-parser recognise which company sent a message">
             <select className="input" value={form.bookingMessageFormat} onChange={set('bookingMessageFormat')}>
               <option value="AUTO">Auto-detect</option>
               <option value="BOOKING_HASH">“Booking #” format</option>
@@ -335,10 +379,82 @@ export default function VendorForm() {
           <Link to="/admin/vendors" className="btn-outline btn-sm">Cancel</Link>
           <button onClick={save} className="btn-primary" disabled={saving}>
             {saving && <Spinner className="h-4 w-4" />}
-            {isEdit ? 'Save changes' : 'Add vendor'}
+            {isEdit ? 'Save changes' : 'Add company'}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The company's own words for booking-message fields. They are added to the
+ * built-in labels (never replacing them), so a new message format is set up
+ * here rather than in code. A sample can be tried before saving.
+ */
+function ParserRules({ form, setForm, vendorId }: { form: Form; setForm: React.Dispatch<React.SetStateAction<Form>>; vendorId: number | null }) {
+  const [sample, setSample] = useState('');
+  const [result, setResult] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const setLabel = (k: string) => (e: any) => setForm((f) => ({ ...f, parserLabels: { ...f.parserLabels, [k]: e.target.value } }));
+
+  const test = async () => {
+    setBusy(true); setErr('');
+    const labels: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(form.parserLabels)) {
+      const list = v.split(',').map((x) => x.trim()).filter(Boolean);
+      if (list.length) labels[k] = list;
+    }
+    try {
+      const url = vendorId ? `/vendors/${vendorId}/parser-test` : '/bookings/parse-message';
+      const { data } = await api.post(url, { message: sample, parserConfig: { labels, noReference: form.noReference } });
+      setResult(data);
+    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  };
+
+  return (
+    <Card title="Booking message rules" sub="Built-in labels already cover the common formats (Booking #, For, Vehicle group, Reporting address, Drop address…). Add this company's own words only if its messages use different ones.">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {PARSER_FIELDS.map(([k, label, ph]) => (
+          <Field key={k} label={label}>
+            <input className="input" value={form.parserLabels[k] ?? ''} onChange={setLabel(k)} placeholder={ph} />
+          </Field>
+        ))}
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-ink-200 p-3 text-sm lg:col-span-3">
+          <input type="checkbox" className="check mt-0.5" checked={form.noReference}
+            onChange={(e) => setForm((f) => ({ ...f, noReference: e.target.checked }))} />
+          <span>
+            <span className="font-semibold text-ink-900">This company never sends a booking reference</span>
+            <span className="block text-xs text-ink-600">Its messages are then not flagged as missing a reference. Duplicate checks fall back to passenger, date and pickup.</span>
+          </span>
+        </label>
+      </div>
+      <div className="mt-4 space-y-2">
+        <Field label="Try a sample message">
+          <textarea className="input min-h-[110px] font-mono text-xs" value={sample} onChange={(e) => { setSample(e.target.value); setResult(null); }} />
+        </Field>
+        <button className="btn-outline btn-sm" onClick={test} disabled={busy || !sample.trim()}>{busy && <Spinner className="h-4 w-4" />} Read it with these rules</button>
+        {err && <p className="text-sm text-danger-600">{err}</p>}
+        {result && (
+          <div className="table-wrap">
+            <table className="tbl">
+              <thead><tr><th>Field</th><th>Value</th><th>Status</th></tr></thead>
+              <tbody>
+                {Object.entries(result.fieldStatus ?? {}).map(([k, st]) => (
+                  <tr key={k}>
+                    <td className="text-xs font-semibold text-ink-600">{k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())}</td>
+                    <td className="text-sm">{result.fields?.[k] !== undefined ? String(result.fields[k]) : '—'}</td>
+                    <td><span className={st === 'ok' ? 'badge-ok' : st === 'missing' ? 'badge-warn' : st === 'confirm' ? 'badge-violet' : 'badge-neutral'}>
+                      {st === 'ok' ? 'Found' : st === 'missing' ? 'Missing' : st === 'confirm' ? 'Check' : 'Not applicable'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {result.unmatchedLines?.length > 0 && <p className="p-3 text-xs text-warn-700">Not recognised: {result.unmatchedLines.join(' | ')}</p>}
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }

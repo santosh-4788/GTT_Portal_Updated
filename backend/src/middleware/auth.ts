@@ -11,6 +11,8 @@ export interface AuthUser {
   roleName: string;
   permissions: string[];
   mustChangePassword: boolean;
+  /** The portal language this person chose: 'en' or 'hi'. */
+  language: string;
 }
 
 declare global {
@@ -32,7 +34,7 @@ export function signToken(userId: number): string {
 
 export function loadUser(userId: number): AuthUser | null {
   const row = q.get<any>(
-    `SELECT u.id, u.email, u.full_name, u.is_active, u.must_change_password,
+    `SELECT u.id, u.email, u.full_name, u.is_active, u.must_change_password, u.language,
             r.code AS role_code, r.name AS role_name
        FROM users u JOIN roles r ON r.id = u.role_id
       WHERE u.id = @id`,
@@ -57,6 +59,7 @@ export function loadUser(userId: number): AuthUser | null {
     roleName: row.role_name,
     permissions: perms,
     mustChangePassword: !!row.must_change_password,
+    language: row.language === 'hi' ? 'hi' : 'en',
   };
 }
 

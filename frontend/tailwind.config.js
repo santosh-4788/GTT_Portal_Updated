@@ -17,17 +17,30 @@ export default {
       colors: {
         /* The single accent. 500 is the brand cyan from the logo; 600/700 are
            the only ones dark enough for text on white (4.5:1 and above). */
+        /* Read from CSS variables so the staff portal can carry its own,
+           more formal accent (see `html.theme-admin` in index.css) while the
+           public website keeps the logo cyan. The defaults below are the
+           cyan; `<alpha-value>` keeps opacity utilities like bg-brand-50/45. */
         brand: {
-          50: '#ECF7FD',
-          100: '#D3EDFA',
-          200: '#A9DCF4',
-          300: '#72C6EA',
-          400: '#37ACDD',
-          500: '#1CA3DE',
-          600: '#0E82B8',
-          700: '#0C6791',
-          800: '#0F5474',
-          900: '#0F4560',
+          50: 'rgb(var(--brand-50) / <alpha-value>)',
+          100: 'rgb(var(--brand-100) / <alpha-value>)',
+          200: 'rgb(var(--brand-200) / <alpha-value>)',
+          300: 'rgb(var(--brand-300) / <alpha-value>)',
+          400: 'rgb(var(--brand-400) / <alpha-value>)',
+          500: 'rgb(var(--brand-500) / <alpha-value>)',
+          600: 'rgb(var(--brand-600) / <alpha-value>)',
+          700: 'rgb(var(--brand-700) / <alpha-value>)',
+          800: 'rgb(var(--brand-800) / <alpha-value>)',
+          900: 'rgb(var(--brand-900) / <alpha-value>)',
+        },
+
+        /* Two more status hues, so every stage of a trip reads differently:
+           violet = allotted, teal = under way. Status only, never decoration. */
+        violet: {
+          50: '#F3F0FD', 100: '#E6E0FA', 500: '#6D55D8', 600: '#5940C2', 700: '#4731A0',
+        },
+        teal: {
+          50: '#E7F7F6', 100: '#C9EDEA', 500: '#13968C', 600: '#0E7C74', 700: '#0B635D',
         },
 
         /* Neutral ramp. 50 is the app background, white is the card surface. */
@@ -124,7 +137,7 @@ export default {
           '0 2px 4px rgba(16,28,43,.07), 0 14px 26px -10px rgba(16,28,43,.28), 0 34px 60px -34px rgba(16,28,43,.5)',
         pop:
           '0 3px 6px rgba(16,28,43,.09), 0 22px 42px -14px rgba(16,28,43,.36), 0 60px 100px -50px rgba(16,28,43,.6)',
-        focus: '0 0 0 3px rgba(28,163,222,.18)',
+        focus: '0 0 0 3px rgb(var(--brand-500) / .18)',
       },
 
       /* --- motion ---------------------------------------------------------

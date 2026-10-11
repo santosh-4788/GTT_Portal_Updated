@@ -5,6 +5,7 @@ import { inr } from '../lib/format';
 import { Loading, EmptyState, ErrorState, StatusBadge, ConfirmDialog } from '../components/ui';
 import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/auth';
+import { ExportButton } from '../components/data';
 
 export default function Vendors() {
   const [rows, setRows] = useState<any[]>([]);
@@ -59,7 +60,10 @@ export default function Vendors() {
             Each vendor carries its own invoice template, tax rules, billing cycle and numbering.
           </p>
         </div>
-        {can('vendors.create') && <Link to="/admin/vendors/new" className="btn-primary btn-sm">+ Add Vendor</Link>}
+        <div className="page-actions">
+          <ExportButton url="/vendors/export" params={{ search, status }} />
+          {can('vendors.create') && <Link to="/admin/vendors/new" className="btn-primary btn-sm">+ Add Vendor</Link>}
+        </div>
       </div>
 
       <div className="filters animate-fade-up">

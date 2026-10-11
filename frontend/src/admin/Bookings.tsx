@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../lib/api';
 import { inr, dmy } from '../lib/format';
+import { statusLabel } from '../lib/format';
 import { Loading, EmptyState, ErrorState, StatusBadge, Pagination, ConfirmDialog } from '../components/ui';
 import { IconEdit, IconDuplicate, IconTrash, IconPlus } from '../components/icons';
 import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/auth';
+import { ExportButton } from '../components/data';
 import { DateField } from '../components/DateTimeField';
 
 const LIMIT = 50;
@@ -153,7 +155,7 @@ export default function Bookings() {
           </p>
         </div>
         <div className="page-actions">
-          <button onClick={exportCsv} className="btn-outline btn-sm" disabled={!rows.length}>Export CSV</button>
+          <ExportButton url="/bookings/export" params={applied} />
           {can('bookings.create') && (
             <Link to="/admin/bookings/new" className="btn-primary btn-sm">+ New Booking</Link>
           )}
@@ -242,14 +244,14 @@ export default function Bookings() {
                     checked={selected.size === rows.length && rows.length > 0} onChange={toggleAll} />
                 </th>
                 <th>Booking</th>
-                <th>Vendor</th>
+                <th>Company / source</th>
                 <th>Travel</th>
                 <th>Passenger</th>
                 <th>Route</th>
                 <th>Vehicle</th>
                 <th className="text-right">Amount</th>
-                <th>Billing</th>
-                <th>Invoice</th>
+                <th>Status</th>
+                <th>Invoice · payment</th>
                 <th className="sticky-end text-right">Actions</th>
               </tr>
             </thead>
@@ -282,8 +284,8 @@ export default function Bookings() {
                     )}
                   </td>
                   <td>
-                    <p className="text-sm font-medium text-ink-800">{r.vendor_name}</p>
-                    <p className="text-[11px] text-ink-400">{r.vendor_code}</p>
+                    <p className="text-sm font-medium text-ink-800">{r.vendor_code === 'DIRECT' ? (r.customer_name || 'Direct customer') : r.vendor_name}</p>
+                    <p className="text-[11px] text-ink-400">{r.vendor_code === 'DIRECT' ? ({ WALKIN: 'Walk-in', WHATSAPP: 'Phone / WhatsApp', EMAIL: 'Email', PORTAL: 'Website' } as Record<string, string>)[r.inquiry_source] ?? 'Direct' : r.event_id ? 'Event' : 'Company'}</p>
                   </td>
                   <td className="whitespace-nowrap">
                     <p className="text-sm text-ink-800">{dmy(r.travel_date)}</p>
@@ -302,22 +304,36 @@ export default function Bookings() {
                     )}
                   </td>
                   <td className="whitespace-nowrap">
-                    <p className="text-xs text-ink-700">{r.vehicle_type || '—'}</p>
+                    <p className="text-xs text-ink-700">{r.category_name || r.vehicle_type || '—'}</p>
+                    {r.driver_name && <p className="text-[11px] text-ink-500">{r.driver_name}</p>}
                     {r.vehicle_number && <p className="font-mono text-[11px] text-ink-500">{r.vehicle_number}</p>}
                   </td>
                   <td className="whitespace-nowrap text-right font-semibold tabular-nums text-ink-900">
                     {inr(r.total_amount)}
                   </td>
-                  <td><StatusBadge value={r.billing_status} /></td>
+                  <td>
+                    <div className="flex flex-col items-start gap-1">
+                      <StatusBadge value={r.booking_status} />
+                      <span className="text-[11px] text-ink-500">
+                        {r.billing_status === 'INVOICED' ? 'Invoiced' : r.billing_confirmed_at ? 'Billing confirmed' : r.billing_status === 'READY' ? 'Priced' : r.billing_status === 'CANCELLED' ? 'Not billable' : 'Not priced'}
+                      </span>
+                    </div>
+                  </td>
                   <td>
                     {r.invoice_number ? (
-                      <Link to={`/admin/invoices/${r.invoice_id}`} className="font-mono text-[11px] text-brand-600 hover:underline">
-                        {r.invoice_number}
-                      </Link>
-                    ) : <span className="text-xs text-ink-400">—</span>}
+                      <>
+                        <Link to={`/admin/invoices/${r.invoice_id}`} className="font-mono text-[11px] text-brand-600 hover:underline">
+                          {r.invoice_number}
+                        </Link>
+                        <p className={`text-[11px] font-semibold ${r.payment_status === 'OVERDUE' ? 'text-danger-700' : r.payment_status === 'PAID' ? 'text-ok-700' : 'text-warn-700'}`}>
+                          {statusLabel(r.payment_status)}{Number(r.invoice_outstanding) > 0.005 ? ` · ${inr(r.invoice_outstanding)} due` : ''}
+                        </p>
+                      </>
+                    ) : <span className="text-xs text-ink-400">Not invoiced</span>}
                   </td>
                   <td className="sticky-end">
                     <div className="row-actions">
+                      <Link to={`/admin/trips?open=${r.id}`} className="btn-ghost btn-sm" title="Open the trip — allot, complete, bill, activity">Open</Link>
                       <Link to={`/admin/bookings/${r.id}/edit`} className="btn-ghost btn-icon" title="Edit" aria-label="Edit"><IconEdit className="h-4 w-4" /></Link>
                       {can('bookings.create') && (
                         <button onClick={() => duplicate(r.id)} className="btn-ghost btn-icon" title="Duplicate" aria-label="Duplicate"><IconDuplicate className="h-4 w-4" /></button>

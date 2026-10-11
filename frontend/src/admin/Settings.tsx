@@ -1,21 +1,43 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+/**
+ * Settings — genuine system configuration only.
+ *
+ * Fleet and drivers moved to Fleet; vehicle categories, lists and fare rules
+ * to Masters; roles and permissions live with Users. What remains here is how
+ * the business is described, how invoices and emails go out, and the
+ * application-wide switches.
+ */
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '../lib/api';
 import { dmy } from '../lib/format';
-import { Loading, ErrorState, Spinner, Field, ConfirmDialog } from '../components/ui';
+import { Loading, ErrorState, Spinner, Field, PageHeader } from '../components/ui';
+import { Segmented } from '../components/data';
 import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/auth';
 import { EmailPanel } from './SettingsEmail';
-import { DriversPanel } from './SettingsDrivers';
+import { IconCar, IconLayers, IconTemplates, IconUsers, IconCheck } from '../components/icons';
+
+type Tab = 'company' | 'invoice' | 'email' | 'website' | 'access' | 'years';
+
+/** Which setting categories each tab shows, and how each category is introduced. */
+const TABS: { key: Tab; label: string; categories: string[] }[] = [
+  { key: 'company', label: 'Company & bank', categories: ['company', 'bank'] },
+  { key: 'invoice', label: 'Invoices & billing', categories: ['invoice'] },
+  { key: 'email', label: 'Email', categories: ['email'] },
+  { key: 'website', label: 'Website & maps', categories: ['website', 'maps', 'auth'] },
+  { key: 'years', label: 'Financial years', categories: [] },
+  { key: 'access', label: 'More', categories: [] },
+];
 
 const CATEGORY_LABELS: Record<string, { title: string; sub: string }> = {
   company: { title: 'Company details', sub: 'Appears on the public website and on every generated invoice.' },
-  bank: { title: 'Bank details', sub: 'Printed in the invoice footer.' },
-  invoice: { title: 'Invoice defaults', sub: 'Applied to new vendors; each vendor can override these.' },
+  bank: { title: 'Bank details', sub: 'Printed in the payment block of every invoice.' },
+  invoice: { title: 'Invoice and billing defaults', sub: 'Numbering, tax defaults and terms. Each vendor can override the numbering and tax treatment.' },
   website: { title: 'Public website', sub: 'Text shown on the marketing site.' },
+  maps: { title: 'Addresses and distance', sub: 'The free map lookups used for pickup suggestions and distance. The portal stops at the monthly limit.' },
   email: {
     title: 'Email',
-    sub: 'Every message the portal sends — enquiry acknowledgements, trip details and invoices — goes out '
+    sub: 'Every message the portal sends — enquiry acknowledgements, quotations, trip details and invoices — goes out '
       + 'from this address. The App Password is never shown back; leave the dots alone to keep the one already set.',
   },
   auth: {
@@ -26,32 +48,32 @@ const CATEGORY_LABELS: Record<string, { title: string; sub: string }> = {
 };
 
 export default function Settings() {
+  const [params, setParams] = useSearchParams();
+  const tab = (params.get('tab') as Tab) || 'company';
+  const setTab = (t: Tab) => setParams((p) => { const n = new URLSearchParams(p); n.set('tab', t); return n; }, { replace: true });
+
   const [grouped, setGrouped] = useState<Record<string, any[]>>({});
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [years, setYears] = useState<any[]>([]);
-  const [vehicles, setVehicles] = useState<any[]>([]);
-  const [newVehicle, setNewVehicle] = useState({ vehicleNumber: '', vehicleType: '', model: '', seating: '', driverName: '', driverMobile: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [toDelete, setToDelete] = useState<any>(null);
   /** Bumped after a save so the email panel re-reads whether sending now works. */
   const [emailKey, setEmailKey] = useState(0);
   const toast = useToast();
   const { can } = useAuth();
+  const editable = can('settings.update');
 
   const load = async () => {
     setLoading(true);
     setError('');
     try {
-      const [s, fy, v] = await Promise.all([
+      const [s, fy] = await Promise.all([
         api.get('/settings'),
         api.get('/settings/financial-years'),
-        api.get('/settings/vehicles'),
       ]);
       setGrouped(s.data.grouped ?? {});
       setYears(fy.data.data ?? []);
-      setVehicles(v.data.data ?? []);
       setEdits({});
     } catch (err) {
       setError(errorMessage(err));
@@ -87,204 +109,152 @@ export default function Settings() {
     }
   };
 
-  const addVehicle = async () => {
-    try {
-      await api.post('/settings/vehicles', newVehicle);
-      toast.success(`${newVehicle.vehicleNumber} added to the fleet`);
-      setNewVehicle({ vehicleNumber: '', vehicleType: '', model: '', seating: '', driverName: '', driverMobile: '' });
-      load();
-    } catch (err) {
-      toast.error('Could not add the vehicle', errorMessage(err));
+  const dirtyByTab = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const t of TABS) {
+      out[t.key] = Object.keys(edits).filter((k) => t.categories.some((c) => (grouped[c] ?? []).some((s: any) => s.key === k))).length;
     }
-  };
-
-  const removeVehicle = async () => {
-    if (!toDelete) return;
-    try {
-      const { data } = await api.delete(`/settings/vehicles/${toDelete.id}`);
-      toast.success(data.message ?? 'Vehicle removed');
-      setToDelete(null);
-      load();
-    } catch (err) {
-      toast.error('Could not remove the vehicle', errorMessage(err));
-    }
-  };
+    return out;
+  }, [edits, grouped]);
 
   if (loading) return <Loading label="Loading settings…" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   const dirty = Object.keys(edits).length;
+  const current = TABS.find((t) => t.key === tab) ?? TABS[0];
+
+  const renderCategory = (category: string) => {
+    const items = grouped[category] ?? [];
+    if (!items.length) return null;
+    const meta = CATEGORY_LABELS[category] ?? { title: category, sub: '' };
+    return (
+      <section key={category} className="card p-5">
+        <div className="mb-4 border-b border-ink-200 pb-3">
+          <h2 className="font-semibold text-ink-900">{meta.title}</h2>
+          {meta.sub && <p className="mt-0.5 text-xs text-ink-500">{meta.sub}</p>}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {items.map((s: any) => {
+            const value = edits[s.key] ?? s.value ?? '';
+            const long = /address|tagline|heroSubtitle|terms/i.test(s.key);
+            const bool = s.data_type === 'boolean';
+            // The API sends secrets back masked and ignores the mask on save, so
+            // this field can be edited without ever revealing the stored value.
+            const secret = !!s.is_secret;
+            const set = (v: string) => setEdits((p) => ({ ...p, [s.key]: v }));
+            if (bool) {
+              const on = String(value).toLowerCase() === 'true';
+              return (
+                <label key={s.key} className={`option ${on ? 'option-on' : ''} ${long ? 'sm:col-span-2' : ''}`}>
+                  <input type="checkbox" className="check mt-0.5" checked={on} disabled={!editable}
+                    onChange={(e) => set(e.target.checked ? 'true' : 'false')} />
+                  <span>
+                    <span className="block text-sm font-semibold text-ink-900">{s.label ?? s.key}</span>
+                    <span className="block font-mono text-[10px] text-ink-400">{s.key}</span>
+                  </span>
+                </label>
+              );
+            }
+            return (
+              <Field
+                key={s.key}
+                label={s.label ?? s.key}
+                className={long ? 'sm:col-span-2' : ''}
+                hint={
+                  secret
+                    ? (s.is_set ? 'Already set — leave as is to keep it, or type a new one.' : 'Not set yet.')
+                    : <span className="font-mono text-[10px]">{s.key}</span>
+                }
+              >
+                {long ? (
+                  <textarea className="input min-h-[64px] resize-y" value={value} disabled={!editable}
+                    onChange={(e) => set(e.target.value)} />
+                ) : (
+                  <input
+                    className={`input ${secret ? 'font-mono' : ''}`}
+                    value={value}
+                    disabled={!editable}
+                    autoComplete={secret ? 'new-password' : undefined}
+                    spellCheck={secret ? false : undefined}
+                    onChange={(e) => set(e.target.value)}
+                  />
+                )}
+              </Field>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
 
   return (
     <div className="page mx-auto max-w-5xl pb-24">
-      <div className="page-head animate-fade-down">
-        <div>
-          <h1 className="page-title">Settings</h1>
-          <p className="page-sub">
-            Company details, invoice defaults, email, financial years, fleet, drivers and invoice templates.
-          </p>
-        </div>
-        <Link to="/admin/settings/templates" className="btn-primary btn-sm">Invoice Templates →</Link>
-      </div>
+      <PageHeader
+        title="Settings"
+        subtitle="Company details, invoice and billing defaults, email, website and financial years. Fleet and drivers are under Fleet; categories, lists and fare rules under Masters."
+        actions={<Link to="/admin/settings/templates" className="btn-outline btn-sm"><IconTemplates className="h-3.5 w-3.5" /> Invoice templates</Link>}
+      />
 
-      {Object.entries(grouped).map(([category, items]) => {
-        const meta = CATEGORY_LABELS[category] ?? { title: category, sub: '' };
-        return (
-          <section key={category} className="card p-5">
-            <div className="mb-4 border-b border-ink-200 pb-3">
-              <h2 className="font-semibold text-ink-900">{meta.title}</h2>
-              {meta.sub && <p className="mt-0.5 text-xs text-ink-500">{meta.sub}</p>}
-            </div>
-            <div className="stagger grid gap-4 sm:grid-cols-2">
-              {items.map((s: any) => {
-                const value = edits[s.key] ?? s.value ?? '';
-                const long = /address|tagline|heroSubtitle/i.test(s.key);
-                // The API sends secrets back masked and ignores the mask on
-                // save, so this field can be edited without ever revealing the
-                // stored value.
-                const secret = !!s.is_secret;
-                return (
-                  <Field
-                    key={s.key}
-                    label={s.label ?? s.key}
-                    className={long ? 'sm:col-span-2' : ''}
-                    hint={
-                      secret
-                        ? (s.is_set ? 'Already set — leave as is to keep it, or type a new one.' : 'Not set yet.')
-                        : <span className="font-mono text-[10px]">{s.key}</span>
-                    }
-                  >
-                    {long ? (
-                      <textarea className="input min-h-[64px] resize-y" value={value} disabled={!can('settings.update')}
-                        onChange={(e) => setEdits((p) => ({ ...p, [s.key]: e.target.value }))} />
-                    ) : (
-                      <input
-                        className={`input ${secret ? 'font-mono' : ''}`}
-                        value={value}
-                        disabled={!can('settings.update')}
-                        autoComplete={secret ? 'new-password' : undefined}
-                        spellCheck={secret ? false : undefined}
-                        onChange={(e) => setEdits((p) => ({ ...p, [s.key]: e.target.value }))}
-                      />
-                    )}
-                  </Field>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
+      <Segmented<Tab>
+        value={tab} onChange={setTab}
+        options={TABS.map((t) => ({ value: t.key, label: t.label, count: dirtyByTab[t.key] || undefined, alert: true }))}
+      />
 
-      <EmailPanel refreshKey={emailKey} />
+      {current.categories.map(renderCategory)}
 
-      {/* financial years */}
-      <section className="section p-5">
-        <div className="mb-4 border-b border-ink-200 pb-3">
-          <h2 className="font-semibold text-ink-900">Financial years</h2>
-          <p className="mt-0.5 text-xs text-ink-500">
-            The active year drives the <span className="font-mono">{'{FY}'}</span> token in invoice numbers and resets the
-            sequence.
-          </p>
-        </div>
-        <div className="space-y-2">
-          {years.map((y) => (
-            <div key={y.id} className={`flex flex-wrap items-center gap-3 rounded-lg border p-3.5 ${
-              y.is_active ? 'border-brand-300 bg-brand-50' : 'border-ink-200'}`}>
-              <div className="mr-auto">
-                <p className="font-semibold text-ink-900">{y.code}</p>
-                <p className="text-xs text-ink-500">{dmy(y.start_date)} — {dmy(y.end_date)}</p>
+      {tab === 'email' && <EmailPanel refreshKey={emailKey} />}
+
+      {tab === 'years' && (
+        <section className="section p-5">
+          <div className="mb-4 border-b border-ink-200 pb-3">
+            <h2 className="font-semibold text-ink-900">Financial years</h2>
+            <p className="mt-0.5 text-xs text-ink-500">
+              The active year drives the <span className="font-mono">{'{FY}'}</span> token in invoice numbers and resets the
+              sequence.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {years.map((y) => (
+              <div key={y.id} className={`flex flex-wrap items-center gap-3 rounded-lg border p-3.5 ${
+                y.is_active ? 'border-brand-300 bg-brand-50' : 'border-ink-200'}`}>
+                <div className="mr-auto">
+                  <p className="font-semibold text-ink-900">{y.code}</p>
+                  <p className="text-xs text-ink-500">{dmy(y.start_date)} — {dmy(y.end_date)}</p>
+                </div>
+                {y.is_active ? (
+                  <span className="badge bg-brand-600 text-white"><IconCheck className="h-3 w-3" /> Active</span>
+                ) : editable ? (
+                  <button onClick={() => activateYear(y.id, y.code)} className="btn-outline btn-sm">Make active</button>
+                ) : null}
               </div>
-              {y.is_active ? (
-                <span className="badge bg-brand-500 text-white">Active</span>
-              ) : can('settings.update') ? (
-                <button onClick={() => activateYear(y.id, y.code)} className="btn-outline btn-sm">Make active</button>
-              ) : null}
-            </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === 'access' && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[
+            { to: '/admin/users', icon: <IconUsers className="h-5 w-5" />, title: 'Users and roles', body: 'Add staff, reset passwords, and choose exactly what each role may see and do.', perm: can('users.view') },
+            { to: '/admin/settings/templates', icon: <IconTemplates className="h-5 w-5" />, title: 'Invoice templates', body: 'Vendor-specific Excel or Word invoice layouts and their cell mapping.', perm: true },
+            { to: '/admin/fleet', icon: <IconCar className="h-5 w-5" />, title: 'Fleet and drivers', body: 'Moved out of Settings into its own module, with availability and document tracking.', perm: can('fleet.view', 'settings.view') },
+            { to: '/admin/masters', icon: <IconLayers className="h-5 w-5" />, title: 'Masters', body: 'Vehicle categories, fare rules, trip types, payment methods, cancellation reasons and other lists.', perm: can('masters.view', 'vendors.view') },
+          ].filter((x) => x.perm).map((x) => (
+            <Link key={x.to} to={x.to} className="card card-hover flex gap-4 p-5">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">{x.icon}</span>
+              <span>
+                <span className="block font-semibold text-ink-900">{x.title}</span>
+                <span className="mt-1 block text-sm text-ink-500">{x.body}</span>
+              </span>
+            </Link>
           ))}
         </div>
-      </section>
+      )}
 
-      {/* fleet */}
-      <section className="section p-5">
-        <div className="mb-4 border-b border-ink-200 pb-3">
-          <h2 className="font-semibold text-ink-900">Fleet</h2>
-          <p className="mt-0.5 text-xs text-ink-500">
-            Vehicles listed here appear in the booking form and auto-fill the driver details.
-          </p>
-        </div>
-
-        <div className="table-wrap mb-4">
-          <table className="tbl">
-            <thead>
-              <tr><th>Vehicle no.</th><th>Type</th><th>Model</th><th>Seats</th><th>Driver</th><th>Mobile</th><th>Status</th><th></th></tr>
-            </thead>
-            <tbody>
-              {vehicles.map((v) => (
-                <tr key={v.id}>
-                  <td className="font-mono text-sm font-semibold text-ink-900">{v.vehicle_number}</td>
-                  <td className="text-sm text-ink-700">{v.vehicle_type}</td>
-                  <td className="text-sm text-ink-600">{v.model || '—'}</td>
-                  <td className="text-sm text-ink-600">{v.seating || '—'}</td>
-                  <td className="text-sm text-ink-700">{v.driver_name || '—'}</td>
-                  <td className="text-sm text-ink-600">{v.driver_mobile || '—'}</td>
-                  <td>
-                    <span className={`badge ${v.is_active ? 'bg-ok-100 text-ok-600' : 'bg-ink-100 text-ink-600'}`}>
-                      {v.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="text-right">
-                    {can('settings.delete') && (
-                      <button onClick={() => setToDelete(v)} className="btn-ghost btn-sm text-danger-600">🗑</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {can('settings.create') && (
-          <div className="grid gap-3 rounded-lg bg-ink-50 p-4 sm:grid-cols-3 lg:grid-cols-6">
-            <Field label="Vehicle no.">
-              <input className="input uppercase" placeholder="MH04LQ1748" value={newVehicle.vehicleNumber}
-                onChange={(e) => setNewVehicle((v) => ({ ...v, vehicleNumber: e.target.value }))} />
-            </Field>
-            <Field label="Type">
-              <input className="input" placeholder="Sedan" value={newVehicle.vehicleType}
-                onChange={(e) => setNewVehicle((v) => ({ ...v, vehicleType: e.target.value }))} />
-            </Field>
-            <Field label="Model">
-              <input className="input" value={newVehicle.model}
-                onChange={(e) => setNewVehicle((v) => ({ ...v, model: e.target.value }))} />
-            </Field>
-            <Field label="Seats">
-              <input className="input" inputMode="numeric" value={newVehicle.seating}
-                onChange={(e) => setNewVehicle((v) => ({ ...v, seating: e.target.value }))} />
-            </Field>
-            <Field label="Driver">
-              <input className="input" value={newVehicle.driverName}
-                onChange={(e) => setNewVehicle((v) => ({ ...v, driverName: e.target.value }))} />
-            </Field>
-            <div className="flex items-end gap-2">
-              <Field label="Driver mobile" className="flex-1">
-                <input className="input" inputMode="numeric" value={newVehicle.driverMobile}
-                  onChange={(e) => setNewVehicle((v) => ({ ...v, driverMobile: e.target.value }))} />
-              </Field>
-              <button onClick={addVehicle} className="btn-primary btn-sm mb-0.5"
-                disabled={!newVehicle.vehicleNumber || !newVehicle.vehicleType}>
-                Add
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <DriversPanel />
-
-      {can('settings.update') && (
+      {editable && dirty > 0 && (
         <div className="action-bar">
           <div className="mx-auto flex max-w-5xl items-center justify-end gap-3 px-4 py-3 sm:px-6">
-            {dirty > 0 && <p className="mr-auto text-sm text-ink-600">{dirty} unsaved change{dirty === 1 ? '' : 's'}</p>}
+            <p className="mr-auto text-sm text-ink-600">{dirty} unsaved change{dirty === 1 ? '' : 's'}</p>
             <button className="btn-outline btn-sm" onClick={() => setEdits({})} disabled={!dirty}>Discard</button>
             <button className="btn-primary" onClick={save} disabled={saving || !dirty}>
               {saving && <Spinner className="h-4 w-4" />} Save settings
@@ -292,19 +262,6 @@ export default function Settings() {
           </div>
         </div>
       )}
-
-      <ConfirmDialog
-        open={!!toDelete} onClose={() => setToDelete(null)} onConfirm={removeVehicle} danger
-        title="Remove this vehicle?" confirmLabel="Remove"
-        body={
-          <>
-            <p><strong>{toDelete?.vehicle_number}</strong> — {toDelete?.vehicle_type}</p>
-            <p className="mt-2 text-ink-500">
-              If the vehicle is used on existing bookings it will be deactivated instead of deleted.
-            </p>
-          </>
-        }
-      />
     </div>
   );
 }

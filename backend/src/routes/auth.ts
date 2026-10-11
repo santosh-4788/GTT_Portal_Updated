@@ -174,6 +174,14 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
+/** The portal language for the signed-in person, kept so every device follows it. */
+router.put('/language', requireAuth, (req, res) => {
+  const language = String(req.body?.language ?? '');
+  if (!['en', 'hi'].includes(language)) return res.status(400).json({ error: 'Choose English or Hindi.' });
+  q.run('UPDATE users SET language = @l WHERE id = @id', { l: language, id: req.user!.id });
+  res.json({ ok: true, language });
+});
+
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Enter your current password.'),
   newPassword: z

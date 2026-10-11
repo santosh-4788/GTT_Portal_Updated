@@ -863,3 +863,324 @@ CREATE TABLE IF NOT EXISTS stored_files (
   size        INTEGER NOT NULL DEFAULT 0,
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ===========================================================================
+-- MASTERS, FLEET, BILLING CONTROL AND ONSHEET
+--
+-- Added with the portal redesign. Every table is additive: nothing above is
+-- altered here, and the columns these features need on the older tables are
+-- added by the column migrations in backend/src/db/index.ts.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- Vehicle / cab categories.
+--
+-- Before this the class of a car was free text typed four ways ("Dzire",
+-- "DZIRE/ETIOS/XCENT", "Sedan"). The category is now a master row; the text
+-- copied onto bookings and rate cards stays, because that is what historic
+-- invoices print and it must not change under them.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS vehicle_categories (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  code              TEXT NOT NULL UNIQUE,              -- SEDAN, INNOVA_CRYSTA
+  name              TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  segment           TEXT,                              -- Hatchback | Sedan | SUV | MUV | Van | Bus
+  seating           INTEGER,
+  luggage           INTEGER,
+  example_models    TEXT,                              -- Dzire, Aura, Etios
+  aliases           TEXT,                              -- other spellings that mean this category
+  outstation_group  TEXT,                              -- STANDARD | SUV_MUV | PREMIUM_SEDAN | PREMIUM_MUV
+  description       TEXT,
+  is_active         INTEGER NOT NULL DEFAULT 1,
+  display_order     INTEGER NOT NULL DEFAULT 0,
+  created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ---------------------------------------------------------------------------
+-- Reusable lists the office maintains: trip types, booking sources, payment
+-- methods, cancellation reasons, charge types, branches, fuel types.
+--
+-- is_system rows are codes the application logic depends on. Their label and
+-- active flag can be changed, but they cannot be deleted or re-coded.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS master_values (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  list_type     TEXT NOT NULL,                         -- TRIP_TYPE | BOOKING_SOURCE | PAYMENT_MODE ...
+  code          TEXT NOT NULL,
+  label         TEXT NOT NULL,
+  description   TEXT,
+  is_system     INTEGER NOT NULL DEFAULT 0,
+  is_active     INTEGER NOT NULL DEFAULT 1,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  meta_json     TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (list_type, code)
+);
+CREATE INDEX IF NOT EXISTS idx_master_values_type ON master_values(list_type, is_active);
+
+-- ---------------------------------------------------------------------------
+-- Vehicle and driver assignment history.
+--
+-- The booking row carries the CURRENT allotment; this keeps every allotment it
+-- ever had, so "who drove this trip" and "which trips did this car run" can be
+-- answered even after a re-allotment.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS trip_assignments (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id      INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  vehicle_id      INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+  driver_id       INTEGER REFERENCES drivers(id) ON DELETE SET NULL,
+  vehicle_number  TEXT,
+  vehicle_type    TEXT,
+  driver_name     TEXT,
+  driver_mobile   TEXT,
+  window_start    TEXT,                               -- busy from (local yyyy-mm-dd HH:MM)
+  window_end      TEXT,
+  override_reason TEXT,                               -- set when a clash was knowingly overridden
+  assigned_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  assigned_by     INTEGER REFERENCES users(id),
+  released_at     TEXT,                               -- replaced by a later allotment, or trip cancelled
+  release_reason  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_trip_assignments_booking ON trip_assignments(booking_id);
+CREATE INDEX IF NOT EXISTS idx_trip_assignments_vehicle ON trip_assignments(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_trip_assignments_driver  ON trip_assignments(driver_id);
+
+-- ---------------------------------------------------------------------------
+-- Billing batches: the controlled route from "ready to bill" to an invoice.
+--
+--   DRAFT -> PENDING_APPROVAL -> APPROVED -> BILLED      (or CANCELLED)
+--
+-- A booking may sit in only one open batch at a time (enforced in
+-- services/billingBatches.ts), which is what stops the same trip being billed
+-- twice from two screens.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS billing_batches (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  batch_code         TEXT NOT NULL UNIQUE,            -- BB-2610-0001
+  vendor_id          INTEGER NOT NULL REFERENCES vendors(id),
+  status             TEXT NOT NULL DEFAULT 'DRAFT',   -- DRAFT | PENDING_APPROVAL | APPROVED | BILLED | CANCELLED
+  separate_invoices  INTEGER NOT NULL DEFAULT 0,
+  invoice_date       TEXT,
+  notes              TEXT,
+  booking_count      INTEGER NOT NULL DEFAULT 0,
+  taxable_amount     REAL NOT NULL DEFAULT 0,
+  tax_amount         REAL NOT NULL DEFAULT 0,
+  non_taxable_amount REAL NOT NULL DEFAULT 0,
+  total_amount       REAL NOT NULL DEFAULT 0,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by         INTEGER REFERENCES users(id),
+  submitted_at       TEXT,
+  submitted_by       INTEGER REFERENCES users(id),
+  approved_at        TEXT,
+  approved_by        INTEGER REFERENCES users(id),
+  billed_at          TEXT,
+  billed_by          INTEGER REFERENCES users(id),
+  cancelled_at       TEXT,
+  cancelled_by       INTEGER REFERENCES users(id),
+  cancel_reason      TEXT,
+  invoice_ids        TEXT                             -- JSON array, once billed
+);
+CREATE INDEX IF NOT EXISTS idx_billing_batches_status ON billing_batches(status);
+
+CREATE TABLE IF NOT EXISTS billing_batch_items (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  batch_id    INTEGER NOT NULL REFERENCES billing_batches(id) ON DELETE CASCADE,
+  booking_id  INTEGER NOT NULL REFERENCES bookings(id),
+  amount      REAL NOT NULL DEFAULT 0,                -- the booking total when it was added
+  UNIQUE (batch_id, booking_id)
+);
+CREATE INDEX IF NOT EXISTS idx_billing_batch_items_booking ON billing_batch_items(booking_id);
+
+-- ---------------------------------------------------------------------------
+-- What the business pays OUT: to the owner of an attached or partner vehicle.
+--
+-- Kept apart from `payments` on purpose. Those are money RECEIVED against an
+-- invoice; mixing the two is exactly how a receivable and a payable end up
+-- netted against each other in a report.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS supplier_payments (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  payee_name      TEXT NOT NULL,                      -- vehicle owner / partner operator
+  booking_id      INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+  vehicle_id      INTEGER REFERENCES vehicles(id) ON DELETE SET NULL,
+  payment_date    TEXT NOT NULL DEFAULT (date('now')),
+  amount          REAL NOT NULL CHECK (amount > 0),
+  mode            TEXT NOT NULL DEFAULT 'BANK_TRANSFER',
+  reference_no    TEXT,
+  notes           TEXT,
+  is_reversed     INTEGER NOT NULL DEFAULT 0,
+  reversed_at     TEXT,
+  reversed_by     INTEGER REFERENCES users(id),
+  reversal_reason TEXT,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by      INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_payee ON supplier_payments(payee_name);
+
+-- ---------------------------------------------------------------------------
+-- OnSheet: spreadsheets kept inside the portal.
+--
+-- The workbook is stored whole, as the spreadsheet engine's own JSON snapshot
+-- (values, formulas, styles, merges, sheet order). `version` goes up on every
+-- save; a save that names an older version is refused, so two people editing
+-- the same file can never silently overwrite each other.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS onsheet_files (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  uid           TEXT NOT NULL UNIQUE,                 -- random id used in URLs
+  name          TEXT NOT NULL,
+  owner_id      INTEGER NOT NULL REFERENCES users(id),
+  data_json     TEXT NOT NULL,
+  version       INTEGER NOT NULL DEFAULT 1,
+  size_bytes    INTEGER NOT NULL DEFAULT 0,
+  sheet_count   INTEGER NOT NULL DEFAULT 1,
+  is_deleted    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_by    INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_onsheet_files_owner ON onsheet_files(owner_id, is_deleted);
+
+-- VIEW: open and download. EDIT: change cells and sheets. MANAGE: EDIT plus
+-- sharing it with others. The owner is never listed here; ownership is
+-- onsheet_files.owner_id.
+CREATE TABLE IF NOT EXISTS onsheet_shares (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  file_id     INTEGER NOT NULL REFERENCES onsheet_files(id) ON DELETE CASCADE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  permission  TEXT NOT NULL CHECK (permission IN ('VIEW','EDIT','MANAGE')),
+  granted_by  INTEGER REFERENCES users(id),
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (file_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_onsheet_shares_user ON onsheet_shares(user_id);
+
+CREATE TABLE IF NOT EXISTS onsheet_recent (
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  file_id    INTEGER NOT NULL REFERENCES onsheet_files(id) ON DELETE CASCADE,
+  opened_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, file_id)
+);
+
+-- Billing and invoice defaults introduced with the redesign. INSERT OR IGNORE
+-- keeps any value the office has already changed.
+INSERT OR IGNORE INTO settings (key, value, category, data_type, label) VALUES
+  ('billing.requireApproval', 'false', 'invoice', 'boolean', 'Invoices from Billing need an approved batch first (true/false)'),
+  ('invoice.sacCode', '996601', 'invoice', 'string', 'SAC code printed on invoices'),
+  ('invoice.terms', 'Payment is due by the date shown above. Please quote the invoice number with your payment.', 'invoice', 'string', 'Payment terms printed on invoices');
+
+
+-- ---------------------------------------------------------------------------
+-- Events: a wedding, conference or corporate offsite needing many vehicles.
+-- Each requirement line becomes ordinary trips (bookings.event_id), so the
+-- event is billed, invoiced and paid through the normal modules.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS events (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_code       TEXT NOT NULL UNIQUE,           -- EV-2610-0001
+  name             TEXT NOT NULL,
+  vendor_id        INTEGER NOT NULL REFERENCES vendors(id),   -- who is billed
+  client_name      TEXT,
+  contact_person   TEXT,
+  contact_mobile   TEXT,
+  contact_email    TEXT,
+  venue            TEXT,
+  city             TEXT,
+  start_date       TEXT NOT NULL,
+  end_date         TEXT,
+  agreed_amount    REAL,
+  status           TEXT NOT NULL DEFAULT 'PLANNED', -- PLANNED | CONFIRMED | IN_PROGRESS | COMPLETED | CANCELLED
+  notes            TEXT,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by       INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_events_vendor ON events(vendor_id);
+CREATE INDEX IF NOT EXISTS idx_events_dates  ON events(start_date);
+
+CREATE TABLE IF NOT EXISTS event_requirements (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id            INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  line_no             INTEGER NOT NULL DEFAULT 1,
+  vehicle_category_id INTEGER REFERENCES vehicle_categories(id),
+  vehicle_type        TEXT,
+  vehicle_count       INTEGER NOT NULL DEFAULT 1,
+  travel_date         TEXT NOT NULL,
+  reporting_time      TEXT,
+  pickup_address      TEXT,
+  drop_address        TEXT,
+  duty_type           TEXT,
+  trip_type           TEXT NOT NULL DEFAULT 'LOCAL',
+  passenger_name      TEXT,
+  passenger_mobile    TEXT,
+  pax_count           INTEGER,
+  fare_per_vehicle    REAL,
+  remarks             TEXT,
+  status              TEXT NOT NULL DEFAULT 'OPEN',  -- OPEN | CANCELLED
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  CHECK (vehicle_count > 0)
+);
+CREATE INDEX IF NOT EXISTS idx_event_req_event ON event_requirements(event_id);
+
+-- ---------------------------------------------------------------------------
+-- Payment transactions: the money that actually moved (a receipt from a
+-- company or a payout to a supplier). payments rows allocate a received
+-- transaction to invoices; the difference is the unallocated balance.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payment_transactions (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  txn_code         TEXT NOT NULL UNIQUE,           -- RCPT-2610-0001 / PAY-2610-0001
+  direction        TEXT NOT NULL CHECK (direction IN ('IN','OUT')),
+  vendor_id        INTEGER REFERENCES vendors(id),
+  party_name       TEXT,
+  txn_date         TEXT NOT NULL,
+  amount           REAL NOT NULL CHECK (amount > 0),
+  mode             TEXT NOT NULL DEFAULT 'BANK_TRANSFER',
+  reference_no     TEXT,
+  bank             TEXT,
+  remarks          TEXT,
+  source           TEXT NOT NULL DEFAULT 'MANUAL', -- MANUAL | IMPORT | MIGRATED
+  is_reversed      INTEGER NOT NULL DEFAULT 0,
+  reversed_at      TEXT,
+  reversed_by      INTEGER REFERENCES users(id),
+  reversal_reason  TEXT,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by       INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_ptx_vendor ON payment_transactions(vendor_id, txn_date);
+CREATE INDEX IF NOT EXISTS idx_ptx_ref    ON payment_transactions(reference_no);
+
+-- Opening balance per company, so a ledger can start before the portal did.
+CREATE TABLE IF NOT EXISTS ledger_opening_balances (
+  vendor_id    INTEGER PRIMARY KEY REFERENCES vendors(id) ON DELETE CASCADE,
+  as_of_date   TEXT NOT NULL,
+  amount       REAL NOT NULL DEFAULT 0,             -- positive = company owes us
+  notes        TEXT,
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_by   INTEGER REFERENCES users(id)
+);
+
+-- Ledger adjustments (write-off, TDS, rounding, credit note) — never edits.
+CREATE TABLE IF NOT EXISTS ledger_adjustments (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id    INTEGER NOT NULL REFERENCES vendors(id),
+  adj_date     TEXT NOT NULL,
+  amount       REAL NOT NULL,                       -- positive reduces what the company owes
+  kind         TEXT NOT NULL DEFAULT 'OTHER',       -- TDS | WRITE_OFF | ROUNDING | CREDIT_NOTE | OTHER
+  invoice_id   INTEGER REFERENCES invoices(id),
+  remarks      TEXT,
+  is_reversed  INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by   INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_adj_vendor ON ledger_adjustments(vendor_id, adj_date);
+
+-- Trip completed -> billing confirmed -> invoice. INSERT OR IGNORE keeps any
+-- value the office has already chosen.
+INSERT OR IGNORE INTO settings (key, value, category, data_type, label) VALUES
+  ('billing.requireConfirmation', 'true', 'invoice', 'boolean', 'Invoices only for trips whose billing has been confirmed (true/false)');

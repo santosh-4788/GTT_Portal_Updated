@@ -143,7 +143,7 @@ export interface InquiryInput {
   status?: TripStatus;
 }
 
-function nextBookingCode(): string {
+export function nextBookingCode(): string {
   const row = q.get<any>(
     `SELECT booking_code FROM bookings WHERE booking_code LIKE 'GTT-B-%'
       ORDER BY CAST(substr(booking_code, 7) AS INTEGER) DESC LIMIT 1`
@@ -271,7 +271,13 @@ export function tripRow(where: 'id' | 'trip_id', value: string | number): any | 
             i.id AS invoice_id, i.invoice_number, i.invoice_date, i.total_amount AS invoice_total,
             i.status AS invoice_status, i.file_path AS invoice_file, i.file_type AS invoice_file_type,
             i.tax_mode AS invoice_tax_mode, i.tax_rate AS invoice_tax_rate,
-            i.tax_amount AS invoice_tax_amount, i.sent_at AS invoice_sent_at
+            i.tax_amount AS invoice_tax_amount, i.sent_at AS invoice_sent_at,
+            i.paid_amount AS invoice_paid, i.outstanding_amount AS invoice_outstanding, i.due_date AS invoice_due_date,
+            c.waiting_charge, c.state_tax, c.other_charges_note,
+            (SELECT full_name FROM users WHERE id = b.billing_confirmed_by) AS billing_confirmed_by_name,
+            (SELECT name FROM events WHERE id = b.event_id) AS event_name,
+            (SELECT bb.batch_code FROM billing_batch_items bi JOIN billing_batches bb ON bb.id = bi.batch_id
+              WHERE bi.booking_id = b.id AND bb.status IN ('DRAFT','PENDING_APPROVAL','APPROVED') LIMIT 1) AS open_batch_code
        FROM bookings b
        JOIN vendors v ON v.id = b.vendor_id
        LEFT JOIN booking_charges c ON c.booking_id = b.id

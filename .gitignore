@@ -48,3 +48,12 @@ desktop.ini
 # Turso credentials for the one-time data copy (scripts/migrate-to-turso.ts)
 .env.turso
 backend/.env.turso
+
+.vercel
+.env*
+
+# Navratri posters: the Devi photos belong to their photographer and the
+# rendered PNGs contain them, so only the template (poster.html, render.js)
+# is kept in the repository.
+assets/navratri/*.jpg
+assets/navratri/*.png

@@ -19,8 +19,8 @@ import type { InvoiceContext } from './invoiceEngine';
 const INK = '#0F1B2D';
 const MUTED = '#64748B';
 const LINE = '#E3E8EF';
-const BRAND = '#0E82B8';
-const BRAND_SOFT = '#EAF4FB';
+const BRAND = '#244F8F';
+const BRAND_SOFT = '#EEF3FA';
 const OK = '#0F7B52';
 
 const PAGE = { left: 42, right: 553, top: 40 };
@@ -91,6 +91,12 @@ export async function renderInvoicePdf(
       .text(`Date  ${dmy(invoice.invoiceDate)}`, 320, doc.y + 1, { width: W - 320 + PAGE.left, align: 'right' });
     if (invoice.dueDate) {
       doc.text(`Due  ${dmy(invoice.dueDate)}`, 320, doc.y + 1, { width: W - 320 + PAGE.left, align: 'right' });
+    }
+    if (Number(billing.taxAmount) > 0) {
+      doc.fontSize(7.5).text(
+        `SAC ${company.sacCode ?? '996601'}  ·  Place of supply ${company.state ?? ''}${company.stateCode ? ` (${company.stateCode})` : ''}`,
+        320, doc.y + 2, { width: W - 320 + PAGE.left, align: 'right' }
+      );
     }
 
     /* ------------------------------------------------------------------ *
@@ -192,7 +198,31 @@ export async function renderInvoicePdf(
           .filter(Boolean).join(' — ') ||
         'Trip charges';
 
-      const h = Math.max(24, doc.heightOfString(particular, { width: cols[1].w - 12 }) + 22);
+      // The charges that make up the line, so the customer can check them.
+      const bb = b.billing ?? {};
+      const parts = [
+        bb.baseFare ? `Fare ${money(bb.baseFare)}` : '',
+        bb.extraKm ? `Extra ${bb.extraKm} km × ${money(bb.extraKmRate)}` : '',
+        bb.extraHours ? `Extra ${bb.extraHours} hr × ${money(bb.extraHourRate)}` : '',
+        bb.driverAllowance ? `Driver allowance ${money(bb.driverAllowance)}` : '',
+        bb.nightCharge ? `Night ${money(bb.nightCharge)}` : '',
+        bb.waitingCharge ? `Waiting ${money(bb.waitingCharge)}` : '',
+        bb.permit ? `Permit ${money(bb.permit)}` : '',
+        bb.otherCharges ? `${bb.otherChargesNote || 'Other'} ${money(bb.otherCharges)}` : '',
+        bb.discount ? `Less discount ${money(bb.discount)}` : '',
+      ].filter(Boolean);
+      const reimb = [
+        bb.toll ? `Toll ${money(bb.toll)}` : '', bb.parking ? `Parking ${money(bb.parking)}` : '',
+        bb.stateTax ? `State tax ${money(bb.stateTax)}` : '',
+      ].filter(Boolean);
+      const breakdown = [parts.join('  ·  '), reimb.length ? `At actuals: ${reimb.join('  ·  ')}` : ''].filter(Boolean).join('\n');
+      const veh = [b.vehicleType, b.vehicleNumber].filter(Boolean).join(' ');
+      const extraLine = bookings.length > 1 && veh ? `${veh}${b.passengerName ? `  ·  ${b.passengerName}` : ''}` : '';
+      doc.font('Helvetica').fontSize(7);
+      const extraH = (breakdown ? doc.heightOfString(breakdown, { width: cols[1].w - 12 }) + 2 : 0)
+        + (extraLine ? doc.heightOfString(extraLine, { width: cols[1].w - 12 }) + 2 : 0);
+      doc.fontSize(9);
+      const h = Math.max(24, doc.heightOfString(particular, { width: cols[1].w - 12 }) + 22 + extraH);
 
       if (y + h > 690) {
         doc.addPage();
@@ -213,6 +243,12 @@ export async function renderInvoicePdf(
       if (refs) {
         doc.font('Helvetica').fontSize(7).fillColor(MUTED)
           .text(refs, cols[1].x + 6, doc.y + 1, { width: cols[1].w - 12 });
+      }
+      if (extraLine) {
+        doc.font('Helvetica').fontSize(7).fillColor(MUTED).text(extraLine, cols[1].x + 6, doc.y + 1, { width: cols[1].w - 12 });
+      }
+      if (breakdown) {
+        doc.font('Helvetica').fontSize(7).fillColor('#46586C').text(breakdown, cols[1].x + 6, doc.y + 1, { width: cols[1].w - 12 });
       }
 
       doc.fillColor(MUTED).font('Helvetica').fontSize(8.5)
@@ -257,7 +293,7 @@ export async function renderInvoicePdf(
     totalRow('Invoice value', money(invoiceValue));
 
     if (Number(billing.nonTaxableAmount) > 0) {
-      totalRow('Toll & parking (at actuals)', money(billing.nonTaxableAmount));
+      totalRow('Toll, parking & state tax (at actuals)', money(billing.nonTaxableAmount));
     }
 
     // the grand total sits on a tinted plate so it is unmissable
@@ -276,13 +312,30 @@ export async function renderInvoicePdf(
 
     if (Number(billing.nonTaxableAmount) > 0) {
       doc.font('Helvetica').fontSize(7).fillColor(MUTED)
-        .text('Toll and parking are reimbursed at actuals and are not taxed.',
+        .text('Toll, parking and state tax are reimbursed at actuals and are not taxed.',
           PAGE.left, doc.y + 4, { width: 290 });
+    }
+
+    /* ------------------------------------------------------------------ *
+     *  Notes and payment terms                                            *
+     * ------------------------------------------------------------------ */
+    const termLines = [
+      invoice.notes ? `Note: ${invoice.notes}` : '',
+      invoice.dueDate ? `Payment due by ${dmy(invoice.dueDate)}.` : '',
+      company.terms ?? '',
+    ].filter(Boolean).join('\n');
+    if (termLines) {
+      doc.font('Helvetica').fontSize(7.5);
+      const th = doc.heightOfString(termLines, { width: W }) + 4;
+      if (y + th > 650) { doc.addPage(); y = 60; }
+      doc.fillColor(MUTED).text(termLines, PAGE.left, y + 4, { width: W });
+      y = doc.y + 6;
     }
 
     /* ------------------------------------------------------------------ *
      *  Footer — bank details and signature                                *
      * ------------------------------------------------------------------ */
+    if (y > 660) { doc.addPage(); y = 60; }
     const fy = Math.max(y + 20, 660);
     doc.roundedRect(PAGE.left, fy, W, 96, 7).fillAndStroke('#FBFCFE', LINE);
 
@@ -295,6 +348,7 @@ export async function renderInvoicePdf(
       ['A/C No.', company.bankAccount ?? ''],
       ['IFSC', company.bankIfsc ?? ''],
       ['PAN', company.pan ?? ''],
+      ...(company.bankUpi ? [['UPI', company.bankUpi]] : []),
     ];
     let byy = fy + 26;
     bank.forEach(([k, v]) => {

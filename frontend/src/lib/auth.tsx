@@ -10,6 +10,8 @@ export interface User {
   roleName: string;
   permissions: string[];
   mustChangePassword: boolean;
+  /** 'en' | 'hi' — see lib/i18n.tsx. */
+  language?: string;
 }
 
 interface AuthCtx {

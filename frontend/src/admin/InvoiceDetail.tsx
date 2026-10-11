@@ -6,6 +6,7 @@ import { Loading, ErrorState, StatusBadge, Modal, Spinner, Field, ConfirmDialog 
 import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/auth';
 import { DateField } from '../components/DateTimeField';
+import { IconPrint, IconDownload, IconMail, IconRefresh, IconRupee, IconWarning } from '../components/icons';
 
 export default function InvoiceDetail() {
   const { id } = useParams();
@@ -28,6 +29,14 @@ export default function InvoiceDetail() {
   const [sendTo, setSendTo] = useState('');
   const [sendNote, setSendNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [modes, setModes] = useState<{ code: string; label: string }[]>([]);
+  const [dupWarning, setDupWarning] = useState('');
+  const [toReverse, setToReverse] = useState<any>(null);
+  const [reverseReason, setReverseReason] = useState('');
+
+  useEffect(() => {
+    api.get('/masters/lists/PAYMENT_MODE/options').then((r) => setModes(r.data.data ?? [])).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setError('');
@@ -59,7 +68,7 @@ export default function InvoiceDetail() {
   const inv = data.data;
   const { company, vendor, billing, bookings } = preview;
 
-  const addPayment = async () => {
+  const addPayment = async (allowDuplicate = false) => {
     setBusy(true);
     try {
       const { data: res } = await api.post('/payments', {
@@ -70,12 +79,31 @@ export default function InvoiceDetail() {
         referenceNo: payForm.referenceNo,
         bank: payForm.bank,
         notes: payForm.notes,
+        allowDuplicate,
       });
       toast.success('Payment recorded', res.message);
       setPayOpen(false);
+      setDupWarning('');
+      load();
+    } catch (err: any) {
+      if (err?.response?.data?.code === 'POSSIBLE_DUPLICATE') setDupWarning(err.response.data.error);
+      else toast.error('Could not record the payment', errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reversePayment = async () => {
+    if (!toReverse) return;
+    setBusy(true);
+    try {
+      const { data: res } = await api.post(`/payments/${toReverse.id}/reverse`, { reason: reverseReason });
+      toast.success('Payment reversed', res.message);
+      setToReverse(null);
+      setReverseReason('');
       load();
     } catch (err) {
-      toast.error('Could not record the payment', errorMessage(err));
+      toast.error('Could not reverse the payment', errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -146,7 +174,7 @@ export default function InvoiceDetail() {
           <Link to="/admin/invoices" className="text-xs text-ink-500 hover:text-brand-600">← Back to invoices</Link>
           <h1 className="mt-1 flex flex-wrap items-center gap-3 text-2xl font-bold text-ink-900">
             <span className="font-mono">{inv.invoice_number}</span>
-            <StatusBadge value={inv.status} />
+            <StatusBadge value={inv.display_status ?? inv.status} />
             {inv.revision > 1 && <span className="badge-neutral">Revision {inv.revision}</span>}
           </h1>
           <p className="page-sub">
@@ -160,29 +188,36 @@ export default function InvoiceDetail() {
           )}
         </div>
         <div className="page-actions">
-          <button onClick={() => window.print()} className="btn-outline btn-sm">🖨 Print</button>
+          <button onClick={() => window.print()} className="btn-outline btn-sm"><IconPrint className="h-3.5 w-3.5" /> Print</button>
           {inv.file_path && (
             <button
               onClick={() => downloadFile(`/invoices/${inv.id}/download`).catch((e) => toast.error('Download failed', errorMessage(e)))}
               className="btn-primary btn-sm"
             >
-              ⬇ Download {String(inv.file_type ?? '').toUpperCase()}
+              <IconDownload className="h-3.5 w-3.5" /> Download {String(inv.file_type ?? '').toUpperCase()}
             </button>
           )}
           {can('invoices.update') && inv.status !== 'CANCELLED' && (
             <>
               <button onClick={() => setSendOpen(true)} className="btn-outline btn-sm">
-                ✉ {inv.sent_at ? 'Email again' : 'Email to customer'}
+                <IconMail className="h-3.5 w-3.5" /> {inv.sent_at ? 'Email again' : 'Email to customer'}
               </button>
-              <button onClick={() => setRegenOpen(true)} className="btn-outline btn-sm">↻ Regenerate</button>
+              <button onClick={() => setRegenOpen(true)} className="btn-outline btn-sm"><IconRefresh className="h-3.5 w-3.5" /> Regenerate</button>
               <button onClick={() => setCancelOpen(true)} className="btn-outline btn-sm text-danger-600">Cancel invoice</button>
             </>
           )}
           {can('payments.create') && inv.status !== 'CANCELLED' && Number(inv.outstanding_amount) > 0 && (
-            <button onClick={() => setPayOpen(true)} className="btn-dark btn-sm">+ Record payment</button>
+            <button onClick={() => { setDupWarning(''); setPayOpen(true); }} className="btn-dark btn-sm"><IconRupee className="h-3.5 w-3.5" /> Record payment</button>
           )}
         </div>
       </div>
+
+      {inv.display_status === 'OVERDUE' && (
+        <div className="notice-danger no-print">
+          <IconWarning className="h-4 w-4 shrink-0" />
+          <span><strong>Overdue.</strong> {inr(inv.outstanding_amount)} was due on {dmy(inv.due_date)}.</span>
+        </div>
+      )}
 
       {inv.status === 'CANCELLED' && (
         <div className="rounded-xl border border-danger-100 bg-danger-50 p-4 text-sm text-danger-600 no-print">
@@ -293,6 +328,8 @@ export default function InvoiceDetail() {
               {row('Invoice value', billing.invoiceValue ?? billing.taxableAmount + billing.taxAmount)}
               {billing.nonTaxableAmount > 0 && row('Toll & parking charges', billing.nonTaxableAmount)}
               {row('Total', billing.totalAmount, true)}
+              {Number(inv.paid_amount) > 0 && row('Amount received', inv.paid_amount)}
+              {Number(inv.paid_amount) > 0 && row('Balance due', inv.outstanding_amount)}
             </div>
           </div>
 
@@ -334,14 +371,21 @@ export default function InvoiceDetail() {
           ) : (
             <div className="divide-y divide-ink-100">
               {data.payments.map((p: any) => (
-                <div key={p.id} className="flex items-center gap-3 px-5 py-3">
+                <div key={p.id} className={`flex items-center gap-3 px-5 py-3 ${p.is_reversed ? 'bg-danger-50/40' : ''}`}>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-ink-900">{inr(p.amount)}</p>
+                    <p className={`text-sm font-medium ${p.is_reversed ? 'text-ink-400 line-through' : 'text-ink-900'}`}>{inr(p.amount)}</p>
                     <p className="text-xs text-ink-500">
                       {dmy(p.payment_date)} · {p.mode.replace('_', ' ')}
                       {p.reference_no ? ` · ${p.reference_no}` : ''}
+                      {p.created_by_name ? ` · by ${p.created_by_name}` : ''}
                     </p>
+                    {p.is_reversed ? (
+                      <p className="text-xs text-danger-600">Reversed {dmyTime(p.reversed_at)}{p.reversed_by_name ? ` by ${p.reversed_by_name}` : ''} — {p.reversal_reason}</p>
+                    ) : null}
                   </div>
+                  {!p.is_reversed && can('payments.delete', 'payments.update') && (
+                    <button className="btn-ghost btn-sm text-danger-600" onClick={() => setToReverse(p)}>Reverse</button>
+                  )}
                 </div>
               ))}
             </div>
@@ -382,9 +426,15 @@ export default function InvoiceDetail() {
         footer={
           <>
             <button className="btn-outline" onClick={() => setPayOpen(false)} disabled={busy}>Cancel</button>
-            <button className="btn-primary" onClick={addPayment} disabled={busy || !payForm.amount}>
-              {busy && <Spinner className="h-4 w-4" />} Record payment
-            </button>
+            {dupWarning ? (
+              <button className="btn-primary" onClick={() => addPayment(true)} disabled={busy}>
+                {busy && <Spinner className="h-4 w-4" />} It is a separate payment — record it
+              </button>
+            ) : (
+              <button className="btn-primary" onClick={() => addPayment(false)} disabled={busy || !payForm.amount}>
+                {busy && <Spinner className="h-4 w-4" />} Record payment
+              </button>
+            )}
           </>
         }
       >
@@ -402,8 +452,8 @@ export default function InvoiceDetail() {
             <Field label="Mode">
               <select className="input" value={payForm.mode}
                 onChange={(e) => setPayForm((f) => ({ ...f, mode: e.target.value }))}>
-                {['BANK_TRANSFER', 'UPI', 'NEFT', 'RTGS', 'CHEQUE', 'CASH', 'OTHER'].map((m) =>
-                  <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
+                {(modes.length ? modes : ['BANK_TRANSFER', 'UPI', 'NEFT', 'RTGS', 'CHEQUE', 'CASH', 'OTHER'].map((c) => ({ code: c, label: c.replace('_', ' ') }))).map((m) =>
+                  <option key={m.code} value={m.code}>{m.label}</option>)}
               </select>
             </Field>
           </div>
@@ -421,7 +471,27 @@ export default function InvoiceDetail() {
             <input className="input" value={payForm.notes}
               onChange={(e) => setPayForm((f) => ({ ...f, notes: e.target.value }))} />
           </Field>
+          {dupWarning && <p className="notice-warn text-sm"><IconWarning className="h-4 w-4 shrink-0" /> {dupWarning}</p>}
         </div>
+      </Modal>
+
+      <Modal
+        open={!!toReverse} onClose={() => setToReverse(null)} size="sm"
+        title="Reverse this payment?"
+        subtitle={toReverse ? `${inr(toReverse.amount)} on ${dmy(toReverse.payment_date)}` : ''}
+        footer={
+          <>
+            <button className="btn-outline" onClick={() => setToReverse(null)} disabled={busy}>Keep it</button>
+            <button className="btn-danger" onClick={reversePayment} disabled={busy || reverseReason.trim().length < 3}>
+              {busy && <Spinner />} Reverse payment
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-ink-700">The payment stays on record, marked reversed, and the outstanding amount goes back up.</p>
+        <Field label="Why" required className="mt-3">
+          <input className="input" value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} placeholder="e.g. Cheque bounced / entered twice" autoFocus />
+        </Field>
       </Modal>
 
       <Modal

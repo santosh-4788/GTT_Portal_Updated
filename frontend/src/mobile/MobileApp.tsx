@@ -28,7 +28,10 @@ const Feedback = page(() => import('../admin/Feedback'));
 const ChatbotKnowledge = page(() => import('../admin/ChatbotKnowledge'));
 const Bookings = page(() => import('../admin/Bookings'));
 const BookingForm = page(() => import('../admin/BookingForm'));
-const CustomerBooking = page(() => import('../admin/CustomerBooking'));
+const Masters = page(() => import('../admin/Masters'));
+const Fleet = page(() => import('../admin/Fleet'));
+const Events = page(() => import('../admin/Events'));
+const OutstationFares = page(() => import('../admin/OutstationFares'));
 const Master = page(() => import('../admin/Master'));
 const Vendors = page(() => import('../admin/Vendors'));
 const VendorForm = page(() => import('../admin/VendorForm'));
@@ -93,7 +96,12 @@ export default function MobileApp() {
           <Route path="bookings" element={<Bookings />} />
           <Route path="bookings/new" element={<BookingForm />} />
           <Route path="bookings/:id/edit" element={<BookingForm />} />
-          <Route path="customer-booking" element={<CustomerBooking />} />
+          {/* The separate Customer Booking page is now New booking → Walk-in. */}
+          <Route path="customer-booking" element={<Navigate to="/admin/bookings/new?source=WALKIN" replace />} />
+          <Route path="events" element={<Events />} />
+          <Route path="fleet" element={<Fleet />} />
+          <Route path="masters" element={<Masters />} />
+          <Route path="outstation-fares" element={<OutstationFares />} />
           <Route path="master" element={<Master />} />
           <Route path="vendors" element={<Vendors />} />
           <Route path="vendors/new" element={<VendorForm />} />

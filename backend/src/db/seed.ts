@@ -15,6 +15,7 @@ import { getDb, applySchema, closeDb } from './index';
 import { config, ensureDirectories } from '../config';
 import { ensureDirectVendor } from '../services/directCustomer';
 import { computeCharges } from '../services/billing';
+import { ensureRedesignData } from '../services/bootstrap';
 
 const db = () => getDb();
 
@@ -698,6 +699,7 @@ function main() {
     seedReferenceData();
     seedSampleData();
   })();
+  ensureRedesignData();
   console.log('\nSeed complete.');
   console.log(`  Login : ${config.seedAdmin.email}`);
   console.log(`  Pass  : ${config.seedAdmin.password}  (must be changed at first login)`);

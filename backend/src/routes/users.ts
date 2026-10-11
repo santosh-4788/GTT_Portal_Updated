@@ -31,6 +31,47 @@ router.get('/roles', requirePermission('users.view'), (_req, res) => {
   res.json({ data: roles });
 });
 
+/** Every permission, grouped by module, for the role editor. */
+router.get('/permissions', requirePermission('users.view'), (_req, res) => {
+  res.json({ data: q.all<any>('SELECT id, code, module, description FROM permissions ORDER BY module, id') });
+});
+
+/**
+ * Change what a role may do.
+ *
+ * The Super Admin role always has everything and cannot be edited, and a user
+ * cannot take user-management away from their own role — two ways an office
+ * could otherwise lock itself out of the portal.
+ */
+router.put('/roles/:id/permissions', requirePermission('users.update'), (req, res) => {
+  const id = Number(req.params.id);
+  const role = q.get<any>('SELECT * FROM roles WHERE id = @id', { id });
+  if (!role) return res.status(404).json({ error: 'That role does not exist.' });
+  if (role.code === 'SUPER_ADMIN') return res.status(409).json({ error: 'The Super Admin role always has every permission.' });
+  const codes: string[] = Array.isArray(req.body?.permissions) ? req.body.permissions.map(String) : [];
+  const known = new Map(q.all<any>('SELECT id, code FROM permissions').map((p) => [p.code, p.id]));
+  const unknown = codes.filter((c) => !known.has(c));
+  if (unknown.length) return res.status(400).json({ error: `Unknown permission(s): ${unknown.join(', ')}` });
+  if (req.user!.roleCode === role.code && req.user!.permissions.includes('users.update') && !codes.includes('users.update')) {
+    return res.status(409).json({ error: 'You cannot remove user management from your own role — ask a Super Admin.' });
+  }
+  const before = q.all<any>(
+    `SELECT p.code FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = @id`, { id }
+  ).map((p) => p.code as string);
+  const added = codes.filter((c) => !before.includes(c));
+  const removed = before.filter((c) => !codes.includes(c));
+  q.tx(() => {
+    q.run('DELETE FROM role_permissions WHERE role_id = @id', { id });
+    for (const c of codes) q.run('INSERT INTO role_permissions (role_id, permission_id) VALUES (@r, @p)', { r: id, p: known.get(c) });
+  });
+  audit(req, 'ROLE_PERMISSIONS_CHANGED', {
+    entityType: 'role', entityId: id,
+    description: `${role.name}: ${added.length ? `+${added.join(', +')}` : ''}${added.length && removed.length ? '; ' : ''}${removed.length ? `-${removed.join(', -')}` : ''}` || `${role.name}: no change`,
+    meta: { added, removed },
+  });
+  res.json({ ok: true, message: `${role.name} updated — ${added.length} added, ${removed.length} removed.` });
+});
+
 const userSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.'),
   fullName: z.string().trim().min(2, 'Full name is required.'),

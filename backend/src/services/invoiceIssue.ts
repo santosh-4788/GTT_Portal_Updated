@@ -235,6 +235,7 @@ export async function issueTripInvoice(input: IssueTripInvoiceInput): Promise<Is
     invoiceRow: {
       invoiceNumber: reserved.invoiceNumber,
       invoiceDate,
+      dueDate: q.get<any>('SELECT due_date FROM invoices WHERE id = @id', { id: reserved.invoiceId })?.due_date,
       documentTitle,
       tripId: booking.trip_id,
       periodFrom: booking.travel_date,

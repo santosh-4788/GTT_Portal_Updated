@@ -4,6 +4,8 @@ import { dmyTime } from '../lib/format';
 import { Loading, EmptyState, ErrorState, Modal, Spinner, Field, ConfirmDialog, StatusBadge } from '../components/ui';
 import { useToast } from '../components/Toast';
 import { useAuth } from '../lib/auth';
+import RolePermissions from './RolePermissions';
+import { IconEdit, IconTrash, IconPlus } from '../components/icons';
 
 const EMPTY = { email: '', fullName: '', roleCode: 'OPERATIONS', mobile: '', password: '', isActive: true };
 
@@ -74,13 +76,13 @@ export default function Users() {
     <div className="page">
       <div className="page-head animate-fade-down">
         <div>
-          <h1 className="page-title">Users</h1>
+          <h1 className="page-title">Users &amp; roles</h1>
           <p className="page-sub">
             Each role sees only the modules it needs. Passwords are hashed with bcrypt and never stored in plain text.
           </p>
         </div>
         {can('users.create') && (
-          <button onClick={() => setForm({ ...EMPTY })} className="btn-primary btn-sm">+ Add user</button>
+          <button onClick={() => setForm({ ...EMPTY })} className="btn-primary btn-sm"><IconPlus className="h-3.5 w-3.5" /> Add user</button>
         )}
       </div>
 
@@ -118,13 +120,13 @@ export default function Users() {
                               id: u.id, email: u.email, fullName: u.full_name, roleCode: u.role_code,
                               mobile: u.mobile ?? '', password: '', isActive: !!u.is_active,
                             })}
-                            className="btn-ghost btn-sm"
+                            className="btn-ghost btn-sm" aria-label={`Edit ${u.full_name}`}
                           >
-                            ✎
+                            <IconEdit className="h-4 w-4" />
                           </button>
                         )}
                         {can('users.delete') && u.id !== me?.id && (
-                          <button onClick={() => setToDelete(u)} className="btn-ghost btn-sm text-danger-600">🗑</button>
+                          <button onClick={() => setToDelete(u)} className="btn-ghost btn-sm text-danger-600" aria-label={`Remove ${u.full_name}`}><IconTrash className="h-4 w-4" /></button>
                         )}
                       </div>
                     </td>
@@ -134,26 +136,7 @@ export default function Users() {
             </table>
           </div>
 
-          <div className="card p-5">
-            <h2 className="font-semibold text-ink-900">Roles and what they can reach</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {roles.map((r) => {
-                const modules = [...new Set(r.permissions.map((p: string) => p.split('.')[0]))];
-                return (
-                  <div key={r.id} className="rounded-lg border border-ink-200 p-4">
-                    <h3 className="font-semibold text-ink-900">{r.name}</h3>
-                    <p className="mt-0.5 text-xs text-ink-500">{r.description}</p>
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {modules.map((m) => (
-                        <span key={m as string} className="badge-neutral">{m as string}</span>
-                      ))}
-                    </div>
-                    <p className="mt-2.5 text-[11px] text-ink-400">{r.permissions.length} permissions</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <RolePermissions roles={roles} onSaved={load} />
         </>
       )}
 

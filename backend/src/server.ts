@@ -26,11 +26,17 @@ import auditRoutes from './routes/audit';
 import publicRoutes from './routes/public';
 import geoRoutes from './routes/geo';
 import tripRoutes from './routes/trips';
+import masterRoutes from './routes/masters';
+import fareRoutes from './routes/fares';
+import fleetRoutes from './routes/fleet';
 import customerRoutes from './routes/customer';
 import seoRoutes from './routes/seo';
 import feedbackRoutes from './routes/feedback';
 import chatbotRoutes from './routes/chatbot';
 import { ensureChatbotKnowledge } from './services/chatbotKnowledge';
+import { ensureRedesignData } from './services/bootstrap';
+import onsheetRoutes from './routes/onsheet';
+import eventRoutes from './routes/events';
 
 const app = express();
 
@@ -95,8 +101,14 @@ app.use(
     done(null, { origin: false });
   })
 );
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+// OnSheet workbooks are far larger than any form post, so /api/onsheet parses
+// its own bodies (see routes/onsheet.ts) and the 2 MB parsers skip it.
+const jsonParser = express.json({ limit: '2mb' });
+const formParser = express.urlencoded({ extended: true, limit: '2mb' });
+const skipOnSheet = (parser: express.RequestHandler): express.RequestHandler =>
+  (req, res, next) => (req.path.startsWith('/api/onsheet') ? next() : parser(req, res, next));
+app.use(skipOnSheet(jsonParser));
+app.use(skipOnSheet(formParser));
 app.use(cookieParser());
 
 // Photographs that are swapped by hand under the same filenames: the fleet, and
@@ -140,6 +152,10 @@ app.use('/api/outstation-fares', outstationFareRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/trips', tripRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/masters', masterRoutes);
+app.use('/api/fares', fareRoutes);
+app.use('/api/fleet', fleetRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/customer', customerRoutes);
@@ -151,6 +167,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/onsheet', onsheetRoutes);
 
 // --- serve the built SPA in production ------------------------------------
 // Resolved at request time, not at import time, so building the frontend while
@@ -341,12 +358,14 @@ function initDatabase() {
     applySchema();
     ensureOutstationFares();
     ensureChatbotKnowledge();
+    ensureRedesignData();
     console.log('Database created. Run "npm run seed" to load the admin user and settings.');
   } else {
     getDb();          // opens + sets pragmas
     applySchema();    // idempotent; picks up any new tables
     ensureOutstationFares();
     ensureChatbotKnowledge();
+    ensureRedesignData();
   }
   databaseReady = true;
 }

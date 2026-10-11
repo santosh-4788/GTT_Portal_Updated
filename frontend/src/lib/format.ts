@@ -91,37 +91,70 @@ export const humanise = (v?: string | null): string => {
 };
 
 /**
- * Every status in the portal maps to one of four meanings, not to its own
- * colour. Previously this used six different hues (indigo for Sent, orange for
- * No Show, amber, emerald, red…) which is what made the portal look
- * inconsistent — a reader had to learn each colour separately.
+ * Every status in the portal has one colour, used on every screen:
  *
- *   neutral — inert / not started      brand — in progress
- *   warn    — needs attention          ok    — settled       danger — stopped
+ *   amber   pending / waiting on us      blue    confirmed / issued
+ *   violet  allotted / approved          teal    under way / ready
+ *   green   completed / paid             red     cancelled / overdue
+ *   grey    draft / inactive
+ *
+ * A status means the same thing wherever it appears, so it looks the same
+ * wherever it appears.
  */
 export const STATUS_STYLES: Record<string, string> = {
   // booking / trip status
-  INQUIRY: 'badge-warn',        // waiting on us — someone has to act
+  INQUIRY: 'badge-warn',
   DRAFT: 'badge-neutral',
   CONFIRMED: 'badge-brand',
-  ASSIGNED: 'badge-brand',
-  ONTRIP: 'badge-brand',
+  ASSIGNED: 'badge-violet',
+  ONTRIP: 'badge-teal',
   COMPLETED: 'badge-ok',
   CANCELLED: 'badge-danger',
   NO_SHOW: 'badge-danger',
+  // trip stages (services/tripStages.ts)
+  NEW: 'badge-warn',
+  ASSIGNED_TO_STAFF: 'badge-warn',
+  QUOTE_PENDING: 'badge-warn',
+  AWAITING_CONFIRMATION: 'badge-brand',
+  AWAITING_ASSIGNMENT: 'badge-brand',
+  UPCOMING: 'badge-violet',
+  IN_PROGRESS: 'badge-teal',
+  AWAITING_BILLING: 'badge-warn',
+  AWAITING_INVOICE: 'badge-teal',
+  BILLING_IN_PROGRESS: 'badge-violet',
+  BILLED: 'badge-brand',
+  SETTLED: 'badge-ok',
   // billing status
   PENDING: 'badge-warn',
-  READY: 'badge-brand',
+  READY: 'badge-teal',
   INVOICED: 'badge-ok',
   NOT_INVOICED: 'badge-neutral',
+  // billing batches
+  PENDING_APPROVAL: 'badge-warn',
+  APPROVED: 'badge-violet',
   // invoice status
   GENERATED: 'badge-brand',
   SENT: 'badge-brand',
+  ISSUED: 'badge-brand',
   PARTIALLY_PAID: 'badge-warn',
   PAID: 'badge-ok',
-  // vendor / user status
+  OVERDUE: 'badge-danger-solid',
+  REVERSED: 'badge-danger',
+  // quotations
+  ACCEPTED: 'badge-ok',
+  DECLINED: 'badge-danger',
+  // vendor / user / fleet status
   ACTIVE: 'badge-ok',
   INACTIVE: 'badge-neutral',
+  AVAILABLE: 'badge-ok',
+  FREE: 'badge-ok',
+  BOOKED: 'badge-violet',
+  MAINTENANCE: 'badge-warn',
+  ON_LEAVE: 'badge-warn',
+  UNAVAILABLE: 'badge-neutral',
+  EXPIRED: 'badge-danger-solid',
+  EXPIRING: 'badge-warn',
+  OK: 'badge-ok',
   // parser confidence
   BOOKING_HASH: 'badge-brand',
   TRIPID_HASH: 'badge-brand',
@@ -130,3 +163,32 @@ export const STATUS_STYLES: Record<string, string> = {
 };
 
 export const statusClass = (s?: string | null) => STATUS_STYLES[s ?? ''] ?? 'badge-neutral';
+
+/** Words for codes whose plain humanised form reads badly. */
+export const STATUS_LABELS: Record<string, string> = {
+  INQUIRY: 'Enquiry',
+  ONTRIP: 'On trip',
+  NO_SHOW: 'No show',
+  GENERATED: 'Issued',
+  SENT: 'Issued · emailed',
+  PARTIALLY_PAID: 'Partially paid',
+  PENDING_APPROVAL: 'Awaiting approval',
+  READY: 'Ready to bill',
+  PENDING: 'Pending',
+  NEW: 'New enquiry',
+  ASSIGNED_TO_STAFF: 'With staff',
+  QUOTE_PENDING: 'Quote pending',
+  AWAITING_CONFIRMATION: 'Quoted',
+  AWAITING_ASSIGNMENT: 'Needs vehicle',
+  UPCOMING: 'Upcoming',
+  IN_PROGRESS: 'In progress',
+  AWAITING_BILLING: 'Awaiting billing',
+  BILLING_IN_PROGRESS: 'Billing in progress',
+  AWAITING_INVOICE: 'Billed — awaiting invoice',
+  BILLED: 'Invoice generated',
+  SETTLED: 'Settled',
+  ON_LEAVE: 'On leave',
+  BANK_TRANSFER: 'Bank transfer',
+};
+
+export const statusLabel = (s?: string | null) => (s ? STATUS_LABELS[s] ?? humanise(s) : '—');

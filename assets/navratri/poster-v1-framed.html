@@ -1,0 +1,427 @@
+<!doctype html>
+<!--
+  Navratri Special posters for Gupta Tours & Travels.
+
+  Two designs, two sizes, picked with the address:
+    poster.html?design=greeting&size=feed    1080 × 1350  (Instagram / Facebook / WhatsApp)
+    poster.html?design=garba&size=story      1080 × 1920  (WhatsApp status / Instagram story)
+
+  Rendered to PNG by render.js in this folder (headless Edge), so the text can
+  be edited here and the images regenerated. Contact details are the ones on
+  the website (frontend/src/site/siteData.ts).
+
+  Devi images: devi-1.jpg (greeting) and devi-2.jpg (Garba), supplied by the
+  office. Replace either file to change the photo; nothing else needs editing.
+  Logo: the website's car mark (frontend/public/assets/art-car-line-bold.svg).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Navratri Special</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Cinzel+Decorative:wght@700;900&family=Great+Vibes&family=Poppins:wght@400;500;600;700&family=Sora:wght@600;700&family=Tiro+Devanagari+Hindi&family=Yatra+One&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold-1: #FFF1B8;
+    --gold-2: #F5C451;
+    --gold-3: #C8902B;
+    --gold-4: #8A5A12;
+    --gold: linear-gradient(180deg, #FFF3C4 0%, #F7CF64 38%, #D59A2E 70%, #F3C55A 100%);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #06152B; }
+  body { font-family: 'Poppins', sans-serif; }
+
+  .poster {
+    position: relative;
+    width: 1080px;
+    overflow: hidden;
+    color: #FFF6E0;
+  }
+  .feed { height: 1350px; }
+  .story { height: 1920px; }
+
+  /* ---- backgrounds ---------------------------------------------------- */
+  /* The logo's own colours: the deep navy of the name and the sky blue of
+     the car and "24×7 · MUMBAI", with the festive gold kept for accents. */
+  .greeting {
+    background:
+      radial-gradient(ellipse 60% 38% at 50% 34%, rgba(56, 182, 240, .40), transparent 70%),
+      radial-gradient(ellipse 120% 70% at 50% 110%, #061428 0%, transparent 60%),
+      linear-gradient(180deg, #0A1F3D 0%, #10335E 38%, #0C2A50 72%, #06152B 100%);
+  }
+  .garba {
+    background:
+      radial-gradient(ellipse 55% 30% at 50% 26%, rgba(26, 143, 208, .45), transparent 70%),
+      radial-gradient(ellipse 80% 50% at 50% 100%, rgba(56, 182, 240, .25), transparent 70%),
+      linear-gradient(180deg, #050F22 0%, #0B2546 40%, #12407A 72%, #081A36 100%);
+  }
+
+  .mandala { position: absolute; left: 50%; transform: translateX(-50%); opacity: .22; pointer-events: none; }
+  .stars { position: absolute; inset: 0; pointer-events: none; }
+
+  /* double gold border with corner ornaments */
+  .frame {
+    position: absolute; inset: 26px;
+    border: 3px solid #E9B949;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 10px transparent, inset 0 0 0 12px rgba(233, 185, 73, .55);
+    pointer-events: none;
+  }
+  .corner { position: absolute; width: 110px; height: 110px; }
+  .corner.tl { top: 14px; left: 14px; }
+  .corner.tr { top: 14px; right: 14px; transform: scaleX(-1); }
+  .corner.bl { bottom: 14px; left: 14px; transform: scaleY(-1); }
+  .corner.br { bottom: 14px; right: 14px; transform: scale(-1, -1); }
+
+  /* marigold toran across the top */
+  .toran { position: absolute; top: 40px; left: 60px; right: 60px; height: 110px; }
+
+  .gold-text {
+    background: var(--gold);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 3px 0 rgba(70, 30, 0, .55)) drop-shadow(0 0 18px rgba(255, 190, 80, .25));
+  }
+
+  /* ---- the Devi ----------------------------------------------------------- */
+  .devi-wrap { position: absolute; left: 50%; transform: translateX(-50%); }
+  .halo {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(170, 225, 255, .75) 0%, rgba(56, 182, 240, .40) 32%, rgba(26, 143, 208, 0) 68%);
+  }
+  .arch {
+    position: relative;
+    border-radius: 999px 999px 26px 26px;
+    padding: 12px;
+    background: linear-gradient(160deg, #FFE59A, #C88A22 40%, #FFE08A 60%, #A86E14);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, .55), 0 0 0 4px rgba(6, 21, 43, .7);
+  }
+  .arch-inner {
+    border-radius: 999px 999px 18px 18px;
+    overflow: hidden;
+    border: 4px solid #0A1F3D;
+    background: #06152B;
+  }
+  .arch-inner img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; }
+  .circle-frame { border-radius: 50%; }
+  .circle-frame .arch-inner { border-radius: 50%; }
+
+  .diya { position: absolute; width: 120px; }
+
+  /* ---- type ----------------------------------------------------------------- */
+  .center { position: absolute; left: 0; right: 0; text-align: center; }
+  .hindi { font-family: 'Yatra One', 'Tiro Devanagari Hindi', serif; }
+  .eyebrow {
+    font-family: 'Cinzel', serif; font-weight: 700; letter-spacing: .32em;
+    font-size: 26px; color: #F5D28A;
+  }
+  .divider { display: flex; align-items: center; justify-content: center; gap: 18px; }
+  .divider span { height: 2px; width: 150px; background: linear-gradient(90deg, transparent, #E9B949); }
+  .divider span:last-child { background: linear-gradient(270deg, transparent, #E9B949); }
+  .divider i { width: 14px; height: 14px; background: #E9B949; transform: rotate(45deg); display: block; }
+
+  /* ---- brand ------------------------------------------------------------------ */
+  .brand { display: flex; align-items: center; justify-content: center; gap: 22px; }
+  /* The website's logo lockup: the blue car mark, the name, "24×7 · MUMBAI",
+     on a light card so it reads exactly as it does on the site. */
+  .logo-card {
+    display: inline-flex; align-items: center; gap: 26px;
+    padding: 16px 34px 16px 26px; border-radius: 24px;
+    background: linear-gradient(135deg, #FFFFFF 0%, #EEF6FD 100%);
+    box-shadow: 0 0 0 3px #E9B949, 0 0 0 9px rgba(233, 185, 73, .28), 0 16px 34px rgba(0, 0, 0, .45);
+    text-align: left;
+  }
+  .logo-card img { width: 160px; height: auto; display: block; }
+  .logo-card b {
+    display: block; font-family: 'Sora', 'Poppins', sans-serif; font-weight: 700; font-size: 40px;
+    line-height: 1.05; letter-spacing: -0.01em; color: #10233F; white-space: nowrap;
+  }
+  .logo-card small {
+    display: block; margin-top: 8px; font-family: 'Poppins', sans-serif; font-weight: 700; font-size: 19px;
+    letter-spacing: .26em; color: #1A8FD0;
+  }
+  .credit {
+    position: absolute; left: 0; right: 0; text-align: center;
+    font-size: 13px; color: rgba(255, 241, 214, .55); letter-spacing: .02em;
+  }
+
+  .contact {
+    display: flex; justify-content: center; gap: 18px; flex-wrap: wrap;
+    font-size: 25px; font-weight: 500; color: #FFF1D6;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 12px 24px; border-radius: 999px;
+    background: rgba(0, 0, 0, .28); border: 1.5px solid rgba(233, 185, 73, .55);
+  }
+  .chip svg { width: 28px; height: 28px; flex-shrink: 0; }
+  .address { font-size: 19px; color: rgba(255, 241, 214, .75); letter-spacing: .01em; }
+
+  /* ---- garba ---------------------------------------------------------------- */
+  .points { display: grid; gap: 20px; margin: 0 auto; width: 860px; text-align: left; }
+  .feed .point { padding: 11px 24px; font-size: 28px; }
+  .point {
+    display: flex; align-items: center; gap: 22px;
+    padding: 18px 26px; border-radius: 20px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .03));
+    border: 1.5px solid rgba(245, 196, 81, .45);
+    font-size: 30px; font-weight: 500; color: #FFF4E3;
+  }
+  .point .ico {
+    width: 62px; height: 62px; border-radius: 50%; flex-shrink: 0;
+    display: grid; place-items: center;
+    background: linear-gradient(160deg, #FFE08A, #C8902B);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .35);
+  }
+  .point .ico svg { width: 32px; height: 32px; }
+  .cta {
+    display: inline-flex; align-items: center; gap: 18px;
+    padding: 22px 46px; border-radius: 999px;
+    background: linear-gradient(180deg, #FFE59A 0%, #F2B93B 55%, #D08C1C 100%);
+    color: #0A1F3D; font-weight: 700; font-size: 38px;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, .45), inset 0 2px 0 rgba(255, 255, 255, .6);
+  }
+  .cta svg { width: 42px; height: 42px; }
+  .dandiya { position: absolute; width: 230px; opacity: .95; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<template id="tpl-corner">
+  <svg class="corner" viewBox="0 0 110 110" fill="none" stroke="#E9B949" stroke-width="2.4">
+    <path d="M6 104V30C6 16 16 6 30 6h74" />
+    <path d="M16 104V36c0-11 9-20 20-20h68" opacity=".6" />
+    <circle cx="30" cy="30" r="8" fill="#E9B949" stroke="none" />
+    <path d="M30 14c6 6 6 26 0 32M14 30c6-6 26-6 32 0" />
+  </svg>
+</template>
+
+<script>
+const P = new URLSearchParams(location.search);
+const design = P.get('design') === 'garba' ? 'garba' : 'greeting';
+const size = P.get('size') === 'story' ? 'story' : 'feed';
+const H = size === 'story' ? 1920 : 1350;
+
+const C = {
+  phone: '99673 81555',
+  email: 'vinaykumar87674@gmail.com',
+  area: '24×7 Service · Mumbai',
+  address: 'Goregaon (W), Mumbai',
+};
+
+/* ----- drawn ornaments ------------------------------------------------------ */
+function mandala(size, color = '#F5C451') {
+  const c = size / 2, rings = [0.92, 0.74, 0.56, 0.38];
+  let s = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none" stroke="${color}" stroke-width="2">`;
+  rings.forEach((r, ri) => {
+    const R = c * r, n = [32, 24, 16, 12][ri];
+    s += `<circle cx="${c}" cy="${c}" r="${R}" />`;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2, a2 = ((i + 0.5) / n) * Math.PI * 2;
+      const x1 = c + Math.cos(a) * R, y1 = c + Math.sin(a) * R;
+      const len = c * (ri === 0 ? 0.09 : 0.12);
+      const xt = c + Math.cos(a2) * (R + len), yt = c + Math.sin(a2) * (R + len);
+      const x2 = c + Math.cos(a + (Math.PI * 2) / n) * R, y2 = c + Math.sin(a + (Math.PI * 2) / n) * R;
+      s += `<path d="M${x1} ${y1} Q${xt} ${yt} ${x2} ${y2}" />`;
+      if (ri % 2 === 0) s += `<circle cx="${xt}" cy="${yt}" r="3" fill="${color}" stroke="none" />`;
+    }
+  });
+  s += `<circle cx="${c}" cy="${c}" r="${c * 0.12}" /></svg>`;
+  return s;
+}
+
+function toran(width) {
+  // a string of marigolds with mango leaves hanging between them
+  const n = 13, step = width / (n - 1);
+  let s = `<svg class="toran" viewBox="0 0 ${width} 110" preserveAspectRatio="none">`;
+  s += `<path d="M0 14 Q${width / 2} 44 ${width} 14" stroke="#7a4a00" stroke-width="3" fill="none"/>`;
+  for (let i = 0; i < n; i++) {
+    const x = i * step, y = 14 + Math.sin((i / (n - 1)) * Math.PI) * 30;
+    s += `<g transform="translate(${x} ${y})">`;
+    if (i % 2) {
+      s += `<path d="M0 0 C-14 22 -10 48 0 62 C10 48 14 22 0 0Z" fill="#2E7D32"/><path d="M0 4 V58" stroke="#1B5E20" stroke-width="1.5"/>`;
+    } else {
+      for (let k = 0; k < 3; k++) {
+        const cy = 14 + k * 24, col = k % 2 ? '#FFB300' : '#FF6F00';
+        s += `<circle cx="0" cy="${cy}" r="12" fill="${col}"/><circle cx="0" cy="${cy}" r="12" fill="url(#mg)" opacity=".5"/>`;
+      }
+    }
+    s += `</g>`;
+  }
+  s += `<defs><radialGradient id="mg"><stop offset="0" stop-color="#fff59d"/><stop offset="1" stop-color="#e65100" stop-opacity="0"/></radialGradient></defs></svg>`;
+  return s;
+}
+
+function diya() {
+  return `<svg viewBox="0 0 120 120">
+    <defs>
+      <radialGradient id="flame" cx="50%" cy="70%"><stop offset="0" stop-color="#fffde7"/><stop offset=".45" stop-color="#ffd54f"/><stop offset="1" stop-color="#ff6f00"/></radialGradient>
+      <linearGradient id="clay" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#E8A040"/><stop offset="1" stop-color="#8A4A10"/></linearGradient>
+    </defs>
+    <ellipse cx="60" cy="40" rx="34" ry="34" fill="#ffb300" opacity=".18"/>
+    <path d="M60 14 C70 30 70 44 60 52 C50 44 50 30 60 14Z" fill="url(#flame)"/>
+    <path d="M14 66 Q60 58 106 66 Q98 98 60 100 Q22 98 14 66Z" fill="url(#clay)"/>
+    <path d="M14 66 Q60 74 106 66" stroke="#FFE08A" stroke-width="3" fill="none"/>
+    <circle cx="40" cy="84" r="4" fill="#FFE08A"/><circle cx="60" cy="88" r="4" fill="#FFE08A"/><circle cx="80" cy="84" r="4" fill="#FFE08A"/>
+  </svg>`;
+}
+
+function dandiya(flip) {
+  return `<svg class="dandiya" viewBox="0 0 230 230" style="${flip}">
+    <g transform="rotate(-38 115 115)">
+      <rect x="105" y="10" width="16" height="210" rx="8" fill="#F2B93B"/>
+      <rect x="105" y="40" width="16" height="22" fill="#D81B60"/><rect x="105" y="90" width="16" height="22" fill="#1E88E5"/>
+      <rect x="105" y="140" width="16" height="22" fill="#43A047"/>
+      <circle cx="113" cy="12" r="10" fill="#D81B60"/><circle cx="113" cy="218" r="10" fill="#D81B60"/>
+    </g>
+    <g transform="rotate(38 115 115)">
+      <rect x="105" y="10" width="16" height="210" rx="8" fill="#F2B93B"/>
+      <rect x="105" y="40" width="16" height="22" fill="#7B1FA2"/><rect x="105" y="90" width="16" height="22" fill="#FB8C00"/>
+      <rect x="105" y="140" width="16" height="22" fill="#00897B"/>
+      <circle cx="113" cy="12" r="10" fill="#7B1FA2"/><circle cx="113" cy="218" r="10" fill="#7B1FA2"/>
+    </g>
+  </svg>`;
+}
+
+function stars(n, h) {
+  let s = `<svg class="stars" width="1080" height="${h}">`;
+  let seed = 7;
+  const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < n; i++) {
+    const x = rnd() * 1080, y = rnd() * h * 0.55, r = rnd() * 2.2 + .4;
+    s += `<circle cx="${x}" cy="${y}" r="${r}" fill="#FFF6D8" opacity="${.3 + rnd() * .6}"/>`;
+  }
+  return s + '</svg>';
+}
+
+const ICON = {
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="#F5C451" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2Z"/></svg>',
+  whatsapp: '<svg viewBox="0 0 24 24" fill="#F5C451"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.4 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .1-3.2-.7-2.7-1.1-4.4-3.8-4.5-4-.1-.2-1.1-1.4-1.1-2.7s.7-1.9.9-2.2c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.1.1.3 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.7 1.2 1.6 2 1.1.9 2 1.2 2.3 1.4.3.1.4.1.6-.1l.8-1c.2-.3.4-.2.6-.1l1.8.9c.3.1.4.2.5.3.1.2.1.7-.1 1.3Z"/></svg>',
+  mail: '<svg viewBox="0 0 24 24" fill="none" stroke="#F5C451" stroke-width="2" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="#0A1F3D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="#0A1F3D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>',
+  car: '<svg viewBox="0 0 24 24" fill="none" stroke="#0A1F3D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14v-5l-2-5H7l-2 5v5Z"/><circle cx="7.5" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/><path d="M5 12h14"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="#0A1F3D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+};
+
+const corners = () => ['tl', 'tr', 'bl', 'br'].map((k) =>
+  document.getElementById('tpl-corner').innerHTML.replace('class="corner"', `class="corner ${k}"`)).join('');
+
+const brand = (top) => `
+  <div class="center" style="top:${top}px">
+    <div class="logo-card">
+      <img src="gtt-car.svg" alt="">
+      <div>
+        <b>Gupta Tours &amp; Travels</b>
+        <small>24×7 · MUMBAI</small>
+      </div>
+    </div>
+  </div>`;
+
+const credit = () => `<p class="credit" style="top:${H - 54}px">Photo: Goutam1962, Wikimedia Commons · CC BY-SA 4.0</p>`;
+
+const contact = (top) => `
+  <div class="center" style="top:${top}px">
+    <div class="contact">
+      <span class="chip">${ICON.phone} ${C.phone}</span>
+      <span class="chip">${ICON.whatsapp} WhatsApp ${C.phone}</span>
+    </div>
+    <div class="contact" style="margin-top:16px">
+      <span class="chip">${ICON.mail} ${C.email}</span>
+    </div>
+  </div>`;
+
+/* ----- the two designs ---------------------------------------------------------- */
+function greeting() {
+  const story = size === 'story';
+  const archW = story ? 530 : 400, archH = story ? 670 : 500;
+  const archTop = story ? 300 : 222;
+  const textTop = archTop + archH + (story ? 60 : 40);
+  return `
+    <div class="mandala" style="top:${archTop - 160}px">${mandala(story ? 1000 : 860, '#7FD0F7')}</div>
+    ${toran(960)}
+    <div class="frame"></div>${corners()}
+
+    <div class="center" style="top:${story ? 175 : 150}px"><p class="eyebrow">✦ NAVRATRI SPECIAL ✦</p></div>
+
+    <div class="devi-wrap" style="top:${archTop}px; width:${archW}px">
+      <div class="halo" style="width:${archW * 1.7}px;height:${archW * 1.7}px"></div>
+      <div class="arch"><div class="arch-inner" style="height:${archH - 24}px"><img src="devi-1.jpg" alt="Maa Durga" style="object-position:50% 34%"></div></div>
+      <div class="diya" style="left:-120px; bottom:-20px">${diya()}</div>
+      <div class="diya" style="right:-120px; bottom:-20px">${diya()}</div>
+    </div>
+
+    <div class="center" style="top:${textTop}px">
+      <p class="hindi gold-text" style="font-size:${story ? 92 : 78}px; line-height:1.15">शुभ नवरात्रि</p>
+      <p class="gold-text" style="font-family:'Great Vibes',cursive; font-size:${story ? 108 : 92}px; line-height:1.05; margin-top:-6px">Happy Navratri</p>
+      <div class="divider" style="margin:${story ? 26 : 14}px 0"><span></span><i></i><span></span></div>
+      <p style="font-size:${story ? 32 : 27}px; line-height:1.5; color:#FFEFD0; padding:0 120px; font-weight:400">
+        May Maa Durga bless you and your family with strength, happiness and safe journeys this festive season.
+      </p>
+    </div>
+
+    ${brand(story ? textTop + 455 : textTop + 322)}
+    ${story ? contact(textTop + 625) : ''}
+    ${story ? `<div class="center address" style="top:${textTop + 785}px">${C.address}</div>` : `
+      <div class="center" style="top:${H - 116}px"><div class="contact" style="font-size:22px">
+        <span class="chip">${ICON.phone} ${C.phone}</span><span class="chip">${ICON.mail} ${C.email}</span></div></div>`}
+  `;
+}
+
+function garba() {
+  const story = size === 'story';
+  const dTop = story ? 170 : 80, d = story ? 380 : 240;
+  const titleTop = dTop + d + (story ? 50 : 22);
+  const pointsTop = titleTop + (story ? 360 : 286);
+  const gap = story ? 116 : 94;
+  return `
+    ${stars(90, H)}
+    <div class="mandala" style="top:${dTop - 130}px; opacity:.18">${mandala(story ? 760 : 620, '#7FD0F7')}</div>
+    <div class="frame"></div>${corners()}
+    ${dandiya(`left:70px; top:${dTop + 30}px`)}
+    ${dandiya(`right:70px; top:${dTop + 30}px; transform:scaleX(-1)`)}
+
+    <div class="devi-wrap" style="top:${dTop}px; width:${d}px">
+      <div class="halo" style="width:${d * 1.9}px;height:${d * 1.9}px"></div>
+      <div class="arch circle-frame"><div class="arch-inner" style="height:${d - 24}px"><img src="devi-2.jpg" alt="Maa Durga" style="object-position:50% 36%; transform:scale(1.55); transform-origin:48% 38%"></div></div>
+    </div>
+
+    <div class="center" style="top:${titleTop}px">
+      <p class="eyebrow" style="color:#9FDCFA">✦ NAVRATRI SPECIAL ✦</p>
+      <p class="gold-text" style="font-family:'Cinzel Decorative',serif; font-weight:900; font-size:${story ? 96 : 84}px; line-height:1.05; margin-top:14px">Garba Night</p>
+      <p style="font-family:'Cinzel',serif; font-weight:800; font-size:${story ? 58 : 50}px; letter-spacing:.06em; color:#FFF4E3; margin-top:8px">PICKUP &amp; DROP</p>
+      <p class="hindi" style="font-size:${story ? 38 : 32}px; color:#FFD27A; margin-top:${story ? 16 : 8}px">गरबा / डांडिया के लिए सुरक्षित सवारी</p>
+    </div>
+
+    <div class="center" style="top:${pointsTop}px">
+      <div class="points" style="gap:${gap - 80}px">
+        <div class="point"><span class="ico">${ICON.shield}</span> Safe rides to &amp; from Garba / Dandiya venues</div>
+        <div class="point"><span class="ico">${ICON.moon}</span> Late-night pickups — available 24×7</div>
+        <div class="point"><span class="ico">${ICON.car}</span> Clean AC cabs — Sedan, SUV &amp; Innova</div>
+        <div class="point"><span class="ico">${ICON.user}</span> Verified, courteous drivers</div>
+      </div>
+    </div>
+
+    <div class="center" style="top:${pointsTop + (story ? 510 : 384)}px">
+      <span class="cta">${ICON.whatsapp.replace('#F5C451', '#0A1F3D')} Book now: ${C.phone}</span>
+    </div>
+
+    ${brand(story ? H - 300 : H - 212)}
+    ${story ? `<div class="center" style="top:${H - 150}px"><div class="contact" style="font-size:23px"><span class="chip">${ICON.mail} ${C.email}</span></div></div>` : ''}
+  `;
+}
+
+const root = document.getElementById('root');
+root.className = `poster ${size} ${design}`;
+root.innerHTML = design === 'garba' ? garba() : greeting();
+document.title = `Navratri ${design} ${size}`;
+
+// render.js waits for this before taking the picture
+Promise.all([document.fonts.ready, ...[...document.images].map((i) => i.decode().catch(() => {}))])
+  .then(() => { document.body.dataset.ready = '1'; });
+</script>
+</body>
+</html>

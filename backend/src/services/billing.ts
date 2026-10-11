@@ -27,6 +27,10 @@ export interface ChargeInput {
   permit?: number;
   nightCharge?: number;
   otherCharges?: number;
+  /** Waiting beyond the free allowance. Taxable, like the fare itself. */
+  waitingCharge?: number;
+  /** State / border entry tax, charged at actuals alongside toll and parking. */
+  stateTax?: number;
   discount?: number;
   taxMode?: TaxMode | string;
   taxRate?: number;
@@ -43,6 +47,10 @@ export interface ChargeResult {
   permit: number;
   nightCharge: number;
   otherCharges: number;
+  waitingCharge: number;
+  stateTax: number;
+  /** Toll + parking + state tax: the reimbursables. */
+  reimbursables: number;
   discount: number;
   taxableAmount: number;
   taxMode: TaxMode;
@@ -77,6 +85,9 @@ export function computeCharges(input: ChargeInput): ChargeResult {
   const permit = n(input.permit);
   const nightCharge = n(input.nightCharge);
   const otherCharges = n(input.otherCharges);
+  const waitingCharge = n(input.waitingCharge);
+  const stateTax = n(input.stateTax);
+  const reimbursables = round2(tollParking + stateTax);
   const discount = n(input.discount);
 
   const taxMode = (['IGST', 'CGST_SGST', 'NONE'].includes(String(input.taxMode))
@@ -86,11 +97,12 @@ export function computeCharges(input: ChargeInput): ChargeResult {
   const tollParkingTaxable = !!input.tollParkingTaxable;
 
   let taxableAmount =
-    baseFare + extraKmAmount + extraHoursAmount + driverAllowance + permit + nightCharge + otherCharges - discount;
-  if (tollParkingTaxable) taxableAmount += tollParking;
+    baseFare + extraKmAmount + extraHoursAmount + driverAllowance + permit + nightCharge + otherCharges
+    + waitingCharge - discount;
+  if (tollParkingTaxable) taxableAmount += reimbursables;
   taxableAmount = round2(Math.max(0, taxableAmount));
 
-  const nonTaxableAmount = tollParkingTaxable ? 0 : tollParking;
+  const nonTaxableAmount = tollParkingTaxable ? 0 : reimbursables;
 
   const taxAmount = round2((taxableAmount * taxRate) / 100);
   let cgst = 0, sgst = 0, igst = 0;
@@ -115,6 +127,9 @@ export function computeCharges(input: ChargeInput): ChargeResult {
     permit: round2(permit),
     nightCharge: round2(nightCharge),
     otherCharges: round2(otherCharges),
+    waitingCharge: round2(waitingCharge),
+    stateTax: round2(stateTax),
+    reimbursables,
     discount: round2(discount),
     taxableAmount,
     taxMode,
@@ -137,7 +152,8 @@ export function consolidate(
   taxMode: TaxMode,
   taxRate: number
 ): Omit<ChargeResult, 'baseFare' | 'extraKmAmount' | 'extraHoursAmount' | 'tollParking' |
-  'driverAllowance' | 'permit' | 'nightCharge' | 'otherCharges' | 'advance' | 'balance'> & {
+  'driverAllowance' | 'permit' | 'nightCharge' | 'otherCharges' | 'waitingCharge' | 'stateTax' |
+  'reimbursables' | 'advance' | 'balance'> & {
     advance: number; balance: number;
   } {
   const taxableAmount = round2(rows.reduce((s, r) => s + n(r.taxable_amount), 0));

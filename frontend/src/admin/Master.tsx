@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, errorMessage, downloadFile } from '../lib/api';
 import { inr } from '../lib/format';
-import { Field, Loading, Modal, Spinner } from '../components/ui';
+import { Field, Loading, Modal, Spinner, ConfirmDialog } from '../components/ui';
+import { ExportButton } from '../components/data';
+import FareCalculator from './FareCalculator';
 import {
   IconPlus, IconEdit, IconTrash, IconDuplicate, IconWarning,
-  IconDownload, IconPaste, IconCheck,
+  IconDownload, IconPaste, IconCheck, IconGauge,
 } from '../components/icons';
 import { useToast } from '../components/Toast';
 
@@ -40,6 +42,7 @@ const VEHICLE_PRESETS = [
 const EMPTY = {
   id: 0,
   vendorId: '',
+  categoryId: '',
   vehicleCategory: '',
   planType: 'LOCAL' as (typeof PLAN_TYPES)[number][0],
   planLabel: '8H/80KM',
@@ -51,6 +54,20 @@ const EMPTY = {
   perKmRate: '',
   minKmPerDay: '',
   driverAllowance: '',
+  minDailyCharge: '',
+  nightCharge: '',
+  waitingRate: '',
+  freeWaitingMinutes: '',
+  tollIncluded: false,
+  parkingIncluded: false,
+  stateTax: '',
+  otherCharge: '',
+  otherChargeLabel: '',
+  discountPercent: '',
+  taxMode: '',
+  taxRate: '',
+  effectiveFrom: '',
+  effectiveTo: '',
   notes: '',
   isActive: true,
   displayOrder: '0',
@@ -62,7 +79,7 @@ const num = (v: any) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export default function Master() {
+export default function Master({ embedded = false }: { embedded?: boolean } = {}) {
   const toast = useToast();
   const [vendors, setVendors] = useState<any[]>([]);
   const [publicVendorId, setPublicVendorId] = useState<number | null>(null);
@@ -75,6 +92,9 @@ export default function Master() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [copyOpen, setCopyOpen] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [toDelete, setToDelete] = useState<any>(null);
+  const [testing, setTesting] = useState<any>(null);
   const [copyFrom, setCopyFrom] = useState('');
 
   // --- Excel import -------------------------------------------------------
@@ -98,10 +118,12 @@ export default function Master() {
   useEffect(() => {
     (async () => {
       try {
-        const [v, pub] = await Promise.all([
+        const [v, pub, cats] = await Promise.all([
           api.get('/vendors/options'),
           api.get('/rates/public-vendor'),
+          api.get('/masters/categories', { params: { all: 1 } }).catch(() => ({ data: { data: [] } })),
         ]);
+        setCategories(cats.data.data ?? []);
         const list = v.data.data ?? [];
         setVendors(list);
         const publicId = pub.data.data?.id ?? null;
@@ -140,6 +162,7 @@ export default function Master() {
     setForm({
       id: r.id,
       vendorId: String(r.vendor_id),
+      categoryId: r.category_id ? String(r.category_id) : '',
       vehicleCategory: r.vehicle_category,
       planType: r.plan_type,
       planLabel: r.plan_label,
@@ -151,6 +174,20 @@ export default function Master() {
       perKmRate: r.per_km_rate ? String(r.per_km_rate) : '',
       minKmPerDay: r.min_km_per_day ? String(r.min_km_per_day) : '',
       driverAllowance: r.driver_allowance ? String(r.driver_allowance) : '',
+      minDailyCharge: r.min_daily_charge ? String(r.min_daily_charge) : '',
+      nightCharge: r.night_charge ? String(r.night_charge) : '',
+      waitingRate: r.waiting_rate ? String(r.waiting_rate) : '',
+      freeWaitingMinutes: r.free_waiting_minutes ? String(r.free_waiting_minutes) : '',
+      tollIncluded: !!r.toll_included,
+      parkingIncluded: !!r.parking_included,
+      stateTax: r.state_tax ? String(r.state_tax) : '',
+      otherCharge: r.other_charge ? String(r.other_charge) : '',
+      otherChargeLabel: r.other_charge_label ?? '',
+      discountPercent: r.discount_percent ? String(r.discount_percent) : '',
+      taxMode: r.tax_mode ?? '',
+      taxRate: r.tax_rate != null ? String(r.tax_rate) : '',
+      effectiveFrom: r.effective_from ?? '',
+      effectiveTo: r.effective_to ?? '',
       notes: r.notes ?? '',
       isActive: !!r.is_active,
       displayOrder: String(r.display_order ?? 0),
@@ -172,7 +209,9 @@ export default function Master() {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (form.vehicleCategory.trim().length < 2) e.vehicleCategory = 'Enter the vehicle class.';
+    if (!form.categoryId && form.vehicleCategory.trim().length < 2) e.vehicleCategory = 'Choose the vehicle category.';
+    if (form.effectiveFrom && form.effectiveTo && form.effectiveTo < form.effectiveFrom) e.effectiveTo = 'The end date is before the start date.';
+    if (num(form.discountPercent) > 100) e.discountPercent = 'A discount cannot exceed 100%.';
     if (form.planLabel.trim().length < 2) e.planLabel = 'Name the plan, e.g. 8H/80KM.';
     if (form.planType === 'OUTSTATION' && num(form.perKmRate) <= 0) e.perKmRate = 'An outstation rate needs a per-km rate.';
     if (form.planType !== 'OUTSTATION' && num(form.baseFare) <= 0) e.baseFare = 'Enter the base fare.';
@@ -197,6 +236,21 @@ export default function Master() {
       perKmRate: num(form.perKmRate),
       minKmPerDay: num(form.minKmPerDay),
       driverAllowance: num(form.driverAllowance),
+      categoryId: form.categoryId ? Number(form.categoryId) : null,
+      minDailyCharge: num(form.minDailyCharge),
+      nightCharge: num(form.nightCharge),
+      waitingRate: num(form.waitingRate),
+      freeWaitingMinutes: num(form.freeWaitingMinutes),
+      tollIncluded: form.tollIncluded,
+      parkingIncluded: form.parkingIncluded,
+      stateTax: num(form.stateTax),
+      otherCharge: num(form.otherCharge),
+      otherChargeLabel: form.otherChargeLabel.trim(),
+      discountPercent: num(form.discountPercent),
+      taxMode: form.taxMode,
+      taxRate: form.taxRate === '' ? '' : num(form.taxRate),
+      effectiveFrom: form.effectiveFrom,
+      effectiveTo: form.effectiveTo,
       notes: form.notes.trim(),
       isActive: form.isActive,
       displayOrder: num(form.displayOrder),
@@ -216,11 +270,11 @@ export default function Master() {
   };
 
   const remove = async (r: any) => {
-    if (!window.confirm(`Delete the ${r.vehicle_category} rate for ${r.plan_label}?`)) return;
     setBusy(true);
     try {
-      await api.delete(`/rates/${r.id}`);
-      toast.success('Rate deleted', `${r.vehicle_category} · ${r.plan_label}`);
+      const { data } = await api.delete(`/rates/${r.id}`);
+      toast.success(data?.deactivated ? 'Rule switched off' : 'Rule deleted', data?.message ?? `${r.vehicle_category} · ${r.plan_label}`);
+      setToDelete(null);
       await load(vendorId);
     } catch (err) {
       toast.error('Could not delete the rate', errorMessage(err));
@@ -309,16 +363,23 @@ export default function Master() {
   const byType = (t: string) => rows.filter((r) => r.plan_type === t);
 
   return (
-    <div className="page mx-auto max-w-7xl">
+    <div className={embedded ? 'flex flex-col gap-5' : 'page mx-auto max-w-7xl'}>
       <div className="page-head animate-fade-down">
         <div>
-          <h1 className="page-title">Master</h1>
+          {embedded ? (
+            <h2 className="text-lg font-semibold text-ink-900">Fare rules</h2>
+          ) : (
+            <h1 className="page-title">Fare rules</h1>
+          )}
           <p className="page-sub">
-            What each vendor pays, per vehicle class and plan. Bookings are still priced by the amount you
-            type — this is the reference the rate comes from, and the source for the website's fare calculator.
+            What each vendor pays, per vehicle category and plan, and the charges that go with it. The trip
+            fare calculator, quotations and invoices all price from these rules; the walk-in card also feeds the
+            website's fare calculator. A trip keeps a copy of the rule it was priced with, so changing a rule
+            never re-prices a confirmed trip.
           </p>
         </div>
         <div className="page-actions">
+          <ExportButton url="/masters/export/fare-rules" params={{ vendorId }} label="Export" />
           <button onClick={getTemplate} className="btn-outline btn-sm">
             <IconDownload className="h-4 w-4" /> Excel template
           </button>
@@ -399,6 +460,8 @@ export default function Master() {
                       {type === 'LOCAL' && <><th className="td-num">Includes</th><th className="td-num">Base fare</th><th className="td-num">Extra hr</th><th className="td-num">Extra km</th></>}
                       {type === 'AIRPORT' && <th className="td-num">Flat fare</th>}
                       {type === 'OUTSTATION' && <><th className="td-num">Per km</th><th className="td-num">Min km/day</th><th className="td-num">Driver allowance</th></>}
+                      <th>Extras</th>
+                      <th>Effective</th>
                       <th className="sticky-end"></th>
                     </tr>
                   </thead>
@@ -430,12 +493,33 @@ export default function Master() {
                             <td className="td-num">{inr(r.driver_allowance)}</td>
                           </>
                         )}
+                        <td className="max-w-[16rem] text-xs text-ink-500">
+                          {[
+                            r.min_daily_charge > 0 && `Min/day ${inr(r.min_daily_charge)}`,
+                            r.night_charge > 0 && `Night ${inr(r.night_charge)}`,
+                            r.waiting_rate > 0 && `Waiting ${inr(r.waiting_rate)}/h`,
+                            r.state_tax > 0 && `State tax ${inr(r.state_tax)}`,
+                            r.other_charge > 0 && `${r.other_charge_label || 'Other'} ${inr(r.other_charge)}`,
+                            r.discount_percent > 0 && `${r.discount_percent}% off`,
+                            r.toll_included && 'Toll incl.',
+                            r.parking_included && 'Parking incl.',
+                            r.tax_mode && `${r.tax_mode === 'NONE' ? 'No GST' : `${r.tax_mode === 'CGST_SGST' ? 'CGST+SGST' : 'IGST'} ${r.tax_rate ?? ''}%`}`,
+                          ].filter(Boolean).join(' · ') || '—'}
+                        </td>
+                        <td className="whitespace-nowrap text-xs text-ink-500">
+                          {r.effective_from || r.effective_to
+                            ? `${r.effective_from || 'any time'} → ${r.effective_to || 'open'}`
+                            : 'Always'}
+                        </td>
                         <td className="sticky-end">
                           <div className="row-actions">
+                          <button onClick={() => setTesting(r)} className="btn-ghost btn-sm" aria-label={`Test ${r.vehicle_category}`} title="Try this rule">
+                            <IconGauge className="h-4 w-4" />
+                          </button>
                           <button onClick={() => openEdit(r)} className="btn-ghost btn-sm" aria-label={`Edit ${r.vehicle_category}`}>
                             <IconEdit className="h-4 w-4" />
                           </button>
-                          <button onClick={() => remove(r)} className="btn-ghost btn-sm text-danger-600" aria-label={`Delete ${r.vehicle_category}`}>
+                          <button onClick={() => setToDelete(r)} className="btn-ghost btn-sm text-danger-600" aria-label={`Delete ${r.vehicle_category}`}>
                             <IconTrash className="h-4 w-4" />
                           </button>
                           </div>
@@ -467,18 +551,39 @@ export default function Master() {
         }
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Vehicle class" required error={errors.vehicleCategory}>
-            <input
-              className={`input ${errors.vehicleCategory ? 'input-error' : ''}`}
-              list="vehicle-presets"
-              value={form.vehicleCategory}
-              onChange={set('vehicleCategory')}
-              placeholder="e.g. Toyota Innova Crysta"
-            />
-            <datalist id="vehicle-presets">
-              {VEHICLE_PRESETS.map((v) => <option key={v} value={v} />)}
-            </datalist>
-          </Field>
+          {categories.length ? (
+            <Field label="Vehicle category" required error={errors.vehicleCategory} hint="From Masters → Vehicle categories">
+              <select
+                className={`input ${errors.vehicleCategory ? 'input-error' : ''}`}
+                value={form.categoryId}
+                onChange={(e) => {
+                  const c = categories.find((x) => String(x.id) === e.target.value);
+                  setForm((f) => ({ ...f, categoryId: e.target.value, vehicleCategory: c?.name ?? f.vehicleCategory }));
+                }}
+              >
+                <option value="">Choose a category…</option>
+                {categories.filter((c) => c.is_active || String(c.id) === form.categoryId).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}{c.is_active ? '' : ' (inactive)'}{c.segment ? ` — ${c.segment}` : ''}</option>
+                ))}
+              </select>
+              {!form.categoryId && form.vehicleCategory && (
+                <p className="hint">Currently “{form.vehicleCategory}” — pick the matching category to link it.</p>
+              )}
+            </Field>
+          ) : (
+            <Field label="Vehicle class" required error={errors.vehicleCategory}>
+              <input
+                className={`input ${errors.vehicleCategory ? 'input-error' : ''}`}
+                list="vehicle-presets"
+                value={form.vehicleCategory}
+                onChange={set('vehicleCategory')}
+                placeholder="e.g. Toyota Innova Crysta"
+              />
+              <datalist id="vehicle-presets">
+                {VEHICLE_PRESETS.map((v) => <option key={v} value={v} />)}
+              </datalist>
+            </Field>
+          )}
 
           <Field label="Plan type">
             <select className="input" value={form.planType} onChange={(e) => changePlanType(e.target.value)}>
@@ -528,11 +633,63 @@ export default function Master() {
               <Field label="Minimum km per day" hint="The floor a day is billed at">
                 <input className="input text-right tabular-nums" inputMode="decimal" placeholder="300" value={form.minKmPerDay} onChange={set('minKmPerDay')} />
               </Field>
-              <Field label="Driver allowance" hint="Per night away">
+              <Field label="Driver allowance" hint="Per day out">
                 <input className="input text-right tabular-nums" inputMode="decimal" placeholder="0.00" value={form.driverAllowance} onChange={set('driverAllowance')} />
+              </Field>
+              <Field label="Minimum daily charge" hint="Charged when km × rate comes to less">
+                <input className="input text-right tabular-nums" inputMode="decimal" placeholder="0.00" value={form.minDailyCharge} onChange={set('minDailyCharge')} />
               </Field>
             </>
           )}
+
+          <div className="sm:col-span-2 mt-1 border-t border-ink-100 pt-4">
+            <p className="eyebrow">Additional charges</p>
+          </div>
+          <Field label="Night charge" hint="Per night, when the trip runs overnight">
+            <input className="input text-right tabular-nums" inputMode="decimal" placeholder="0.00" value={form.nightCharge} onChange={set('nightCharge')} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Waiting / hour"><input className="input text-right tabular-nums" inputMode="decimal" placeholder="0.00" value={form.waitingRate} onChange={set('waitingRate')} /></Field>
+            <Field label="Free waiting (min)"><input className="input text-right tabular-nums" inputMode="numeric" placeholder="0" value={form.freeWaitingMinutes} onChange={set('freeWaitingMinutes')} /></Field>
+          </div>
+          <Field label="State tax" hint="Default per trip; can be overridden at actuals">
+            <input className="input text-right tabular-nums" inputMode="decimal" placeholder="0.00" value={form.stateTax} onChange={set('stateTax')} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Other charge"><input className="input text-right tabular-nums" inputMode="decimal" placeholder="0.00" value={form.otherCharge} onChange={set('otherCharge')} /></Field>
+            <Field label="Called"><input className="input" placeholder="e.g. Cleaning" value={form.otherChargeLabel} onChange={set('otherChargeLabel')} /></Field>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm text-ink-700"><input type="checkbox" className="check" checked={form.tollIncluded} onChange={set('tollIncluded')} /> Toll included in the fare</label>
+            <label className="flex items-center gap-2 text-sm text-ink-700"><input type="checkbox" className="check" checked={form.parkingIncluded} onChange={set('parkingIncluded')} /> Parking included in the fare</label>
+          </div>
+
+          <div className="sm:col-span-2 mt-1 border-t border-ink-100 pt-4">
+            <p className="eyebrow">Discount, tax and validity</p>
+          </div>
+          <Field label="Discount %" error={errors.discountPercent} hint="On the fare and extras, never on toll or parking">
+            <input className="input text-right tabular-nums" inputMode="decimal" placeholder="0" value={form.discountPercent} onChange={set('discountPercent')} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="GST" hint="Blank = vendor default">
+              <select className="input" value={form.taxMode} onChange={set('taxMode')}>
+                <option value="">Vendor default</option>
+                <option value="IGST">IGST</option>
+                <option value="CGST_SGST">CGST + SGST</option>
+                <option value="NONE">No GST</option>
+              </select>
+            </Field>
+            <Field label="Rate %">
+              <input className="input text-right tabular-nums" inputMode="decimal" placeholder="—" value={form.taxRate}
+                disabled={!form.taxMode || form.taxMode === 'NONE'} onChange={set('taxRate')} />
+            </Field>
+          </div>
+          <Field label="Effective from" hint="Blank = already in force">
+            <input type="date" className="input" value={form.effectiveFrom} onChange={set('effectiveFrom')} />
+          </Field>
+          <Field label="Effective to" error={errors.effectiveTo} hint="Blank = no end date">
+            <input type="date" className="input" value={form.effectiveTo} min={form.effectiveFrom || undefined} onChange={set('effectiveTo')} />
+          </Field>
 
           <Field label="Note" className="sm:col-span-2" hint="Optional — shown under the plan on the website">
             <input className="input" value={form.notes} onChange={set('notes')} placeholder="e.g. Within Mumbai city limits" />
@@ -663,6 +820,34 @@ export default function Master() {
             )}
           </div>
         )}
+      </Modal>
+
+      <ConfirmDialog
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => remove(toDelete)}
+        danger busy={busy}
+        title="Remove this fare rule?"
+        confirmLabel="Remove"
+        body={
+          <>
+            <p><strong>{toDelete?.vehicle_category}</strong> · {toDelete?.plan_label}</p>
+            <p className="text-ink-500">
+              If any trip was priced with this rule it is switched off instead, so those trips keep pointing at it.
+              Their fares do not change either way.
+            </p>
+          </>
+        }
+      />
+
+      <Modal
+        open={!!testing}
+        onClose={() => setTesting(null)}
+        title="Try this rule"
+        subtitle={testing ? `${testing.vehicle_category} · ${testing.plan_label} — the same calculation trips and invoices use.` : ''}
+        size="lg"
+      >
+        {testing && <FareCalculator fixedRule={{ ...testing, vendor_tax_mode: vendor?.tax_mode, vendor_tax_rate: vendor?.tax_rate }} />}
       </Modal>
 
       {/* ---------------- copy ---------------- */}

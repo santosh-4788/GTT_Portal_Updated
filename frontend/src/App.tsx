@@ -89,8 +89,11 @@ const Dashboard = page(() => import('./admin/Dashboard'));
 const Bookings = page(() => import('./admin/Bookings'));
 const Trips = page(() => import('./admin/Trips'));
 const BookingForm = page(() => import('./admin/BookingForm'));
-const CustomerBooking = page(() => import('./admin/CustomerBooking'));
-const Master = page(() => import('./admin/Master'));
+const Masters = page(() => import('./admin/Masters'));
+const FleetAdmin = page(() => import('./admin/Fleet'));
+const EventsAdmin = page(() => import('./admin/Events'));
+const OnSheetHome = page(() => import('./admin/onsheet/OnSheetHome'));
+const OnSheetEditor = page(() => import('./admin/onsheet/OnSheetEditor'));
 const OutstationFares = page(() => import('./admin/OutstationFares'));
 const ChatHistory = page(() => import('./admin/ChatHistory'));
 const Feedback = page(() => import('./admin/Feedback'));
@@ -213,8 +216,15 @@ export default function App() {
           <Route path="bookings" element={<Bookings />} />
           <Route path="bookings/new" element={<BookingForm />} />
           <Route path="bookings/:id/edit" element={<BookingForm />} />
-          <Route path="customer-booking" element={<CustomerBooking />} />
-          <Route path="master" element={<Master />} />
+          {/* The separate Customer Booking page is now New booking → Walk-in / Direct customer. */}
+          <Route path="customer-booking" element={<Navigate to="/admin/bookings/new?source=WALKIN" replace />} />
+          <Route path="masters" element={<Masters />} />
+          {/* The rate master used to be its own page; it is now the Fare rules tab. */}
+          <Route path="master" element={<Navigate to="/admin/masters?tab=fare-rules" replace />} />
+          <Route path="fleet" element={<FleetAdmin />} />
+          <Route path="events" element={<EventsAdmin />} />
+          <Route path="onsheet" element={<OnSheetHome />} />
+          <Route path="onsheet/:uid" element={<OnSheetEditor />} />
           <Route path="outstation-fares" element={<OutstationFares />} />
           <Route path="chats" element={<ChatHistory />} />
           <Route path="feedback" element={<Feedback />} />

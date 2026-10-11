@@ -3,10 +3,20 @@ import { z } from 'zod';
 import { q } from '../db';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { audit } from '../middleware/audit';
+import { sendTable, filterNote } from '../utils/exportSheet';
 import { validateBody, optionalMobile, gstin, pan, ifsc } from '../utils/validate';
+import { parseBookingMessage } from '../services/bookingMessageParser';
+import { parseParserConfig } from '../services/parserConfig';
 
 const router = Router();
 router.use(requireAuth);
+
+/** How this company's booking messages are read: extra label aliases per field. */
+const parserConfigSchema = z.object({
+  labels: z.record(z.union([z.array(z.string().trim().min(1).max(60)), z.string().max(500)])).optional(),
+  noReference: z.coerce.boolean().optional(),
+  sample: z.string().max(5000).optional(),
+});
 
 const vendorSchema = z.object({
   code: z.string().trim().min(2, 'Vendor code needs at least 2 characters.').max(20)
@@ -41,6 +51,10 @@ const vendorSchema = z.object({
   billingCycle: z.enum(['PER_TRIP', 'FORTNIGHTLY', 'MONTHLY']).default('PER_TRIP'),
   bookingMessageFormat: z.enum(['AUTO', 'BOOKING_HASH', 'TRIPID_HASH', 'NONE']).default('AUTO'),
   notes: z.string().trim().optional().default(''),
+  // Left out of the request = leave as stored, so older forms never wipe them.
+  aliases: z.string().trim().max(500).optional(),
+  companyType: z.enum(['CORPORATE', 'TRAVEL_AGENT', 'DIRECT']).optional(),
+  parserConfig: parserConfigSchema.nullable().optional(),
 });
 
 const toRow = (v: z.infer<typeof vendorSchema>) => ({
@@ -75,6 +89,9 @@ const toRow = (v: z.infer<typeof vendorSchema>) => ({
   billing_cycle: v.billingCycle,
   booking_message_format: v.bookingMessageFormat,
   notes: v.notes,
+  ...(v.aliases !== undefined ? { aliases: v.aliases } : {}),
+  ...(v.companyType !== undefined ? { company_type: v.companyType } : {}),
+  ...(v.parserConfig !== undefined ? { parser_config: v.parserConfig ? JSON.stringify(v.parserConfig) : null } : {}),
 });
 
 // --- list ------------------------------------------------------------------
@@ -91,6 +108,7 @@ router.get('/', requirePermission('vendors.view'), (req, res) => {
        LEFT JOIN invoice_templates t ON t.id = v.invoice_template_id
       WHERE (@search = '' OR v.vendor_name LIKE '%'||@search||'%'
                           OR v.company_name LIKE '%'||@search||'%'
+                          OR v.aliases LIKE '%'||@search||'%'
                           OR v.code LIKE '%'||@search||'%')
         AND (@status = '' OR v.status = @status)
       ORDER BY v.vendor_name
@@ -102,12 +120,43 @@ router.get('/', requirePermission('vendors.view'), (req, res) => {
 });
 
 // --- lightweight dropdown source ------------------------------------------
+router.get('/export', requirePermission('vendors.view'), async (req, res) => {
+  const { search = '', status = '' } = req.query as Record<string, string>;
+  const rows = q.all<any>(
+    `SELECT v.*, t.name AS template_name,
+            (SELECT COUNT(*) FROM bookings b WHERE b.vendor_id = v.id) AS booking_count,
+            (SELECT COALESCE(SUM(i.total_amount),0) FROM invoices i WHERE i.vendor_id = v.id AND i.status <> 'CANCELLED') AS total_invoiced,
+            (SELECT COALESCE(SUM(i.outstanding_amount),0) FROM invoices i WHERE i.vendor_id = v.id AND i.status NOT IN ('CANCELLED','PAID')) AS outstanding
+       FROM vendors v LEFT JOIN invoice_templates t ON t.id = v.invoice_template_id
+      WHERE (@search = '' OR v.vendor_name LIKE '%'||@search||'%' OR v.company_name LIKE '%'||@search||'%' OR v.code LIKE '%'||@search||'%')
+        AND (@status = '' OR v.status = @status)
+      ORDER BY v.vendor_name`, { search, status }
+  );
+  await sendTable(res, 'vendors', {
+    name: 'Vendors', title: 'Vendors',
+    notes: [filterNote({ Search: search, Status: status })],
+    columns: [
+      { key: 'code', header: 'Code', kind: 'id' }, { key: 'vendor_name', header: 'Vendor' }, { key: 'company_name', header: 'Company' },
+      { key: 'contact_person', header: 'Contact' }, { key: 'mobile', header: 'Mobile', kind: 'id' }, { key: 'email', header: 'Email' },
+      { key: 'gst_number', header: 'GSTIN', kind: 'id' }, { key: 'pan', header: 'PAN', kind: 'id' }, { key: 'city', header: 'City' },
+      { key: 'payment_terms_days', header: 'Credit days', kind: 'number' }, { key: 'tax_mode', header: 'Tax' },
+      { key: 'tax_rate', header: 'Tax %', kind: 'number' }, { key: 'billing_cycle', header: 'Billing cycle' },
+      { key: 'template_name', header: 'Invoice template' }, { key: 'status', header: 'Status' },
+      { key: 'booking_count', header: 'Bookings', kind: 'number' }, { key: 'total_invoiced', header: 'Invoiced', kind: 'money' },
+      { key: 'outstanding', header: 'Outstanding', kind: 'money' },
+    ],
+    rows, totals: ['total_invoiced', 'outstanding'],
+  }, String((req.query as any).format ?? 'xlsx'));
+});
+
 router.get('/options', requirePermission('vendors.view', 'bookings.view'), (_req, res) => {
   res.json({
     data: q.all<any>(
       `SELECT id, code, vendor_name, company_name, gst_number, billing_address,
               tax_mode, tax_rate, toll_parking_taxable, invoice_template_id,
-              consolidation_allowed, document_title, booking_message_format, payment_terms_days
+              consolidation_allowed, document_title, booking_message_format, payment_terms_days, status,
+              aliases, company_type, mobile, email, contact_person,
+              CASE WHEN parser_config IS NOT NULL AND parser_config <> '' THEN 1 ELSE 0 END AS has_parser_rules
          FROM vendors WHERE status = 'ACTIVE' ORDER BY vendor_name`
     ),
   });
@@ -170,6 +219,18 @@ router.put('/:id', requirePermission('vendors.update'), validateBody(vendorSchem
     description: `Vendor ${row.vendor_name} updated`,
   });
   res.json({ data: q.get('SELECT * FROM vendors WHERE id = @id', { id: req.params.id }) });
+});
+
+// --- try a booking message against this company's parser rules ------------
+// Nothing is saved: the office can test new aliases before storing them.
+router.post('/:id/parser-test', requirePermission('vendors.view'), (req, res) => {
+  const vendor = q.get<any>('SELECT id, parser_config FROM vendors WHERE id = @id', { id: req.params.id });
+  if (!vendor) return res.status(404).json({ error: 'Vendor not found.' });
+  const message = String(req.body?.message ?? '');
+  if (!message.trim()) return res.status(400).json({ error: 'Paste a sample message first.' });
+  const parsed = parserConfigSchema.safeParse(req.body?.parserConfig ?? {});
+  const cfg = parseParserConfig(parsed.success && req.body?.parserConfig ? parsed.data : vendor.parser_config);
+  res.json(parseBookingMessage(message, { labels: cfg.labels as any, noReference: cfg.noReference }));
 });
 
 // --- delete ----------------------------------------------------------------

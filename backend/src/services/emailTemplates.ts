@@ -378,6 +378,47 @@ export function tripDetailsEmail(args: {
 }
 
 /* ==========================================================================
+   Quotation — to the customer, before they confirm
+   ========================================================================== */
+
+export function quotationEmail(args: {
+  trip: TripLike;
+  tripId: string;
+  customerName: string;
+  lines: { label: string; detail?: string; amount: number }[];
+  total: number;
+  taxNote?: string;
+  validUntil?: string;
+  message?: string;
+}): { subject: string; html: string } {
+  const c = companyBlock();
+  const t = args.trip;
+  const fareRows: Row[] = [
+    ...args.lines.map((l) => ({ label: l.detail ? `${l.label} (${l.detail})` : l.label, value: money(l.amount) })),
+    { label: 'Total', value: money(args.total), strong: true },
+  ];
+  const body = `
+    <p style="margin:0 0 4px;font-size:15px;line-height:1.65;color:${INK};">Dear ${esc(args.customerName || 'Customer')},</p>
+    <p style="margin:10px 0 0;font-size:14px;line-height:1.7;color:${MUTED};">
+      Thank you for your enquiry. Here is our quotation for the journey below. Reply to this email or call us to confirm,
+      and we will allot your vehicle and chauffeur.
+    </p>
+    ${tripIdBadge(args.tripId)}
+    ${sectionTitle('Your journey')}
+    ${detailTable(journeyRows(t))}
+    ${sectionTitle('Quotation')}
+    ${detailTable(fareRows)}
+    ${args.taxNote ? `<p style="margin:8px 0 0;font-size:12px;color:${MUTED};">${esc(args.taxNote)}</p>` : ''}
+    ${args.validUntil ? note(`This quotation is valid until <strong style="color:${INK};">${esc(dmy(args.validUntil))}</strong>.`) : ''}
+    ${args.message ? note(esc(args.message)) : ''}
+    ${note(`To confirm, reply to this email or call <strong style="color:${INK};">+91 ${esc(c.mobile)}</strong> and quote your Trip ID.`)}`;
+  return {
+    subject: `Quotation — ${args.tripId} | ${dmy(t.travel_date)} | ${money(args.total)}`,
+    html: layout({ title: 'Your quotation', preheader: `${money(args.total)} for ${dmy(t.travel_date)}`, body, company: c }),
+  };
+}
+
+/* ==========================================================================
    4. Invoice — to the customer
    ========================================================================== */
 
