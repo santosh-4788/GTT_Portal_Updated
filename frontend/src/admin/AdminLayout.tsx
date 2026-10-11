@@ -345,7 +345,7 @@ function PortalShell() {
         to="/admin"
         className="flex items-center gap-3 border-b border-white/[0.07] px-4 py-4 transition-colors hover:bg-white/[0.03]"
       >
-        <img src="/assets/art-car-line-bold.svg" alt="" className="h-auto w-12 shrink-0" />
+        <img src={`${import.meta.env.BASE_URL}assets/art-car-line-bold.svg`} alt="" className="h-auto w-12 shrink-0" />
         <span className="min-w-0">
           {/* Never truncated: the full business name wraps onto a second line
               rather than being cut to "Gupta Tours & Trav…". */}

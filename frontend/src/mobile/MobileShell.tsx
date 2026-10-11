@@ -184,7 +184,7 @@ function Shell() {
           {/* The logo is the car mark, which is roughly 3:1 — so it is sized by
               HEIGHT and left to take whatever width it needs. Forcing it into a
               square box (`h-8 w-8`) squashed it into an unreadable smudge. */}
-          <img src="/app-icon.svg" alt="" className="h-8 w-auto shrink-0" />
+          <img src={`${import.meta.env.BASE_URL}app-icon.svg`} alt="" className="h-8 w-auto shrink-0" />
           <span className="min-w-0 flex-1">
             {/* The business name leads, as it does on the website header. The
                 screen name sits under it: the highlighted tab along the bottom

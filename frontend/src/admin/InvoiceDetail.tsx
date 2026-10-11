@@ -229,7 +229,7 @@ export default function InvoiceDetail() {
       <div className="card print-sheet overflow-hidden">
         <div className="border-b-2 border-brand-500 bg-white px-6 py-5 sm:px-8">
           <div className="flex flex-wrap items-start gap-4">
-            <img src="/assets/art-car-line-bold.svg" alt="" className="h-auto w-28 shrink-0" />
+            <img src={`${import.meta.env.BASE_URL}assets/art-car-line-bold.svg`} alt="" className="h-auto w-28 shrink-0" />
             <div className="min-w-0 flex-1">
               <h2 className="font-display text-lg font-bold text-ink-900">{company.legalName ?? company.name}</h2>
               <p className="mt-0.5 text-xs leading-relaxed text-ink-600">{company.addressInvoice}</p>

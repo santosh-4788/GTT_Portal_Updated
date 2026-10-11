@@ -88,7 +88,9 @@ export async function downloadFile(url: string, filename?: string) {
   const match = disposition?.match(/filename="?([^"]+)"?/);
   const name = filename ?? match?.[1] ?? 'download';
 
-  if (isMobileApp()) {
+  // The share sheet only exists inside the Android app. The same app bundle
+  // opened in a browser (the GitHub Pages copy) downloads like the website.
+  if (isMobileApp() && (window as any).Capacitor?.isNativePlatform?.()) {
     const { saveAndOpen } = await import('./nativeFile');
     await saveAndOpen(res.data as Blob, name);
     return;

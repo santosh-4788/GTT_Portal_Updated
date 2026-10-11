@@ -45,7 +45,7 @@ export default function MobileLogin() {
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-7 text-center">
           {/* Sized by height; the car mark is about 3:1 and a square box squashed it. */}
-          <img src="/app-icon.svg" alt="" className="mx-auto mb-4 h-14 w-auto" />
+          <img src={`${import.meta.env.BASE_URL}app-icon.svg`} alt="" className="mx-auto mb-4 h-14 w-auto" />
           <h1 className="font-display text-xl font-bold text-white">Gupta Tours &amp; Travels</h1>
           <p className="mt-1 text-xs font-medium uppercase tracking-[0.15em] text-brand-300">
             Business Portal
