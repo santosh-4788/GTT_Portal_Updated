@@ -53,7 +53,7 @@ const NEXT = [
 
 export default function Book() {
   useSeo({
-    title: 'Book a Cab in Mumbai',
+    title: 'Book a Cab in Mumbai - Online Car and Taxi Booking',
     path: '/book',
     description: 'Book a cab in Mumbai for a local trip, an airport transfer or an outstation journey. Tell us the pickup, drop and time and we confirm the car and the fare before the trip.',
   });

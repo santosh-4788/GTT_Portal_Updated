@@ -205,12 +205,23 @@ export function useTrip(tripId: string | undefined, enabled: boolean) {
  * bearer token, and because a failure should say so rather than navigating the
  * customer to a JSON error page.
  */
+/**
+ * The office sends the PDF when one was produced, otherwise the spreadsheet or
+ * Word file itself, so the saved name follows what actually arrived.
+ */
+function extFor(blob: Blob): string {
+  if (blob.type.includes('spreadsheetml')) return '.xlsx';
+  if (blob.type.includes('ms-excel')) return '.xls';
+  if (blob.type.includes('wordprocessingml')) return '.docx';
+  return '.pdf';
+}
+
 export async function downloadInvoice(tripId: string, invoiceNumber?: string): Promise<void> {
   const res = await customerApi.get(`/trips/${encodeURIComponent(tripId)}/invoice`, { responseType: 'blob' });
   const url = URL.createObjectURL(res.data as Blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Invoice-${(invoiceNumber ?? tripId).replace(/[^A-Za-z0-9._-]/g, '-')}.pdf`;
+  a.download = `Invoice-${(invoiceNumber ?? tripId).replace(/[^A-Za-z0-9._-]/g, '-')}${extFor(res.data as Blob)}`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -226,6 +237,79 @@ export async function downloadInvoice(tripId: string, invoiceNumber?: string): P
 export async function viewInvoice(tripId: string): Promise<void> {
   const res = await customerApi.get(`/trips/${encodeURIComponent(tripId)}/invoice`, { responseType: 'blob' });
   const url = URL.createObjectURL(res.data as Blob);
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/* ==========================================================================
+   Invoices — one row per invoice, from /api/customer/invoices
+   ========================================================================== */
+
+export interface ServerInvoice {
+  id: number;
+  number: string;
+  date: string;
+  dueDate: string | null;
+  periodFrom: string | null;
+  periodTo: string | null;
+  /** Only this customer's own trips on the invoice. */
+  tripIds: string[];
+  taxable: number;
+  taxMode: string;
+  taxRate: number;
+  tax: number;
+  total: number;
+  paid: number;
+  outstanding: number;
+  /** GENERATED | SENT | PARTIALLY_PAID | OVERDUE | PAID */
+  status: string;
+  sentAt: string | null;
+  downloadable: boolean;
+}
+
+export function useMyInvoices(enabled: boolean) {
+  const [invoices, setInvoices] = useState<ServerInvoice[]>([]);
+  const [loading, setLoading] = useState(enabled);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    if (!enabled) { setInvoices([]); setLoading(false); return; }
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await customerApi.get('/invoices');
+      setInvoices(data.data ?? []);
+    } catch (err) {
+      setError(errorMessage(err, 'We could not load your invoices just now.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [enabled]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { invoices, loading, error, reload: load };
+}
+
+async function invoiceBlob(id: number): Promise<Blob> {
+  const res = await customerApi.get(`/invoices/${id}/download`, { responseType: 'blob' });
+  return res.data as Blob;
+}
+
+export async function downloadInvoiceById(inv: Pick<ServerInvoice, 'id' | 'number'>): Promise<void> {
+  const blob = await invoiceBlob(inv.id);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Invoice-${inv.number.replace(/[^A-Za-z0-9._-]/g, '-')}${extFor(blob)}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function viewInvoiceById(id: number): Promise<void> {
+  const url = URL.createObjectURL(await invoiceBlob(id));
   window.open(url, '_blank', 'noopener');
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

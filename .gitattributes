@@ -1,0 +1,2 @@
+# Deploy scripts run on Linux and must keep LF line endings.
+*.sh text eol=lf

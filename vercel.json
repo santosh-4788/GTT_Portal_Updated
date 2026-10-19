@@ -1,7 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "installCommand": "npm ci --prefix backend && npm ci --prefix frontend",
+  "cleanUrls": true,
+  "installCommand": "npm ci --include=dev --prefix backend && npm ci --include=dev --prefix frontend",
   "buildCommand": "npm run build --prefix backend && npm run build --prefix frontend && node scripts/vercel-copy-assets.mjs",
   "outputDirectory": "frontend/dist",
   "regions": ["bom1"],

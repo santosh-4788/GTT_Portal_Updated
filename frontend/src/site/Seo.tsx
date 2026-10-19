@@ -16,6 +16,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { COMPANY } from './siteData';
+import { alternatesFor, type Lang } from './seo/landings';
 
 export const SITE_NAME = COMPANY.name;
 
@@ -46,6 +47,8 @@ export interface SeoOptions {
   /** One or more schema.org objects, written as a JSON-LD script. */
   jsonLd?: object | object[];
   ogType?: 'website' | 'article';
+  /** Language of the page's content (the /hi and /mr pages). Defaults to English. */
+  lang?: Lang;
 }
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string | null) {
@@ -83,11 +86,36 @@ function setJsonLd(data: object | object[] | undefined) {
   document.head.appendChild(el);
 }
 
+/**
+ * hreflang links to the same page in the other languages (see
+ * seo/landings.ts). Pre-rendered pages arrive with them already; they are
+ * rebuilt here so they follow the page in the app too.
+ */
+function setAlternates(path: string | null) {
+  document.head.querySelectorAll('link[data-seo-alt]').forEach((el) => el.remove());
+  if (!path) return;
+  for (const [lang, p] of alternatesFor(path)) {
+    const el = document.createElement('link');
+    el.rel = 'alternate';
+    el.hreflang = lang;
+    el.href = absUrl(p);
+    el.setAttribute('data-seo-alt', '');
+    document.head.appendChild(el);
+  }
+}
+
+const OG_LOCALE: Record<Lang, string> = { en: 'en_IN', hi: 'hi_IN', mr: 'mr_IN' };
+
 function apply(o: {
   title: string; description: string; url: string | null; image: string; noindex: boolean;
-  jsonLd?: object | object[]; ogType: string;
+  jsonLd?: object | object[]; ogType: string; path: string | null; lang?: Lang;
 }) {
   document.title = o.title;
+  // Only pages that say their language set it, so the staff portal's own
+  // Hindi switch (lib/i18n.tsx) is left alone.
+  if (o.lang) document.documentElement.lang = o.lang;
+  upsertMeta('property', 'og:locale', OG_LOCALE[o.lang ?? 'en']);
+  setAlternates(o.noindex ? null : o.path);
   upsertMeta('name', 'description', o.description);
   upsertMeta('name', 'robots', o.noindex ? 'noindex, nofollow' : null);
   upsertCanonical(o.noindex ? null : o.url);
@@ -114,21 +142,27 @@ export function useSeo(opts: SeoOptions) {
   const noindex = !!opts.noindex;
   const ogType = opts.ogType ?? 'website';
   const ld = opts.jsonLd ? JSON.stringify(opts.jsonLd) : '';
+  const lang = opts.lang;
 
   useEffect(() => {
     apply({
-      title, description, url: absUrl(path), image, noindex, ogType,
+      title, description, url: absUrl(path), image, noindex, ogType, path, lang,
       jsonLd: ld ? JSON.parse(ld) : undefined,
     });
-  }, [title, description, path, image, noindex, ogType, ld]);
+  }, [title, description, path, image, noindex, ogType, ld, lang]);
 
   // Back to the index.html defaults when the screen goes away.
   useEffect(() => () => {
     apply({
       title: DEFAULT_TITLE, description: DEFAULT_DESCRIPTION, url: null,
-      image: DEFAULT_IMAGE, noindex: false, ogType: 'website',
+      image: DEFAULT_IMAGE, noindex: false, ogType: 'website', path: null,
     });
   }, []);
+
+  // A Hindi or Marathi page puts the document back to English when it goes.
+  useEffect(() => () => {
+    if (lang && lang !== 'en') document.documentElement.lang = 'en';
+  }, [lang]);
 }
 
 /** The same thing as a component, for screens that read better that way. */

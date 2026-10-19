@@ -27,7 +27,7 @@ const HOW = [
 
 export default function Events() {
   useSeo({
-    title: 'Event Transport in Mumbai',
+    title: 'Event Transport and Bus Hire in Mumbai',
     path: '/events',
     description: 'Transport for corporate events, conferences, concerts, college trips and shoots in Mumbai - cars, tempo travellers and coaches with staggered pickups and standby.',
   });

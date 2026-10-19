@@ -16,7 +16,7 @@
  * booked over the phone can be added by its Trip ID.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { dmy, inr } from '../lib/format';
 import { COMPANY } from './siteData';
 import { bucket, KIND_LABEL, useCustomer, type Trip, type TripStatus } from './tripStore';
@@ -36,6 +36,7 @@ import {
 import { IconSeat, IconLuggage } from './SiteIcons';
 import { useToast } from '../components/Toast';
 import { useSeo } from './Seo';
+import { isMobileApp } from '../lib/serverUrl';
 
 type Tab = 'upcoming' | 'active' | 'completed' | 'cancelled';
 
@@ -304,6 +305,11 @@ export default function MyTrips() {
   const [tabPicked, setTabPicked] = useState(false);
 
   const signedIn = !!user;
+  // On the website a signed-in customer's trips live in their account, in the
+  // portal frame (/my). This page stays for visitors without one, and for the
+  // customer app, which has no /my.
+  const navigate = useNavigate();
+  useEffect(() => { if (user && !isMobileApp()) navigate('/my/trips', { replace: true }); }, [user, navigate]);
 
   const grouped = useMemo(() => {
     const g: Record<Tab, (ServerTrip | Trip)[]> = { upcoming: [], active: [], completed: [], cancelled: [] };

@@ -923,7 +923,10 @@ html.theme-admin .cell-code { white-space: nowrap; }
    so the tracked, uppercase labels are set plainly in Hindi. */
 html.lang-hi [class*='tracking-'],
 html.lang-hi .eyebrow,
-html.lang-hi .rail-group {
+html.lang-hi .rail-group,
+/* ...and the same on the website's Hindi and Marathi pages (html lang). */
+html:lang(hi) [class*='tracking-'], html:lang(hi) .lead,
+html:lang(mr) [class*='tracking-'], html:lang(mr) .lead {
   letter-spacing: 0 !important;
 }
 

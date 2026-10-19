@@ -41,7 +41,7 @@ export default function Fleet() {
                     photo={v.photo}
                     art={v.art}
                     name={v.name}
-                    alt={`${v.name} — ${v.examples}`}
+                    alt={`${v.name} on hire with driver in Mumbai — ${v.examples}`}
                     className="aspect-[3/2] w-full object-cover transition-transform duration-700 ease-smooth group-hover:scale-[1.04]"
                   />
                 </div>

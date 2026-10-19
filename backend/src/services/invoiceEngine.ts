@@ -225,6 +225,9 @@ export function libreOfficeAvailable(): string | null {
     process.env.LIBREOFFICE_PATH,
     'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
     'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+    // Ubuntu / Debian VPS (apt install libreoffice-calc libreoffice-writer)
+    '/usr/bin/soffice',
+    '/usr/bin/libreoffice',
   ].filter(Boolean) as string[];
   for (const c of candidates) if (fs.existsSync(c)) return c;
   return null;

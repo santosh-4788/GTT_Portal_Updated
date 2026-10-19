@@ -12,7 +12,8 @@
  *     frontend/src/site/sitemapPages.ts), or a short built-in list when the
  *     website has not been built next to this server;
  *   - one /cabs/mumbai-to-<route> landing page per active fixed-fare route from
- *     Mumbai in outstation_fares, so a route the office adds is listed at once.
+ *     Mumbai in outstation_fares, so a route the office adds is listed at once;
+ *   - hreflang links between the English, Hindi and Marathi landing pages.
  */
 import { Router, type Request } from 'express';
 import fs from 'fs';
@@ -53,14 +54,20 @@ function origin(req: Request): string {
   return `${req.protocol}://${req.get('host')}`;
 }
 
-function staticPages(): string[] {
+/** hreflang alternates per path: [[lang, path], ...]. */
+type Alternates = Record<string, [string, string][]>;
+
+function staticPages(): { pages: string[]; alternates: Alternates } {
   try {
     const raw = JSON.parse(fs.readFileSync(path.join(distDir(), 'sitemap-pages.json'), 'utf8'));
-    if (Array.isArray(raw?.pages) && raw.pages.every((p: unknown) => typeof p === 'string')) return raw.pages;
+    if (Array.isArray(raw?.pages) && raw.pages.every((p: unknown) => typeof p === 'string')) {
+      const alternates = raw.alternates && typeof raw.alternates === 'object' ? (raw.alternates as Alternates) : {};
+      return { pages: raw.pages, alternates };
+    }
   } catch {
     /* not built here - use the short list */
   }
-  return FALLBACK_PAGES;
+  return { pages: FALLBACK_PAGES, alternates: {} };
 }
 
 const xmlEscape = (s: string) =>
@@ -84,18 +91,23 @@ router.get('/sitemap.xml', (req, res, next) => {
       .filter((r) => r.origin.trim().toLowerCase() === 'mumbai')
       .map((r) => `/cabs/mumbai-to-${r.key}`);
 
+    const { pages, alternates } = staticPages();
     const seen = new Set<string>();
-    const urls = [...staticPages(), ...routes].filter((p) => !seen.has(p) && seen.add(p));
+    const urls = [...pages, ...routes].filter((p) => !seen.has(p) && seen.add(p));
 
     const body = urls
       .map((p) => {
         const priority = p === '/' ? '1.0' : p === '/outstation' || p.startsWith('/cabs/') ? '0.8' : '0.6';
-        return `  <url><loc>${xmlEscape(base + p)}</loc><priority>${priority}</priority></url>`;
+        // hreflang links to the same page in English, Hindi and Marathi, where it has them.
+        const alt = (alternates[p] ?? [])
+          .map(([lang, href]) => `\n    <xhtml:link rel="alternate" hreflang="${xmlEscape(lang)}" href="${xmlEscape(base + href)}"/>`)
+          .join('');
+        return `  <url><loc>${xmlEscape(base + p)}</loc>${alt}${alt ? '\n    ' : ''}<priority>${priority}</priority></url>`;
       })
       .join('\n');
 
     res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(
-      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${body}\n</urlset>\n`
     );
   } catch (e) {
     next(e);

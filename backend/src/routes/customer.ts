@@ -423,12 +423,93 @@ router.get('/trips/:tripId/invoice', requireCustomer, (req, res) => {
     });
   }
 
-  // Prefer the PDF twin when the office generated a spreadsheet template — a
-  // customer should never be handed an .xlsx to open.
+  sendInvoiceFile(res, abs, b.invoice_number);
+});
+
+/**
+ * Prefer the PDF twin when the office generated a spreadsheet template — a
+ * customer should never be handed an .xlsx to open.
+ */
+function sendInvoiceFile(res: import('express').Response, abs: string, invoiceNumber: string) {
   const pdfTwin = abs.replace(/\.[^.]+$/, '.pdf');
   const send = ensureLocalFile(pdfTwin) ? pdfTwin : abs;
-  const safeNumber = String(b.invoice_number).replace(/[^A-Za-z0-9._-]/g, '-');
+  const safeNumber = String(invoiceNumber).replace(/[^A-Za-z0-9._-]/g, '-');
   res.download(send, `Invoice-${safeNumber}${path.extname(send)}`);
+}
+
+/* ==========================================================================
+   Invoices
+   ========================================================================== */
+
+/** Same rule as the office register (routes/invoices.ts): overdue from the due date. */
+const DISPLAY_STATUS = `CASE
+    WHEN i.status IN ('CANCELLED','PAID') THEN i.status
+    WHEN i.outstanding_amount > 0.009 AND i.due_date IS NOT NULL AND i.due_date < date('now','localtime') THEN 'OVERDUE'
+    ELSE i.status END`;
+
+/**
+ * Every live invoice that covers at least one of my trips.
+ *
+ * Only my own Trip IDs are listed against each invoice: a company invoice can
+ * also carry other people's journeys, and those are none of my business.
+ */
+router.get('/invoices', requireCustomer, (req, res) => {
+  const rows = q.all<any>(
+    `SELECT i.id, i.invoice_number, i.invoice_date, i.due_date, i.period_from, i.period_to,
+            i.taxable_amount, i.tax_mode, i.tax_rate, i.tax_amount, i.total_amount,
+            i.paid_amount, i.outstanding_amount, i.status, i.sent_at, i.file_path,
+            (${DISPLAY_STATUS}) AS display_status,
+            (SELECT group_concat(b.trip_id, ', ') FROM invoice_items ii JOIN bookings b ON b.id = ii.booking_id
+              WHERE ii.invoice_id = i.id AND b.customer_id = @cid) AS trip_ids
+       FROM invoices i
+      WHERE i.status <> 'CANCELLED'
+        AND EXISTS (SELECT 1 FROM invoice_items ii JOIN bookings b ON b.id = ii.booking_id
+                     WHERE ii.invoice_id = i.id AND b.customer_id = @cid)
+      ORDER BY i.invoice_date DESC, i.id DESC`,
+    { cid: req.customer!.id }
+  );
+
+  res.json({
+    data: rows.map((r) => ({
+      id: r.id,
+      number: r.invoice_number,
+      date: r.invoice_date,
+      dueDate: r.due_date,
+      periodFrom: r.period_from,
+      periodTo: r.period_to,
+      tripIds: String(r.trip_ids ?? '').split(', ').filter(Boolean),
+      taxable: Number(r.taxable_amount ?? 0),
+      taxMode: r.tax_mode,
+      taxRate: Number(r.tax_rate ?? 0),
+      tax: Number(r.tax_amount ?? 0),
+      total: Number(r.total_amount ?? 0),
+      paid: Number(r.paid_amount ?? 0),
+      outstanding: Number(r.outstanding_amount ?? 0),
+      status: r.display_status,
+      sentAt: r.sent_at,
+      downloadable: !!r.file_path,
+    })),
+  });
+});
+
+router.get('/invoices/:id/download', requireCustomer, (req, res) => {
+  const inv = q.get<any>(
+    `SELECT i.id, i.invoice_number, i.file_path FROM invoices i
+      WHERE i.id = @id AND i.status <> 'CANCELLED'
+        AND EXISTS (SELECT 1 FROM invoice_items ii JOIN bookings b ON b.id = ii.booking_id
+                     WHERE ii.invoice_id = i.id AND b.customer_id = @cid)`,
+    { id: Number(req.params.id) || 0, cid: req.customer!.id }
+  );
+  if (!inv) return res.status(404).json({ error: 'That invoice is not on your account.' });
+  if (!inv.file_path) return res.status(404).json({ error: 'The invoice document is still being prepared.' });
+
+  const abs = path.join(config.paths.invoices, inv.file_path);
+  if (!abs.startsWith(config.paths.invoices) || !ensureLocalFile(abs)) {
+    return res.status(404).json({
+      error: 'The invoice file could not be found. Please call us and we will email it to you.',
+    });
+  }
+  sendInvoiceFile(res, abs, inv.invoice_number);
 });
 
 /* ==========================================================================

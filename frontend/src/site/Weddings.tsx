@@ -50,7 +50,7 @@ const TEMPLATE: Movement[] = [
 
 export default function Weddings() {
   useSeo({
-    title: 'Wedding Car Rental in Mumbai',
+    title: 'Wedding Car Rental in Mumbai - Bride and Groom Car, Guest Cabs',
     path: '/weddings',
     description: 'Wedding cars and guest transport in Mumbai: the bride and groom car, baraat vehicles, hotel-to-venue shuttles and airport pickups for family, planned as one fleet.',
   });

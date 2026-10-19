@@ -12,6 +12,7 @@
  */
 import { FLEET, SERVICES } from './siteData';
 import { DESTINATIONS } from './places';
+import { LANDINGS, alternatesFor } from './seo/landings';
 
 const STATIC_PAGES = [
   '/',
@@ -42,4 +43,11 @@ export const SITEMAP_PAGES: string[] = [
   ...SERVICES.map((s) => `/services/${s.slug}`),
   ...FLEET.map((v) => `/vehicles/${v.slug}`),
   ...DESTINATIONS.map((d) => `/destinations/${d.slug}`),
+  // Search landing pages: areas, airports, routes, Hindi and Marathi (seo/landings.ts).
+  ...LANDINGS.map((l) => l.path),
 ];
+
+/** hreflang alternates for the pages that have translations, keyed by path. */
+export const SITEMAP_ALTERNATES: Record<string, [string, string][]> = Object.fromEntries(
+  SITEMAP_PAGES.map((p) => [p, alternatesFor(p)] as const).filter(([, a]) => a.length > 0),
+);

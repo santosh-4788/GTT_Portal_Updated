@@ -11,8 +11,13 @@
  * set is shown as Fare on request, and the FAQ answers are written from the
  * same data so the page never says something the fare list does not.
  *
+ * The words about the route itself - the road, the distance, what people go
+ * for - come from seo/routeInfo.ts, so a route the website knows but the office
+ * has not priced is still a real page, quoted on request.
+ *
  * An unknown destination (a removed route, a typo) is not an error page: it
- * says there is no fixed fare for it and links to /outstation and the enquiry.
+ * says there is no fixed fare for it, links to /outstation and the enquiry,
+ * and is kept out of the search index.
  */
 import { Link, useParams } from 'react-router-dom';
 import PageHero from './PageHero';
@@ -24,7 +29,9 @@ import {
   CATEGORY_META, cheapest, routeBookingPath, routeLandingPath, rupees, useOutstationRoutes,
   type OutstationRoute, type RouteFare,
 } from './outstation';
-import { breadcrumbLd, faqLd, useSeo } from './Seo';
+import { absUrl, breadcrumbLd, faqLd, useSeo } from './Seo';
+import { routeInfo, ROUTE_INFO } from './seo/routeInfo';
+import { LANG_NAME, alternatesFor, landingByPath, landingJsonLd } from './seo/landings';
 
 /** "mahabaleshwar" -> "Mahabaleshwar", for the heading before the fares arrive. */
 const titleCase = (key: string) =>
@@ -86,54 +93,69 @@ export default function RouteLanding() {
   const { routes, failed } = useOutstationRoutes();
   const route = routes?.find((r) => r.key === key);
   const loading = routes === null;
-  const unknown = !loading && !route;
-
-  const dest = route?.destination ?? titleCase(key);
-  const oneWay = route ? cheapest(route, 'ONE_WAY') : null;
-  const faqs = route ? faqsFor(route) : [];
   const path = routeLandingPath(key);
+  const info = routeInfo(key);
+  const landing = landingByPath(path);
+  // No fixed fare and nothing known about the place: a removed route or a typo.
+  const unknown = !loading && !route && !info;
+  // A place the site knows, without a fixed fare (or the fares did not load): quoted on request.
+  const onRequest = !loading && !route && !!info;
+
+  const dest = route?.destination ?? info?.name.en ?? titleCase(key);
+  const shortDest = dest.replace(/ \(.*\)$/, '');
+  const oneWay = route ? cheapest(route, 'ONE_WAY') : null;
+  const faqs = route ? faqsFor(route) : landing?.faqs ?? [];
 
   useSeo({
-    title: `Mumbai to ${dest} Cab - One Way and Return Fares`,
+    title: landing ? landing.title : `Mumbai to ${dest} Cab - One Way and Return Fares`,
+    rawTitle: !!landing,
     path,
     description: route
-      ? `Book a Mumbai to ${dest} cab with a chauffeur, one way or return.${oneWay != null ? ` Fixed fares from ${rupees(oneWay)}.` : ''} ${sortFares(route.fares).map((f) => f.vehicles).join(', ')} - 24x7 from anywhere in Mumbai.`
-      : `Outstation cab from Mumbai to ${dest}, one way or return, with a chauffeur. 24x7.`,
-    // A key the fare list does not know (removed, or a typo) is kept out of the index.
+      ? `Book a Mumbai to ${shortDest} cab with a chauffeur, one way or return.${oneWay != null ? ` Fixed fares from ${rupees(oneWay)}.` : ''} ${sortFares(route.fares).map((f) => f.vehicles).join(', ')} - 24x7 from anywhere in Mumbai.`
+      : landing?.description ?? `Outstation cab from Mumbai to ${dest}, one way or return, with a chauffeur. 24x7.`,
+    // A key nobody knows (removed, or a typo) is kept out of the index.
     noindex: unknown && !failed,
-    jsonLd: route
+    jsonLd: route || landing
       ? [
-          breadcrumbLd([['Home', '/'], ['Outstation cabs', '/outstation'], [`Mumbai to ${dest}`, path]]),
-          faqLd(faqs),
+          ...(landing ? landingJsonLd(landing, absUrl).slice(0, 1) : []),
+          breadcrumbLd([['Home', '/'], ['Outstation cabs', '/outstation'], [`Mumbai to ${shortDest}`, path]]),
+          ...(faqs.length ? [faqLd(faqs)] : []),
         ]
       : undefined,
   });
 
-  const others = (routes ?? []).filter((r) => r.key !== key);
-  const distance = ROUTES.find((x) => x.to.toLowerCase() === dest.toLowerCase());
+  // Every route with a fixed fare first, then the ones the site knows without one.
+  const others = [
+    ...(routes ?? []).map((r) => ({ key: r.key, destination: r.destination })),
+    ...ROUTE_INFO.map((r) => ({ key: r.key, destination: r.name.en.replace(/ \(.*\)$/, '') })),
+  ].filter((r, i, all) => r.key !== key && all.findIndex((x) => x.key === r.key) === i);
+  const listed = ROUTES.find((x) => x.to.toLowerCase() === dest.toLowerCase());
+  const distance = listed ?? (info ? { km: `${info.km} km`, time: `≈${info.hours.en}` } : undefined);
+  const otherLangs = alternatesFor(path).filter(([l]) => l === 'hi' || l === 'mr');
 
   return (
     <div className="page-bg pb-24">
       <PageHero
         eyebrow="Outstation cab from Mumbai"
-        title={`Mumbai to ${dest} Cab`}
-        crumbs={[{ label: 'Outstation', to: '/outstation' }, { label: `Mumbai to ${dest}` }]}
+        title={`Mumbai to ${shortDest} Cab`}
+        crumbs={[{ label: 'Outstation', to: '/outstation' }, { label: `Mumbai to ${shortDest}` }]}
         sub={
           unknown
             ? `We do not have a fixed fare for ${dest} on the website yet - the office quotes it for your date and vehicle.`
             : <>
                 A private, chauffeur-driven cab from anywhere in Mumbai, Navi Mumbai or Thane to {dest}, one way or return.
-                {distance && <> It is about {distance.km} by road, {distance.time.replace('≈', 'roughly ')}.</>}
-                {' '}The fare is fixed for the route and confirmed before you travel.
+                {distance && <> It is about {distance.km} by road{info && <> via {info.via.en}</>}, {distance.time.replace('≈', 'roughly ')}.</>}
+                {' '}{onRequest ? 'The office quotes the fare for your date and vehicle before you travel.' : 'The fare is fixed for the route and confirmed before you travel.'}
+                {info && <> {info.note.en}</>}
               </>
         }
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
-              to={unknown ? '/outstation?tab=OUTSTATION' : routeBookingPath(key)}
+              to={unknown ? '/outstation?tab=OUTSTATION' : onRequest ? '/enquire/outstation' : routeBookingPath(key)}
               className="grad-brand btn h-11 rounded-full px-6 text-sm font-semibold text-white shadow-lg shadow-brand-500/30 hover:brightness-[1.06]"
             >
-              {unknown ? 'See outstation routes' : 'See cabs and fares'} <IconArrowRight className="h-4 w-4" />
+              {unknown ? 'See outstation routes' : onRequest ? 'Ask for a quote' : 'See cabs and fares'} <IconArrowRight className="h-4 w-4" />
             </Link>
             <CallButton className="btn h-11 rounded-full bg-ink-900 px-5 text-sm font-semibold text-white transition-colors hover:bg-ink-800" />
           </div>
@@ -221,6 +243,77 @@ export default function RouteLanding() {
             </>
           )}
 
+          {onRequest && (
+            <Reveal className="tile p-6 sm:p-8">
+              <h2 className="font-display text-lg font-bold text-ink-900">Mumbai to {shortDest} cab fare</h2>
+              <p className="mt-2 text-sm leading-relaxed text-ink-600">
+                {failed
+                  ? 'We could not load the fixed fares just now. Send the trip and the office will quote it, or try again in a moment.'
+                  : `There is no fixed fare for ${shortDest} on the website yet. Send your date, pickup and the number of people, and the office comes back with the fare for each vehicle - one way or return, with toll and permits shown.`}
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Link to="/enquire/outstation" className="btn h-11 rounded-full bg-ink-900 px-5 text-sm font-semibold text-white hover:bg-ink-800">
+                  Ask for a quote <IconArrowRight className="h-3.5 w-3.5" />
+                </Link>
+                <Link to="/outstation?tab=OUTSTATION" className="btn h-11 rounded-full bg-white px-5 text-sm text-ink-700 shadow-card hover:shadow-raised">
+                  Fixed-fare routes
+                </Link>
+              </div>
+            </Reveal>
+          )}
+
+          {/* --------------------------- about the route --------------------------- */}
+          {info && (
+            <Reveal className="mt-12 grid gap-4 sm:grid-cols-2">
+              <div className="tile p-5 sm:p-6">
+                <h2 className="font-display text-lg font-bold text-ink-900">Places to see in and around {shortDest}</h2>
+                <ul className="mt-3 space-y-1.5">
+                  {info.seeThere.en.map((p) => (
+                    <li key={p} className="flex gap-2 text-sm text-ink-700"><IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok-500" /> {p}</li>
+                  ))}
+                </ul>
+                {info.destination && (
+                  <Link to={`/destinations/${info.destination}`} className="mt-4 inline-block text-sm font-semibold text-brand-700 hover:text-brand-800">
+                    Trip ideas for {shortDest} <IconArrowRight className="inline h-3.5 w-3.5" />
+                  </Link>
+                )}
+              </div>
+              <div className="tile p-5 sm:p-6">
+                <h2 className="font-display text-lg font-bold text-ink-900">Good for</h2>
+                <ul className="mt-3 space-y-1.5">
+                  {info.goodFor.map((p) => (
+                    <li key={p} className="flex gap-2 text-sm text-ink-700"><IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok-500" /> {p}</li>
+                  ))}
+                </ul>
+                {otherLangs.length > 0 && (
+                  <p className="mt-4 text-sm text-ink-500">
+                    Read this in:{' '}
+                    {otherLangs.map(([lang, to], i) => (
+                      <span key={lang}>
+                        {i > 0 && ' · '}
+                        <Link to={to} hrefLang={lang} lang={lang} className="font-semibold text-brand-700 hover:text-brand-800">{LANG_NAME[lang as 'hi']}</Link>
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </div>
+            </Reveal>
+          )}
+
+          {onRequest && faqs.length > 0 && (
+            <Reveal className="mt-12">
+              <h2 className="font-display text-xl font-bold text-ink-900">Mumbai to {shortDest} cab: common questions</h2>
+              <div className="mt-4 space-y-3">
+                {faqs.map((f) => (
+                  <div key={f.q} className="tile p-5">
+                    <h3 className="font-display text-md font-bold text-ink-900">{f.q}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-ink-600">{f.a}</p>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          )}
+
           {/* ---------------------------- other routes --------------------------- */}
           {others.length > 0 && (
             <Reveal className="mt-12">
@@ -232,7 +325,7 @@ export default function RouteLanding() {
                     to={routeLandingPath(r.key)}
                     className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-sm font-medium text-ink-700 shadow-card transition-shadow hover:shadow-raised"
                   >
-                    Mumbai to {r.destination}
+                    Mumbai to {r.destination} cab
                   </Link>
                 ))}
               </div>

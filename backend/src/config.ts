@@ -22,7 +22,7 @@ for (const candidate of [
 }
 
 /**
- * Project root = E:\Portal\GuptaToursAndTravels.
+ * Project root = E:\Portal\ProjectTool.
  *
  * This must resolve identically whether we are running from `backend/src` (tsx)
  * or `backend/dist/src` (compiled), so walk up until we find the folder that

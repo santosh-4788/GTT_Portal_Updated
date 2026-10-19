@@ -75,7 +75,7 @@ export default function VehicleDetail() {
                   photo={vehicle.photo}
                   art={vehicle.art}
                   name={vehicle.name}
-                  alt={`${vehicle.name} — ${vehicle.examples}`}
+                  alt={`${vehicle.name} on hire with driver in Mumbai — ${vehicle.examples}`}
                   className="aspect-[16/10] w-full object-cover"
                 />
                 <span className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-2xs font-bold uppercase tracking-[0.1em] text-brand-700 backdrop-blur">

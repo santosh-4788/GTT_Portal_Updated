@@ -179,7 +179,11 @@ const spaIndex = path.join(spaDir, 'index.html');
 // static copy of robots.txt in dist and of the SPA catch-all below.
 app.use(seoRoutes);
 
-app.use(express.static(spaDir, { fallthrough: true }));
+// extensions: /cab-service/andheri is served from the pre-rendered
+// cab-service/andheri.html the website build writes for each landing page.
+// redirect: false, so a folder of those pages (/hi, /cabs) never turns into a
+// trailing-slash redirect - it falls through to the app like any other path.
+app.use(express.static(spaDir, { fallthrough: true, extensions: ['html'], redirect: false }));
 
 // A missing file under /assets is a missing file, not a route. Without this the
 // SPA catch-all below answers image requests with index.html, so the browser

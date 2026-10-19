@@ -222,7 +222,7 @@ export function VehicleCard({
             photo={vehicle.photo}
             art={vehicle.art}
             name={vehicle.name}
-            alt={`${vehicle.name} — ${vehicle.examples}`}
+            alt={`${vehicle.name} on hire with driver in Mumbai — ${vehicle.examples}`}
             /* 16:10, close to the 3:2 of the photographs and the 1.47 of the
                drawings, so the crop this window takes is a sliver. It was 2:1,
                which cropped a quarter of the height off the middle band and

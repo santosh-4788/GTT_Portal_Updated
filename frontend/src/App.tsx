@@ -37,6 +37,7 @@ const Fleet = page(() => import('./site/Fleet'));
 const Packages = page(() => import('./site/Packages'));
 const Contact = page(() => import('./site/Contact'));
 const Policies = page(() => import('./site/Policies'));
+const SeoLanding = page(() => import('./site/SeoLanding'));
 const Login = page(() => import('./site/Login'));
 
 /* ---------- booking and vehicles ---------- */
@@ -82,6 +83,13 @@ const Support = page(() => import('./site/Support'));
 const Faq = page(() => import('./site/Faq'));
 const Reviews = page(() => import('./site/Reviews'));
 const SearchPage = page(() => import('./site/SearchPage'));
+
+/* ---------- the customer's own portal (/my) ---------- */
+const AccountLayout = page(() => import('./account/AccountLayout'));
+const AccountDashboard = page(() => import('./account/AccountDashboard'));
+const AccountTrips = page(() => import('./account/AccountTrips'));
+const AccountInvoices = page(() => import('./account/AccountInvoices'));
+const AccountProfile = page(() => import('./account/AccountProfile'));
 
 /* ---------- admin portal ---------- */
 const AdminLayout = page(() => import('./admin/AdminLayout'));
@@ -157,6 +165,13 @@ export default function App() {
           <Route path="/outstation" element={<OutstationPage />} />
           {/* One landing page per fixed-fare route: /cabs/mumbai-to-pune. */}
           <Route path="/cabs/:slug" element={<RouteLanding />} />
+          {/* Search landing pages - areas, airports, kinds of trip, and the
+              Hindi and Marathi pages. Content: site/seo/landings.ts. */}
+          <Route path="/cab-service/:slug" element={<SeoLanding />} />
+          <Route path="/hi/:slug" element={<SeoLanding />} />
+          <Route path="/mr/:slug" element={<SeoLanding />} />
+          {['/mumbai-airport-cab', '/navi-mumbai-airport-cab', '/one-way-cab-mumbai', '/round-trip-cab-mumbai', '/hourly-car-rental-mumbai']
+            .map((p) => <Route key={p} path={p} element={<SeoLanding />} />)}
           <Route path="/vehicles/compare" element={<CompareVehicles />} />
           <Route path="/vehicles/:slug" element={<VehicleDetail />} />
           {/* The brochure view of the same twelve vehicles. Still linked from
@@ -209,6 +224,15 @@ export default function App() {
         <Route path="/login" element={<Login />} />
 
         {/* ---------- admin portal ---------- */}
+        {/* ---------- customer account, in the portal frame ---------- */}
+        <Route path="/my" element={<AccountLayout />}>
+          <Route index element={<AccountDashboard />} />
+          <Route path="trips" element={<AccountTrips />} />
+          <Route path="invoices" element={<AccountInvoices />} />
+          <Route path="profile" element={<AccountProfile />} />
+          <Route path="*" element={<Navigate to="/my" replace />} />
+        </Route>
+
         <Route path="/admin" element={<Protected><AdminLayout /></Protected>}>
           <Route index element={<Dashboard />} />
           <Route path="change-password" element={<ChangePassword />} />

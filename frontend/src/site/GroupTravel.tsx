@@ -23,7 +23,7 @@ import { useSeo } from './Seo';
 
 export default function GroupTravel() {
   useSeo({
-    title: 'Tempo Traveller and Bus Hire in Mumbai',
+    title: 'Tempo Traveller on Rent in Mumbai - 12, 17 Seater and Bus Hire',
     path: '/group-travel',
     description: 'Group travel from Mumbai in Force Traveller, Urbania and full-size coaches. Tell us the head count and luggage and we plan the right mix of vehicles.',
   });

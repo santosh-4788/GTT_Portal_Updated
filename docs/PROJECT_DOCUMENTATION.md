@@ -1,6 +1,6 @@
 # Gupta Tours & Travels — Project Documentation
 
-**Version:** 1.0.0 · **Location:** `E:\Portal\GuptaToursAndTravels`
+**Version:** 1.0.0 · **Location:** `E:\Portal\ProjectTool`
 **Owner:** Vinay Gupta · +91 99673 81555 · GSTIN 27ALRPG8019M1ZH
 
 ---
@@ -376,7 +376,7 @@ field validation. Stack traces are never sent to the browser.
 See `README.md` for the double-click path. Manually:
 
 ```bash
-cd E:\Portal\GuptaToursAndTravels\backend
+cd E:\Portal\ProjectTool\backend
 npm install && npm run migrate && npm run seed && npm run build
 
 cd ..\frontend

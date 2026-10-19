@@ -7,7 +7,8 @@
  * button that fails when tapped.
  *
  * This is NOT the staff login at /login. A customer who lands here gets their
- * own trips; nothing on this screen can reach the admin portal.
+ * own account at /my (on the website) — their trips and invoices in the
+ * portal frame; nothing on this screen can reach the admin portal.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -17,6 +18,7 @@ import { COMPANY } from './siteData';
 import { Reveal } from '../components/Reveal';
 import { IconArrowRight, IconCheck, IconLock, IconMail, IconPhone, IconUsers } from '../components/icons';
 import { useSeo } from './Seo';
+import { isMobileApp } from '../lib/serverUrl';
 
 type Mode = 'signin' | 'signup';
 
@@ -46,7 +48,7 @@ export default function AccountAuth() {
   const [showPass, setShowPass] = useState(false);
   const [confirm, setConfirm] = useState('');
 
-  const next = location.state?.from ?? params.get('next') ?? '/trips';
+  const next = location.state?.from ?? params.get('next') ?? (isMobileApp() ? '/trips' : '/my');
 
   // Already signed in? There is nothing to do on this screen.
   useEffect(() => {

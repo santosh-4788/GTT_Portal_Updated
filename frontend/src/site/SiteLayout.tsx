@@ -10,6 +10,8 @@ import {
   IconSearch, IconUsers, IconCheck,
 } from '../components/icons';
 import { IconWhatsApp } from './SiteIcons';
+import { AREAS, areaPath } from './seo/areas';
+import { ROUTE_INFO, enRoutePath, hiRoutePath, mrRoutePath } from './seo/routeInfo';
 import { useCustomerAuth } from '../lib/customerAuth';
 
 /* ==========================================================================
@@ -142,9 +144,9 @@ function AccountButton() {
   const initial = (user.fullName || user.email).trim().charAt(0).toUpperCase();
   return (
     <Link
-      to="/trips"
+      to="/my"
       title={`Signed in as ${user.email}`}
-      aria-label={`My trips — signed in as ${user.email}`}
+      aria-label={`My account — signed in as ${user.email}`}
       className="grad-brand hidden h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white shadow-sm shadow-brand-500/25 transition-transform hover:scale-105 sm:grid"
     >
       {initial}
@@ -639,6 +641,52 @@ export default function SiteLayout() {
                 <li><Link to="/policies#privacy" className="text-ink-500 transition-colors hover:text-brand-700">Privacy</Link></li>
                 <li><Link to="/login" className="text-ink-500 transition-colors hover:text-brand-700">Partner login</Link></li>
               </ul>
+            </div>
+          </div>
+
+          {/* ------------------------ areas, routes, languages ------------------------
+              Plain links to the area, route and language pages, so a visitor
+              (and a search engine) can reach every one of them from any page. */}
+          <div className="mt-10 grid gap-6 border-t border-ink-100 pt-8 text-sm lg:grid-cols-3">
+            <div>
+              <h4 className="text-2xs font-bold uppercase tracking-[0.14em] text-ink-900">Cab service near you</h4>
+              <p className="mt-3 leading-relaxed text-ink-500">
+                {AREAS.map((a, i) => (
+                  <span key={a.slug}>
+                    {i > 0 && ' · '}
+                    <Link to={areaPath(a.slug)} className="hover:text-brand-700">{a.name}</Link>
+                  </span>
+                ))}
+                {' · '}<Link to="/mumbai-airport-cab" className="hover:text-brand-700">Mumbai airport cab</Link>
+                {' · '}<Link to="/navi-mumbai-airport-cab" className="hover:text-brand-700">Navi Mumbai airport cab</Link>
+              </p>
+            </div>
+            <div>
+              <h4 className="text-2xs font-bold uppercase tracking-[0.14em] text-ink-900">Outstation cabs from Mumbai</h4>
+              <p className="mt-3 leading-relaxed text-ink-500">
+                {ROUTE_INFO.map((r, i) => (
+                  <span key={r.key}>
+                    {i > 0 && ' · '}
+                    <Link to={enRoutePath(r.key)} className="hover:text-brand-700">{r.name.en.replace(/ \(.*\)$/, '')}</Link>
+                  </span>
+                ))}
+                {' · '}<Link to="/one-way-cab-mumbai" className="hover:text-brand-700">One way cab</Link>
+                {' · '}<Link to="/round-trip-cab-mumbai" className="hover:text-brand-700">Round trip cab</Link>
+                {' · '}<Link to="/hourly-car-rental-mumbai" className="hover:text-brand-700">Hourly car rental</Link>
+              </p>
+            </div>
+            <div>
+              <h4 className="text-2xs font-bold uppercase tracking-[0.14em] text-ink-900">हिन्दी · मराठी</h4>
+              <p className="mt-3 leading-relaxed text-ink-500">
+                <Link to="/hi/mumbai-cab-booking" lang="hi" className="hover:text-brand-700">मुंबई में कैब बुकिंग</Link>
+                {' · '}<Link to={hiRoutePath('nashik')} lang="hi" className="hover:text-brand-700">मुंबई से नासिक कैब</Link>
+                {' · '}<Link to="/hi/mumbai-airport-taxi" lang="hi" className="hover:text-brand-700">मुंबई एयरपोर्ट टैक्सी</Link>
+              </p>
+              <p className="mt-2 leading-relaxed text-ink-500">
+                <Link to="/mr/mumbai-cab-booking" lang="mr" className="hover:text-brand-700">मुंबईत कॅब बुकिंग</Link>
+                {' · '}<Link to={mrRoutePath('nashik')} lang="mr" className="hover:text-brand-700">मुंबई ते नाशिक टॅक्सी</Link>
+                {' · '}<Link to="/mr/mumbai-airport-taxi" lang="mr" className="hover:text-brand-700">मुंबई विमानतळ टॅक्सी</Link>
+              </p>
             </div>
           </div>
 
