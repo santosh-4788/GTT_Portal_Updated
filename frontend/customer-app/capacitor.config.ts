@@ -14,7 +14,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'com.guptatours.customer',
-  appName: 'Gupta Tours & Travels',
+  appName: 'JustCabs',
   webDir: '../dist-customer',
 
   android: {

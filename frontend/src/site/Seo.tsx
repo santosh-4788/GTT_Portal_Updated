@@ -29,7 +29,7 @@ export function siteUrl(): string {
 
 export const absUrl = (path: string) => (/^https?:\/\//i.test(path) ? path : `${siteUrl()}${path.startsWith('/') ? '' : '/'}${path}`);
 
-const DEFAULT_TITLE = 'Gupta Tours & Travels | Cab and Car Rental in Mumbai, 24x7';
+const DEFAULT_TITLE = 'JustCabs | Cab and Car Rental in Mumbai, 24x7';
 const DEFAULT_DESCRIPTION =
   'Cab booking and car rental in Mumbai with a chauffeur: airport transfers, local hourly packages, outstation trips and corporate transport. 24x7, based in Goregaon (W).';
 const DEFAULT_IMAGE = '/assets/logo-512.png';

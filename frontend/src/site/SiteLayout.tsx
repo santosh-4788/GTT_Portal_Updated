@@ -187,7 +187,7 @@ export function Logo({ size = 40, tight = false }: { size?: number; tight?: bool
     <Link to="/" className={`group flex items-center gap-3 ${tight ? 'min-w-0 max-[420px]:gap-2' : ''}`}>
       <img
         src="/assets/art-car-line-bold.svg"
-        alt="Gupta Tours & Travels"
+        alt="JustCabs"
         width={w}
         height={size}
         style={{ width: w, height: size }}
@@ -195,7 +195,7 @@ export function Logo({ size = 40, tight = false }: { size?: number; tight?: bool
       />
       <span className="leading-tight">
         <span className={`block whitespace-nowrap font-display text-sm font-bold tracking-tight text-ink-900 sm:text-[0.95rem] ${tight ? 'max-[360px]:text-[12.5px]' : ''}`}>
-          Gupta Tours &amp; Travels
+          JustCabs
         </span>
         <span className="block whitespace-nowrap text-[10.5px] font-semibold uppercase tracking-[0.16em] text-brand-600 sm:text-[9.5px]">
           24×7 · Mumbai
@@ -751,7 +751,7 @@ export default function SiteLayout() {
           </p>
 
           <div className="mt-4 flex flex-col items-center justify-between gap-2 text-xs text-ink-400 sm:flex-row">
-            <p>© {new Date().getFullYear()} Gupta Tours &amp; Travels. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} JustCabs, a brand of {COMPANY.legalName}. All rights reserved.</p>
             <p>{COMPANY.serviceHours} · Goregaon (W), Mumbai</p>
           </div>
         </div>

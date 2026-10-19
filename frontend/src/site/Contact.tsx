@@ -21,7 +21,7 @@ export default function Contact() {
   useSeo({
     title: 'Contact Us - Cab Booking in Mumbai',
     path: '/contact',
-    description: 'Contact Gupta Tours & Travels in Goregaon (W), Mumbai to book a cab or ask for a quote. Send an enquiry or message us on WhatsApp - we answer 24x7.',
+    description: 'Contact JustCabs in Goregaon (W), Mumbai to book a cab or ask for a quote. Send an enquiry or message us on WhatsApp - we answer 24x7.',
   });
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -209,6 +209,7 @@ export default function Contact() {
               <img src="/assets/art-car-line-bold.svg" alt="" className="mx-auto h-auto w-56" />
               <p className="mt-4 font-display font-bold text-ink-900">{COMPANY.name}</p>
               <p className="mt-1 text-xs font-semibold text-brand-700">{COMPANY.tagline}</p>
+              <p className="mt-1 text-2xs text-ink-500">A brand of {COMPANY.legalName}</p>
               <a href={`tel:+91${COMPANY.mobile}`} className="btn mt-5 h-11 w-full rounded-full bg-ink-900 text-md text-white hover:bg-ink-800">
                 <IconPhone className="h-4 w-4" /> Call now
               </a>

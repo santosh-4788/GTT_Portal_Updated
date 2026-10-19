@@ -14,6 +14,7 @@ import { Reveal } from '../components/Reveal';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { HeroJourney } from '../components/HeroJourney';
 import { FareCalculator } from './FareCalculator';
+import { FestivalTravel } from './FestivalTravel';
 import { IconPhone, IconArrowRight, IconCheck, IconPin } from '../components/icons';
 import { useSeo } from './Seo';
 
@@ -65,7 +66,7 @@ const PLANNERS = [
 
 export default function Home() {
   useSeo({
-    title: 'Gupta Tours & Travels | Cab Booking & Car Rental in Mumbai, 24x7',
+    title: 'JustCabs | Cab Booking & Car Rental in Mumbai, 24x7',
     rawTitle: true,
     path: '/',
     description: 'Book a cab in Mumbai with a professional chauffeur: airport pickups and drops, local hourly car rental, outstation trips to Pune, Lonavala, Nashik and beyond, and corporate transport. 24x7 from Goregaon (W).',
@@ -194,6 +195,10 @@ export default function Home() {
           </Reveal>
         </div>
       </section>
+
+      {/* ========================= FESTIVAL SPECIAL =========================
+          Seasonal; renders nothing outside the festival window (festivals.ts). */}
+      <FestivalTravel />
 
       {/* ====================== WHAT DO YOU NEED TODAY? ====================== */}
       <section className="pt-16 sm:pt-20">

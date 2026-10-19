@@ -108,7 +108,7 @@ export default function Login() {
           <img src="/assets/art-car-line-bold.svg" alt="" className="h-auto w-14 shrink-0 brightness-0 invert opacity-95 lg:w-16" />
           <span>
             <span className="block font-display text-[19px] font-bold leading-none tracking-[-0.015em] lg:text-[22px]">
-              Gupta Tours <span className="text-brand-300">&amp;</span> Travels
+              Just<span className="text-brand-300">Cabs</span>
             </span>
             <span className="mt-1.5 block text-[9px] font-bold uppercase tracking-[0.26em] text-gold-300/85 lg:text-[10px]">
               {COMPANY.serviceHours.replace('Service', '').trim()} · Mumbai

@@ -206,7 +206,7 @@ export default function Corporate() {
                 cost, against receipts.
               </p>
               <div className="mt-6">
-                <ContactRow message="Hello, we would like to open a corporate account with Gupta Tours & Travels." />
+                <ContactRow message="Hello, we would like to open a corporate account with JustCabs." />
               </div>
             </div>
 

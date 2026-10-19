@@ -9,14 +9,14 @@ export default function About() {
   useSeo({
     title: 'About Us - Tours and Travels in Goregaon, Mumbai',
     path: '/about',
-    description: 'Gupta Tours & Travels is a Mumbai cab and car rental company in Goregaon (W), owned and run by Vinay Gupta, serving families and companies 24x7.',
+    description: 'JustCabs, by Gupta Tours & Travels, is a Mumbai cab and car rental company in Goregaon (W), owned and run by Vinay Gupta, serving families and companies 24x7.',
   });
   return (
     <>
       <PageHero
         eyebrow="About us"
         title="A Mumbai transport business run by the person who answers the phone"
-        sub={`Gupta Tours & Travels is owned and managed by ${COMPANY.owner}. When you call, you reach the person who can actually make the decision.`}
+        sub={`JustCabs is a brand of Gupta Tours & Travels, owned and managed by ${COMPANY.owner}. When you call, you reach the person who can actually make the decision.`}
         crumbs={[{ label: 'About Us' }]}
       />
 
@@ -26,7 +26,7 @@ export default function About() {
             <h2 className="text-2xl font-bold text-ink-900 sm:text-3xl">Who we are</h2>
             <div className="mt-5 space-y-4 text-[15px] leading-relaxed text-ink-700">
               <p>
-                Gupta Tours &amp; Travels provides corporate transport, car rental and outstation travel from our base in
+                JustCabs, a brand of Gupta Tours &amp; Travels, provides corporate transport, car rental and outstation travel from our base in
                 Goregaon (West), Mumbai. We work with corporate accounts and travel aggregators who need transport that
                 simply happens — the car is there, the driver knows the route, and the invoice arrives in the format the
                 accounts team can process.
@@ -65,13 +65,14 @@ export default function About() {
               <div className="grid place-items-center bg-gradient-to-br from-ink-900 to-brand-800 px-6 py-8">
                 <img
                   src="/assets/art-car-line-bold.svg"
-                  alt="Gupta Tours & Travels"
+                  alt="JustCabs"
                   className="h-auto w-64 max-w-full"
                 />
               </div>
               <div className="p-6">
                 <h3 className="font-display text-lg font-bold text-ink-900">{COMPANY.name}</h3>
                 <p className="mt-0.5 text-sm text-brand-600">{COMPANY.tagline}</p>
+                <p className="mt-1 text-xs text-ink-500">A brand of {COMPANY.legalName}</p>
 
                 <dl className="mt-5 space-y-3.5 text-sm">
                   {[

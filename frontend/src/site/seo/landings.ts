@@ -58,7 +58,7 @@ export interface Landing {
   external?: boolean;
 }
 
-const BRAND = 'Gupta Tours & Travels';
+const BRAND = 'JustCabs';
 
 /** Words for the buttons and headings, in each language. */
 export const UI: Record<Lang, {

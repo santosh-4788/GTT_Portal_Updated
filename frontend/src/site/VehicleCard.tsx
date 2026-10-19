@@ -384,7 +384,8 @@ export function VehicleCard({
 }
 
 /** The row that appears once two vehicles are ticked. */
-export function CompareTray() {
+/** `query` carries the trip (from, to, pax…) so the compare page can price it. */
+export function CompareTray({ query = '' }: { query?: string } = {}) {
   const compare = useCompare();
   if (compare.picked.length === 0) return null;
 
@@ -401,7 +402,7 @@ export function CompareTray() {
           Clear
         </button>
         <Link
-          to={`/vehicles/compare?ids=${compare.picked.join(',')}`}
+          to={`/vehicles/compare?ids=${compare.picked.join(',')}${query ? `&${query}` : ''}`}
           aria-disabled={compare.picked.length < 2}
           className={`btn h-9 shrink-0 rounded-full px-5 text-sm font-semibold ${
             compare.picked.length < 2 ? 'pointer-events-none bg-white/20 text-white/50' : 'bg-white text-ink-900 hover:bg-brand-50'

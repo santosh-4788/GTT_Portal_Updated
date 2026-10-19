@@ -1,4 +1,4 @@
-# Gupta Tours & Travels
+# JustCabs (Gupta Tours & Travels)
 #
 # When the API server serves the site it answers /robots.txt itself, with the
 # same rules plus an absolute Sitemap line for the address it was reached on

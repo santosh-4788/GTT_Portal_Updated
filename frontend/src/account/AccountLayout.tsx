@@ -136,7 +136,7 @@ function AccountShell({ user }: { user: CustomerUser }) {
       <Link to="/my" className="flex items-center gap-3 border-b border-white/[0.07] px-4 py-4 transition-colors hover:bg-white/[0.03]">
         <img src={`${import.meta.env.BASE_URL}assets/art-car-line-bold.svg`} alt="" className="h-auto w-12 shrink-0" />
         <span className="min-w-0">
-          <span className="block font-display text-[13px] font-bold leading-tight text-white">Gupta Tours &amp; Travels</span>
+          <span className="block font-display text-[13px] font-bold leading-tight text-white">JustCabs</span>
           <span className="block text-[9.5px] font-semibold uppercase tracking-[0.18em] text-gold-300/90">My Account</span>
         </span>
       </Link>

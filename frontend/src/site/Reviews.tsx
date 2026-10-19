@@ -28,7 +28,7 @@ export default function Reviews() {
   useSeo({
     title: 'Customer Reviews',
     path: '/reviews',
-    description: 'What customers say about travelling with Gupta Tours & Travels in Mumbai - airport runs, outstation trips, weddings and corporate duties.',
+    description: 'What customers say about travelling with JustCabs in Mumbai - airport runs, outstation trips, weddings and corporate duties.',
   });
   const [params] = useSearchParams();
   const preview = params.get('preview') === '1';

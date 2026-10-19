@@ -34,7 +34,7 @@ function body(l: Landing): string {
   const crumbs = [`<a href="/">${esc(ui.home)}</a>`, ...l.crumbs.map((c) => (c.to ? `<a href="${esc(c.to)}">${esc(c.label)}</a>` : esc(c.label)))];
   return [
     '<div class="prerender">',
-    `<header><a href="/"><strong>Gupta Tours &amp; Travels</strong></a></header>`,
+    `<header><a href="/"><strong>JustCabs</strong></a></header>`,
     '<main>',
     `<nav aria-label="Breadcrumb">${crumbs.join(' / ')}</nav>`,
     `<p>${esc(l.eyebrow)}</p>`,
@@ -54,7 +54,7 @@ function body(l: Landing): string {
       ? `<p>${esc(ui.langs)}: ${alts.map(([lang, p]) => `<a href="${esc(p)}" hreflang="${lang}">${esc(LANG_NAME[lang as 'en'])}</a>`).join(' · ')}</p>`
       : '',
     '</main>',
-    '<footer><p>Gupta Tours &amp; Travels · Goregaon (W), Mumbai 400104 · 24×7</p></footer>',
+    '<footer><p>JustCabs, a brand of Gupta Tours &amp; Travels · Goregaon (W), Mumbai 400104 · 24×7</p></footer>',
     '</div>',
   ].join('\n');
 }

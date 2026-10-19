@@ -59,7 +59,7 @@ export default function EnquirePage() {
   useSeo({
     title: `${cat.title} - Send an Enquiry`,
     path: `/enquire/${category}`,
-    description: `${cat.blurb} Gupta Tours & Travels, Mumbai - 24x7.`,
+    description: `${cat.blurb} JustCabs, Mumbai - 24x7.`,
   });
 
   /* Anything the visitor already told a previous screen comes through the URL,

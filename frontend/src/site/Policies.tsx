@@ -46,7 +46,7 @@ export default function Policies() {
   useSeo({
     title: 'Fare Policy, Cancellation and Terms',
     path: '/policies',
-    description: 'What a Gupta Tours & Travels fare includes, what is charged at actuals, and how cancellations, waiting time and night charges work.',
+    description: 'What a JustCabs fare includes, what is charged at actuals, and how cancellations, waiting time and night charges work.',
   });
   return (
     <div className="page-bg pb-24">

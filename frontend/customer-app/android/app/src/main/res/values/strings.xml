@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Gupta Tours</string>
-    <string name="title_activity_main">Gupta Tours</string>
+    <string name="app_name">JustCabs</string>
+    <string name="title_activity_main">JustCabs</string>
     <string name="package_name">com.guptatours.customer</string>
     <string name="custom_url_scheme">com.guptatours.customer</string>
 </resources>

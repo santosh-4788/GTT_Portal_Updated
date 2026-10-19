@@ -39,7 +39,7 @@ export default function CorporateRequest() {
   useSeo({
     title: 'Corporate Transport Requirement',
     path: '/corporate/request',
-    description: 'Send your company’s car rental or employee transport requirement in Mumbai and get a proposal from Gupta Tours & Travels.',
+    description: 'Send your company’s car rental or employee transport requirement in Mumbai and get a proposal from JustCabs.',
   });
   const [params] = useSearchParams();
   const { send, busy, error, setError } = useSendRequirement();

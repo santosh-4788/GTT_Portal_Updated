@@ -13,8 +13,8 @@ import { VEHICLES, vehicleBySlug, ON_REQUEST_CLASSES, type PlanType } from './ca
 import { estimateInputFor, tripPrefill, tripQuery, tripSummary, useTripParams } from './tripParams';
 import { EnquiryButton, WhatsAppButton } from './EnquirySheet';
 import { COMPANY } from './siteData';
-import { BackLink, estimateFor, EstimatePanel, SectionHead, TrustRow, useRates, Callout } from './kit';
-import { VehicleCard } from './VehicleCard';
+import { BackLink, CompareProvider, estimateFor, EstimatePanel, SectionHead, TrustRow, useRates, Callout } from './kit';
+import { VehicleCard, CompareTray } from './VehicleCard';
 import { VehiclePhoto } from '../components/VehiclePhoto';
 import { Reveal } from '../components/Reveal';
 import { IconSeat, IconLuggage, IconWhatsApp } from './SiteIcons';
@@ -244,6 +244,9 @@ export default function VehicleDetail() {
       </section>
 
       {/* ============================== SIMILAR ============================== */}
+      {/* The provider is what makes the cards' "Add to compare" ticks work here;
+          without it they fell back to a no-op and never ticked. */}
+      <CompareProvider>
       <section className="shell pt-16 sm:pt-20">
         <SectionHead
           eyebrow="Compare"
@@ -265,7 +268,7 @@ export default function VehicleDetail() {
         </div>
         <Reveal className="mt-6 flex flex-wrap gap-3">
           <Link
-            to={`/vehicles/compare?ids=${[vehicle.slug, others[0]?.slug, others[1]?.slug].filter(Boolean).join(',')}&${q}`}
+            to={`/vehicles/compare?ids=${others.slice(0, 3).map((v) => v.slug).join(',')}&${q}`}
             className="btn h-11 rounded-full bg-white px-6 text-md text-ink-800 shadow-card hover:shadow-raised"
           >
             Compare these three <IconArrowRight className="h-4 w-4" />
@@ -280,6 +283,8 @@ export default function VehicleDetail() {
           <Link to="/enquiry" className="link">tell us the requirement</Link>.
         </p>
       </section>
+      <CompareTray query={q} />
+      </CompareProvider>
     </div>
   );
 }

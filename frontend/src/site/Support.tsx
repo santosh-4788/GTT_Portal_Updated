@@ -24,7 +24,7 @@ export default function Support() {
   useSeo({
     title: 'Help and Support',
     path: '/support',
-    description: 'Help with a booking, a trip in progress, an invoice or a complaint - Gupta Tours & Travels, Mumbai, 24x7.',
+    description: 'Help with a booking, a trip in progress, an invoice or a complaint - JustCabs, Mumbai, 24x7.',
   });
   const [params] = useSearchParams();
   const { trips } = useCustomer();

@@ -1,7 +1,10 @@
 /** Content for the public website. Contact details mirror Settings — nothing invented. */
 
 export const COMPANY = {
-  name: 'Gupta Tours & Travels',
+  /** The brand customers see on the website. */
+  name: 'JustCabs',
+  /** The registered business — stays on invoices, GST and legal lines. */
+  legalName: 'Gupta Tours & Travels',
   tagline: 'Corporate Transport, Car Rental and Outstation',
   owner: 'Vinay Gupta',
   mobile: '9967381555',
