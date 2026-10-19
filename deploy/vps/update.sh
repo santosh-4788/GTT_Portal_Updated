@@ -9,6 +9,9 @@ export NVM_DIR="$HOME/.nvm"
 . "$NVM_DIR/nvm.sh"
 
 cd "$APP_DIR"
+# The TypeScript build cache was once committed; every build here rewrites it,
+# which would otherwise make the pull refuse to run.
+git checkout -- frontend/tsconfig.tsbuildinfo 2>/dev/null || true
 git pull --ff-only
 
 # A backup first, so a bad update can always be rolled back.
