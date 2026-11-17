@@ -16,6 +16,7 @@ import { appendChat, linkChatToBooking, validSessionId } from '../services/chatL
 import { feedbackByToken, publicFeedback, submitFeedback } from '../services/feedback';
 import { airportDirectionField, DIRECTION_LABEL } from '../services/airport';
 import { publicKnowledge } from '../services/chatbotKnowledge';
+import { currentCustomer } from '../middleware/customerAuth';
 
 const router = Router();
 
@@ -325,6 +326,9 @@ router.post('/enquiry', enquiryLimiter, validateBody(enquirySchema), async (req,
   const b = req.body as z.infer<typeof enquirySchema>;
 
   const out = await raiseInquiry({
+    // A signed-in customer's request goes straight onto their account, so it
+    // shows under My Trips at once - and only there.
+    customerId: currentCustomer(req)?.id ?? null,
     source: b.source as InquirySource,
     name: b.name,
     mobile: b.mobile,
@@ -455,6 +459,9 @@ router.post('/whatsapp-enquiry', enquiryLimiter, validateBody(whatsappSchema), a
   const message = [fareLine, returnLine, b.message, chatLine].filter(Boolean).join('\n');
 
   const out = await raiseInquiry({
+    // A signed-in customer's request goes straight onto their account, so it
+    // shows under My Trips at once - and only there.
+    customerId: currentCustomer(req)?.id ?? null,
     source: b.source,
     name: b.name,
     mobile: b.mobile,

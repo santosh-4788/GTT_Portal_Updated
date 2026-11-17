@@ -2,7 +2,7 @@ import { ScrollRoad, BackToTop } from '../components/ScrollFx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { COMPANY, whatsappLink } from './siteData';
-import { rememberSearch, useCustomer } from './tripStore';
+import { rememberSearch } from './tripStore';
 import { POPULAR_SEARCHES, searchSite } from './searchIndex';
 import { MobileNav } from './MobileNav';
 import { Assistant } from './Assistant';
@@ -452,9 +452,9 @@ export default function SiteLayout() {
   const [menu, setMenu] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { pathname } = useLocation();
-  const { trips } = useCustomer();
-
-  const activeTrips = trips.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED').length;
+  // Trips raised in this browser are not listed (privacy on shared devices);
+  // a customer's trips come from their account under My Trips.
+  const activeTrips = 0;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);

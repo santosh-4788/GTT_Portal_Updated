@@ -17,6 +17,7 @@ import {
 } from 'react';
 import axios from 'axios';
 import { errorMessage } from './api';
+import { forgetDeviceTrips } from '../site/tripStore';
 
 export interface CustomerUser {
   id: number;
@@ -119,6 +120,7 @@ export function CustomerAuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data } = await customerApi.post('/auth/login', { email, password });
         if (data.token) customerToken.set(data.token);
+        forgetDeviceTrips();
         setUser(data.user);
         return data.user as CustomerUser;
       } catch (err) {
@@ -130,6 +132,7 @@ export function CustomerAuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data } = await customerApi.post('/auth/register', input);
         if (data.token) customerToken.set(data.token);
+        forgetDeviceTrips();
         setUser(data.user);
         return { user: data.user, linkedTrips: data.linkedTrips ?? 0, message: data.message ?? '' };
       } catch (err) {
@@ -141,6 +144,7 @@ export function CustomerAuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data } = await customerApi.post('/auth/google', { credential });
         if (data.token) customerToken.set(data.token);
+        forgetDeviceTrips();
         setUser(data.user);
         return data.user as CustomerUser;
       } catch (err) {
@@ -151,6 +155,7 @@ export function CustomerAuthProvider({ children }: { children: ReactNode }) {
     async signOut() {
       try { await customerApi.post('/auth/logout'); } catch { /* the session may already be gone */ }
       customerToken.clear();
+      forgetDeviceTrips();
       setUser(null);
     },
 

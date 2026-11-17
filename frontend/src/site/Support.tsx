@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { COMPANY, whatsappLink, FAQS } from './siteData';
 import { SUPPORT_TOPICS } from './catalog';
-import { useCustomer } from './tripStore';
+import type { Trip } from './tripStore';
 import { ChoiceCard, SectionHead, TrustRow } from './kit';
 import { Reveal } from '../components/Reveal';
 import PageHero from './PageHero';
@@ -27,11 +27,12 @@ export default function Support() {
     description: 'Help with a booking, a trip in progress, an invoice or a complaint - JustCabs, Mumbai, 24x7.',
   });
   const [params] = useSearchParams();
-  const { trips } = useCustomer();
   const [topic, setTopic] = useState<string>(params.get('topic') ?? '');
 
   const chosen = SUPPORT_TOPICS.find((t) => t.key === topic);
-  const recent = trips.filter((t) => t.status !== 'CANCELLED').slice(0, 3);
+  // Trips raised in this browser are not listed (privacy on shared devices);
+  // a customer's trips come from their account under My Trips.
+  const recent: Trip[] = [];
 
   const waMessage = chosen
     ? `Hello, I need help with: ${chosen.label}.`

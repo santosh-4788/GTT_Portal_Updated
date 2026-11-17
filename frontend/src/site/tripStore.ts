@@ -244,12 +244,27 @@ function write(next: State) {
  * around the read swallows — the store then looks empty for ever and the trip,
  * driver and tracking screens have nothing to show.
  */
-if (typeof localStorage !== 'undefined' && !state.seeded) {
-  write({
-    ...state,
-    seeded: true,
-    trips: state.trips.length ? state.trips : [sampleTrip()],
-  });
+/*
+ * No example trip any more (Nov 2026): trips are shown only to a signed-in
+ * customer, from their account. Any example planted by an older version is
+ * taken out again.
+ */
+if (typeof localStorage !== 'undefined' && state.trips.some((t) => t.sample)) {
+  write({ ...state, seeded: true, trips: state.trips.filter((t) => !t.sample) });
+}
+void sampleTrip;
+
+/**
+ * Forget the trips and trip notices raised from this browser.
+ *
+ * Called whenever a customer signs in or out, so the next person on a shared
+ * phone or office PC never sees somebody else's journeys. Nothing is lost:
+ * the office has every enquiry, and a signed-in customer's trips come from
+ * their account (matched on their email, or claimed with the Trip ID).
+ */
+export function forgetDeviceTrips() {
+  if (!state.trips.length && !state.notes.length) return;
+  write({ ...state, trips: [], notes: [] });
 }
 
 function subscribe(fn: () => void) {

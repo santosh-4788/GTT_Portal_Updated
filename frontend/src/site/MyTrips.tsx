@@ -296,7 +296,10 @@ const text = (...parts: (string | null | undefined | number)[]) =>
 export default function MyTrips() {
   useSeo({ title: 'My trips', noindex: true });
   const { user, loading: authLoading } = useCustomerAuth();
-  const { trips: localTrips } = useCustomer();
+  /* Trips are shown only to a signed-in customer, from their account. A list
+     kept in the browser showed every visitor of a shared phone or PC the trips
+     somebody else had raised on it. */
+  const localTrips: Trip[] = [];
   const { trips: serverTrips, loading, error, reload } = useMyTrips(!!user);
 
   const [tab, setTab] = useState<Tab>('upcoming');
@@ -347,7 +350,9 @@ export default function MyTrips() {
   }, [all, term, searching]);
 
   const list = searching ? hits : grouped[tab];
-  const showSkeleton = signedIn && loading && serverTrips.length === 0;
+  const showSkeleton = (signedIn && loading && serverTrips.length === 0) || authLoading;
+
+  if (!signedIn && !authLoading) return <SignedOutTrips />;
 
   return (
     <div className="page-bg pb-24">
@@ -486,6 +491,44 @@ export default function MyTrips() {
 /* ==========================================================================
    The nudge, shown once, to people with no account
    ========================================================================== */
+
+/** What a visitor sees: no trips at all, only the ways to reach their own. */
+function SignedOutTrips() {
+  return (
+    <div className="page-bg pb-24">
+      <PageHero
+        title="My trips"
+        sub="Your trips are kept in your JustCabs account. Sign in to see them."
+        crumbs={[{ label: 'My trips' }]}
+        compact
+      />
+      <section className="shell">
+        <SignInBanner count={0} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="tile p-6">
+            <h2 className="font-display text-lg font-bold text-ink-900">Booked without an account?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-600">
+              Create your account with the same email address you gave us — every trip booked with it is added to
+              your account automatically. Booked with a different email? Sign in and add the trip with its Trip ID.
+            </p>
+          </div>
+          <div className="tile p-6">
+            <h2 className="font-display text-lg font-bold text-ink-900">Just want to check one trip?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-600">
+              Track it with the Trip ID (it starts with JC-) and the mobile number used for the booking.
+            </p>
+            <Link to="/track" className="btn mt-4 h-11 rounded-full bg-ink-900 px-6 text-md text-white hover:bg-ink-800">
+              Track a trip <IconArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+        <p className="mt-6 text-xs leading-relaxed text-ink-500">
+          For your privacy, trips are never listed on a device without signing in.
+        </p>
+      </section>
+    </div>
+  );
+}
 
 function SignInBanner({ count }: { count: number }) {
   return (

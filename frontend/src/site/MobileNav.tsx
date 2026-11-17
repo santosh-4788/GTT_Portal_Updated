@@ -7,7 +7,7 @@
  * links in four groups, and none of that belongs on a 375px screen.
  */
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useCustomer } from './tripStore';
+
 import { IconDashboard, IconMap, IconPlus, IconBookings, IconUsers } from '../components/icons';
 
 const ITEMS = [
@@ -27,11 +27,12 @@ const ownsBottomEdge = (pathname: string) =>
 
 export function MobileNav() {
   const { pathname } = useLocation();
-  const { trips } = useCustomer();
 
   if (ownsBottomEdge(pathname)) return null;
 
-  const active = trips.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED').length;
+  // Trips raised in this browser are not listed (privacy on shared devices);
+  // a customer's trips come from their account under My Trips.
+  const active = 0;
 
   return (
     <nav

@@ -658,6 +658,27 @@ describe('The customer account', () => {
     assert.match(r.body.error, /not on your account/);
   });
 
+  test('a trip booked on the website while signed in goes straight onto that account', async () => {
+    const r = await req('POST', '/public/enquiry', {
+      name: 'Journey Tester', mobile: '9820055667', email: 'journey.tester@example.com',
+      service: 'Local Travel', pickup: 'Goregaon West', dropOff: 'Bandra',
+      travelDate: '2027-02-10', travelTime: '10:00', vehicleType: 'Sedan',
+    }, customerToken);
+    assert.equal(r.status, 201);
+    const mine = await customer('GET', '/customer/trips');
+    assert.ok(mine.body.data.some((t: any) => t.tripId === r.body.tripId), 'shown under My Trips at once');
+
+    // The same request from a visitor with no session belongs to nobody's account.
+    const visitor = await anon('POST', '/public/enquiry', {
+      name: 'Someone Else', mobile: '9820099887', email: 'someone.else@example.com',
+      service: 'Local Travel', pickup: 'Andheri', dropOff: 'Powai',
+      travelDate: '2027-02-11', travelTime: '11:00', vehicleType: 'Sedan',
+    });
+    assert.equal(visitor.status, 201);
+    const again = await customer('GET', '/customer/trips');
+    assert.ok(!again.body.data.some((t: any) => t.tripId === visitor.body.tripId), 'never in another customer’s list');
+  });
+
   test('the customer downloads their own invoice as a PDF', async () => {
     const res = await fetch(`${BASE}/customer/trips/${state.tripId}/invoice`, {
       headers: { Authorization: `Bearer ${customerToken}` },

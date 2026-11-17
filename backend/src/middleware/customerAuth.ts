@@ -83,15 +83,20 @@ function extractToken(req: Request): string | null {
  * visitor's browser console although being signed out is perfectly normal.
  */
 export function currentCustomer(req: Request) {
-  const token = extractToken(req);
-  if (!token) return null;
-  try {
-    const payload = jwt.verify(token, config.jwtSecret) as { sub: string; typ?: string };
-    if (payload.typ !== CUSTOMER_TOKEN_TYPE) return null;
-    return loadCustomer(Number(payload.sub)) ?? null;
-  } catch {
-    return null;
+  // The Bearer header can belong to a member of staff using the same browser,
+  // so the customer cookie is tried as well before deciding nobody is signed in.
+  const header = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null;
+  const cookie = (req as any).cookies?.[CUSTOMER_COOKIE] ?? null;
+  for (const token of [header, cookie]) {
+    if (!token) continue;
+    try {
+      const payload = jwt.verify(token, config.jwtSecret) as { sub: string; typ?: string };
+      if (payload.typ !== CUSTOMER_TOKEN_TYPE) continue;
+      const c = loadCustomer(Number(payload.sub));
+      if (c) return c;
+    } catch { /* try the next one */ }
   }
+  return null;
 }
 
 export function requireCustomer(req: Request, res: Response, next: NextFunction) {

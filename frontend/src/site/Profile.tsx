@@ -31,7 +31,7 @@ import { useSeo } from './Seo';
 
 export default function Profile() {
   useSeo({ title: 'Your profile', noindex: true });
-  const { customer, places, passengers, prefs, trips } = useCustomer();
+  const { customer, places, passengers, prefs } = useCustomer();
   const { user } = useCustomerAuth();
 
   const [newPlace, setNewPlace] = useState('');
@@ -40,8 +40,10 @@ export default function Profile() {
 
   const flash = (what: string) => { setSaved(what); setTimeout(() => setSaved(''), 1800); };
 
-  const upcoming = trips.filter((t) => bucket(t) === 'upcoming').length;
-  const completed = trips.filter((t) => bucket(t) === 'completed').length;
+  // Trips raised in this browser are not listed (privacy on shared devices);
+  // a customer's trips come from their account under My Trips.
+  const upcoming = 0;
+  const completed = 0;
 
   return (
     <div className="page-bg pb-24">
