@@ -106,6 +106,7 @@ const OutstationFares = page(() => import('./admin/OutstationFares'));
 const ChatHistory = page(() => import('./admin/ChatHistory'));
 const Feedback = page(() => import('./admin/Feedback'));
 const ChatbotKnowledge = page(() => import('./admin/ChatbotKnowledge'));
+const Promotions = page(() => import('./admin/Promotions'));
 const Vendors = page(() => import('./admin/Vendors'));
 const VendorForm = page(() => import('./admin/VendorForm'));
 const Billing = page(() => import('./admin/Billing'));
@@ -253,6 +254,7 @@ export default function App() {
           <Route path="chats" element={<ChatHistory />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="chatbot" element={<ChatbotKnowledge />} />
+          <Route path="festival-ads" element={<Promotions />} />
           <Route path="vendors" element={<Vendors />} />
           <Route path="vendors/new" element={<VendorForm />} />
           <Route path="vendors/:id/edit" element={<VendorForm />} />

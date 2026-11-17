@@ -92,7 +92,7 @@ router.get('/locations', lookupLimiter, (req, res) => {
 const enquiryLimiter = limiter({
   windowMs: 60 * 60 * 1000,
   limit: 10,
-  message: { error: 'Too many enquiries from this device. Please call us on 9967381555 instead.' },
+  message: { error: 'Too many enquiries from this device. Please call us on 8104338080 instead.' },
 });
 
 /**
@@ -477,7 +477,7 @@ router.post('/whatsapp-enquiry', enquiryLimiter, validateBody(whatsappSchema), a
   // The text the chat opens with. Built here rather than in the browser so the
   // office always receives the same layout whichever screen sent it.
   const L: string[] = [
-    `Hello ${q.get<any>("SELECT value FROM settings WHERE key='company.name'")?.value ?? 'Gupta Tours & Travels'},`,
+    'Hello JustCabs,',
     '',
     `I would like to book a vehicle. My Trip ID is ${out.tripId}.`,
     '',

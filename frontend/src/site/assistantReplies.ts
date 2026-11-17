@@ -155,16 +155,16 @@ const TEXT = {
 
   /* ------------------------------------------------------------ an existing trip */
   'status.askId': [
-    'Please share your Trip ID - it looks like GTT-WA-2609-0014 and is in your confirmation message and email.',
-    'कृपया अपनी ट्रिप आईडी बताइए - यह GTT-WA-2609-0014 जैसी होती है और कन्फ़र्मेशन मैसेज व ईमेल में है।',
-    'Please apni Trip ID bataiye - yeh GTT-WA-2609-0014 jaisi hoti hai aur confirmation message aur email mein hai.',
-    'कृपया तुमचा ट्रिप आयडी सांगा - तो GTT-WA-2609-0014 सारखा असतो आणि कन्फर्मेशन मेसेज व ईमेलमध्ये आहे.',
-    'Krupaya tumcha Trip ID sanga - to GTT-WA-2609-0014 sarkha asto ani confirmation message va email madhye aahe.',
+    'Please share your Trip ID - it looks like JC-WA-2611-0014 and is in your confirmation message and email.',
+    'कृपया अपनी ट्रिप आईडी बताइए - यह JC-WA-2611-0014 जैसी होती है और कन्फ़र्मेशन मैसेज व ईमेल में है।',
+    'Please apni Trip ID bataiye - yeh JC-WA-2611-0014 jaisi hoti hai aur confirmation message aur email mein hai.',
+    'कृपया तुमचा ट्रिप आयडी सांगा - तो JC-WA-2611-0014 सारखा असतो आणि कन्फर्मेशन मेसेज व ईमेलमध्ये आहे.',
+    'Krupaya tumcha Trip ID sanga - to JC-WA-2611-0014 sarkha asto ani confirmation message va email madhye aahe.',
   ],
   'status.badId': [
-    'That does not look like a Trip ID. It looks like GTT-WA-2609-0014.', 'यह ट्रिप आईडी नहीं लग रही। यह GTT-WA-2609-0014 जैसी होती है।',
-    'Yeh Trip ID nahi lag rahi. Yeh GTT-WA-2609-0014 jaisi hoti hai.', 'हा ट्रिप आयडी वाटत नाही. तो GTT-WA-2609-0014 सारखा असतो.',
-    'Ha Trip ID vatat nahi. To GTT-WA-2609-0014 sarkha asto.',
+    'That does not look like a Trip ID. It looks like JC-WA-2611-0014.', 'यह ट्रिप आईडी नहीं लग रही। यह JC-WA-2611-0014 जैसी होती है।',
+    'Yeh Trip ID nahi lag rahi. Yeh JC-WA-2611-0014 jaisi hoti hai.', 'हा ट्रिप आयडी वाटत नाही. तो JC-WA-2611-0014 सारखा असतो.',
+    'Ha Trip ID vatat nahi. To JC-WA-2611-0014 sarkha asto.',
   ],
   'status.askDigits': [
     'Thanks. To keep your booking private, what are the last 4 digits of the mobile number on it?',

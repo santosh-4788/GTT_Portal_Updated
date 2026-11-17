@@ -1,7 +1,7 @@
 # Gupta Tours & Travels — Project Documentation
 
 **Version:** 1.0.0 · **Location:** `E:\Portal\ProjectTool`
-**Owner:** Vinay Gupta · +91 99673 81555 · GSTIN 27ALRPG8019M1ZH
+**Owner:** Vinay Gupta · +91 81043 38080 · GSTIN 27ALRPG8019M1ZH
 
 ---
 

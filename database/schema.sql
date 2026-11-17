@@ -1184,3 +1184,52 @@ CREATE INDEX IF NOT EXISTS idx_ledger_adj_vendor ON ledger_adjustments(vendor_id
 -- value the office has already chosen.
 INSERT OR IGNORE INTO settings (key, value, category, data_type, label) VALUES
   ('billing.requireConfirmation', 'true', 'invoice', 'boolean', 'Invoices only for trips whose billing has been confirmed (true/false)');
+
+
+-- Festival & event ads on the website (Admin -> Festival ads). The office adds
+-- photos and its own words; each ad shows between show_from and show_until
+-- (inclusive, India dates) while is_active = 1, and can be hidden or deleted
+-- at any time. Images are kept in the database so a backup carries them.
+CREATE TABLE IF NOT EXISTS promotions (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  seed_key       TEXT UNIQUE,                        -- set only on the built-in festival calendar
+  kind           TEXT NOT NULL DEFAULT 'FESTIVAL',   -- FESTIVAL | EVENT | OFFER
+  title          TEXT NOT NULL,
+  title_local    TEXT,                               -- the name in Devanagari, set large as decoration
+  headline       TEXT,
+  message        TEXT,                               -- the office's own words / comments
+  cta_label      TEXT,
+  cta_link       TEXT,                               -- empty = WhatsApp the office
+  theme          TEXT NOT NULL DEFAULT 'saffron',
+  festival_date  TEXT,
+  festival_end   TEXT,
+  show_from      TEXT NOT NULL,
+  show_until     TEXT NOT NULL,
+  is_active      INTEGER NOT NULL DEFAULT 1,
+  notes          TEXT,                               -- internal only, never shown on the site
+  sort_order     INTEGER NOT NULL DEFAULT 0,
+  created_by     INTEGER REFERENCES users(id),
+  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_promotions_window ON promotions(is_active, show_from, show_until);
+
+CREATE TABLE IF NOT EXISTS promotion_images (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  promotion_id  INTEGER NOT NULL REFERENCES promotions(id) ON DELETE CASCADE,
+  file_name     TEXT,
+  mime          TEXT NOT NULL,
+  size          INTEGER NOT NULL DEFAULT 0,
+  data          BLOB NOT NULL,
+  caption       TEXT,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_promotion_images ON promotion_images(promotion_id, sort_order);
+
+-- Built-in festivals already offered once. A festival the office deletes is
+-- never put back by the next restart.
+CREATE TABLE IF NOT EXISTS promotion_seed_log (
+  seed_key   TEXT PRIMARY KEY,
+  seeded_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);

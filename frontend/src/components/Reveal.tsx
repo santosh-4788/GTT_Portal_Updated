@@ -15,6 +15,7 @@ export function Reveal({
   as: Tag = 'div',
   delay = 0,
   y = 14,
+  variant = 'up',
   className = '',
   children,
   ...rest
@@ -22,6 +23,8 @@ export function Reveal({
   as?: ElementType;
   delay?: number;
   y?: number;
+  /** How it arrives: rise (default), slide in from a side, or grow. */
+  variant?: 'up' | 'left' | 'right' | 'zoom';
   className?: string;
   children: ReactNode;
   [key: string]: any;
@@ -57,7 +60,7 @@ export function Reveal({
   }, [delay]);
 
   return (
-    <Tag ref={ref} className={className} style={{ '--reveal-y': `${y}px` } as any} {...rest}>
+    <Tag ref={ref} className={className} data-reveal={variant} style={{ '--reveal-y': `${y}px` } as any} {...rest}>
       {children}
     </Tag>
   );

@@ -82,7 +82,7 @@ export function ClaimTripCard({
         <SoftField label="Trip ID">
           <input
             className={`${SOFT_INPUT} font-mono uppercase`} value={tripId} autoFocus
-            onChange={(e) => setTripId(e.target.value)} placeholder="GTT-WA-2609-0007"
+            onChange={(e) => setTripId(e.target.value)} placeholder="JC-WA-2611-0007"
           />
         </SoftField>
         <SoftField label="Mobile on the booking">

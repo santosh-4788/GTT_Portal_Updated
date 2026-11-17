@@ -176,7 +176,7 @@ export default function Feedback() {
           </div>
           <div>
             <label className="label" htmlFor="fb-booking">Booking ID</label>
-            <input id="fb-booking" className="input" value={f.booking} onChange={set('booking')} placeholder="Trip ID or GTT-B-…" />
+            <input id="fb-booking" className="input" value={f.booking} onChange={set('booking')} placeholder="Trip ID (JC-…) or GTT-B-…" />
           </div>
         </div>
         <div className="mt-3 flex flex-wrap justify-end gap-2">

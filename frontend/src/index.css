@@ -19,16 +19,16 @@
 
     /* The accent, as RGB triples (see tailwind.config.js). The public site's
        logo cyan by default. */
-    --brand-50: 236 247 253;
-    --brand-100: 211 237 250;
-    --brand-200: 169 220 244;
-    --brand-300: 114 198 234;
-    --brand-400: 55 172 221;
-    --brand-500: 28 163 222;
-    --brand-600: 14 130 184;
-    --brand-700: 12 103 145;
-    --brand-800: 15 84 116;
-    --brand-900: 15 69 96;
+    --brand-50: 235 245 255;
+    --brand-100: 214 234 254;
+    --brand-200: 173 212 252;
+    --brand-300: 117 182 248;
+    --brand-400: 61 158 244;
+    --brand-500: 26 143 240;
+    --brand-600: 14 114 206;
+    --brand-700: 12 90 168;
+    --brand-800: 14 72 133;
+    --brand-900: 13 58 106;
   }
 
   /* The staff portal: a deeper sapphire that reads as a finance and
@@ -932,3 +932,164 @@ html:lang(mr) [class*='tracking-'], html:lang(mr) .lead {
 
 /* The desktop sidebar can be hidden from the top bar (AdminLayout). */
 html.rail-hidden { --rail-w: 0rem; }
+
+
+/* ===========================================================================
+   JustCabs website — colour and scroll motion (Nov 2026)
+
+   Scoped to `.site-fx` (the website layout root), so the staff portal keeps
+   its own look. Logo blue + gold. Everything here is CSS or a few lines of
+   React — no library, no paid service. Scroll-driven parts use the browser's
+   own `animation-timeline`; browsers without it simply show the finished
+   state, so nothing can be left hidden.
+   =========================================================================== */
+.site-fx {
+  --jc-blue: #1A8FF0;
+  --jc-sky: #35C0EE;
+  --jc-navy: #0A1F44;
+  --jc-gold: #F2B93B;
+}
+
+/* Page: a soft white with a faint blue glow at the top and gold at the foot. */
+.site-fx.page-bg,
+.site-fx .page-bg {
+  background:
+    radial-gradient(60rem 36rem at 0% 0%, rgb(26 143 240 / .07), transparent 70%),
+    radial-gradient(50rem 30rem at 100% 100%, rgb(242 185 59 / .07), transparent 70%),
+    #F4F8FD;
+}
+
+/* Primary gradient: the logo's sky-to-blue, deepening toward navy-blue. */
+.site-fx .grad-brand {
+  background-image: linear-gradient(135deg, #35C0EE 0%, #1A8FF0 55%, #0E5FC0 100%);
+}
+.site-fx .btn-primary {
+  background-color: #1A8FF0;
+  background-image: linear-gradient(135deg, #35C0EE 0%, #1A8FF0 50%, #0E66CC 100%);
+}
+
+/* The hero accent: a slow blue shimmer; its underline turns gold. */
+.site-fx .grad-text {
+  background-image: linear-gradient(100deg, #0E66CC 0%, #1A8FF0 30%, #35C0EE 55%, #1A8FF0 80%, #0E66CC 100%);
+  background-size: 220% 100%;
+  animation: jc-drift 7s ease-in-out infinite alternate;
+}
+/* the line drawn under the hero accent */
+.site-fx .hero-underline { color: var(--jc-gold); }
+@keyframes jc-drift { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+
+/* Section eyebrows get a small gold-to-blue dash. */
+.site-fx .lead::before {
+  content: '';
+  display: inline-block;
+  width: 1.4rem;
+  height: 2px;
+  margin-right: .6rem;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--jc-gold), var(--jc-blue));
+}
+
+/* Section titles: a blue-gold underline that draws itself as it scrolls in. */
+.site-fx .h-sec::after {
+  content: '';
+  display: block;
+  width: 4.5rem;
+  height: 4px;
+  margin-top: .9rem;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--jc-blue), var(--jc-sky) 50%, var(--jc-gold));
+  transform-origin: left center;
+}
+.site-fx .text-center .h-sec::after { margin-inline: auto; transform-origin: center; }
+
+/* Footer: a blue-gold band along its top edge. */
+.site-fx footer > div {
+  background: linear-gradient(90deg, var(--jc-blue), var(--jc-sky) 45%, var(--jc-gold)) top / 100% 4px no-repeat, #fff;
+}
+
+/* --- scroll reveal, livelier on the website -------------------------------- */
+.site-fx .will-reveal {
+  transform: translate3d(0, calc(var(--reveal-y, 14px) * 2), 0) scale(.985);
+  transition: opacity .75s cubic-bezier(.22, 1, .36, 1), transform .85s cubic-bezier(.22, 1, .36, 1);
+}
+.site-fx .will-reveal[data-reveal='left']  { transform: translate3d(-48px, 0, 0); }
+.site-fx .will-reveal[data-reveal='right'] { transform: translate3d(48px, 0, 0); }
+.site-fx .will-reveal[data-reveal='zoom']  { transform: translate3d(0, 18px, 0) scale(.92); }
+.site-fx .will-reveal.is-revealed { opacity: 1; transform: none; }
+
+/* --- reading-progress road with the cab (ScrollFx.tsx) --------------------- */
+.scroll-road {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .3s ease;
+  background: repeating-linear-gradient(90deg, rgb(16 28 43 / .10) 0 14px, transparent 14px 24px);
+}
+.scroll-road.is-on { opacity: 1; }
+/* On phones the header is tight, so the cab drives just under the road line. */
+@media (max-width: 639px) { .scroll-road-cab { bottom: auto; top: 2px; } }
+.scroll-road-fill {
+  position: absolute; inset: 0;
+  transform-origin: left center;
+  background: linear-gradient(90deg, #35C0EE, #1A8FF0 55%, #F2B93B);
+  box-shadow: 0 0 10px rgb(26 143 240 / .45);
+}
+.scroll-road-cab {
+  position: absolute;
+  bottom: 1px;
+  width: 42px;
+  transition: left .12s linear;
+}
+.scroll-cab-svg { display: block; width: 42px; height: 17px; filter: drop-shadow(0 1px 1px rgb(16 28 43 / .25)); }
+.scroll-cab-svg .cab-wheel { transform-box: view-box; }
+.scroll-cab-svg.is-moving .cab-wheel { animation: wheel-spin .45s linear infinite; }
+.scroll-cab-svg.is-moving { animation: jc-bump .3s ease-in-out infinite; }
+@keyframes jc-bump { 50% { transform: translateY(-.6px); } }
+
+/* --- back to top with progress ring ---------------------------------------- */
+.back-to-top {
+  position: fixed;
+  left: 1rem;
+  bottom: 4.75rem;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  width: 3rem; height: 3rem;
+  border-radius: 9999px;
+  color: #0A1F44;
+  background: #fff;
+  box-shadow: 0 6px 18px -6px rgb(16 28 43 / .45), inset 0 1px 0 #fff;
+  opacity: 0;
+  transform: translateY(14px) scale(.85);
+  pointer-events: none;
+  transition: opacity .3s ease, transform .35s cubic-bezier(.22, 1, .36, 1);
+}
+.back-to-top.is-on { opacity: 1; transform: none; pointer-events: auto; }
+.back-to-top:hover { color: #1A8FF0; }
+@media (min-width: 1024px) { .back-to-top { bottom: 1.25rem; left: 1.25rem; } }
+
+/* --- scroll-driven extras (Chrome, Edge, Android; others show final state) - */
+@supports (animation-timeline: view()) {
+  .site-fx .h-sec::after {
+    animation: jc-grow linear both;
+    animation-timeline: view();
+    animation-range: entry 10% cover 35%;
+  }
+  /* Photos settle into their frames as they come up the screen. */
+  .site-fx main img:not([src$='.svg']) {
+    animation: jc-settle linear backwards;
+    animation-timeline: view();
+    animation-range: entry 0% cover 30%;
+  }
+}
+@keyframes jc-grow   { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes jc-settle { from { transform: scale(1.08); filter: saturate(.75); } to { transform: none; filter: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .site-fx .will-reveal { transform: none !important; }
+  .site-fx .grad-text, .site-fx .h-sec::after, .site-fx main img { animation: none !important; }
+  .scroll-road-cab { transition: none; }
+}

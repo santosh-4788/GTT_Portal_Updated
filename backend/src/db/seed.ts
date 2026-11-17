@@ -104,7 +104,7 @@ function seedAdminUser() {
   d.prepare(
     `INSERT INTO users (email, full_name, password_hash, role_id, mobile, is_active, must_change_password)
      VALUES (?, ?, ?, ?, ?, 1, 1)`
-  ).run(config.seedAdmin.email, config.seedAdmin.fullName, hash, roleId, '9967381555');
+  ).run(config.seedAdmin.email, config.seedAdmin.fullName, hash, roleId, '8104338080');
   console.log(`  admin created: ${config.seedAdmin.email} (password change forced on first login)`);
 }
 
@@ -118,14 +118,14 @@ const SETTINGS: [string, string, string, string, string][] = [
   ['company.legalName', 'GUPTA TOURS AND TRAVELS', 'company', 'string', 'Legal Name (as on invoice)'],
   ['company.tagline', 'Corporate Transport Car Rental and Outstation', 'company', 'string', 'Tagline'],
   ['company.owner', 'Vinay Gupta', 'company', 'string', 'Owner / Authorised Signatory'],
-  ['company.mobile', '9967381555', 'company', 'string', 'Primary Mobile'],
+  ['company.mobile', '8104338080', 'company', 'string', 'Primary Mobile'],
   ['company.altMobile2', '8591134747', 'company', 'string', 'Alternate Mobile 2'],
 
   // Addresses and road distance. The limit is ours, not the provider's — at
   // this number the portal stops calling out for the rest of the month.
   ['maps.enabled', 'true', 'maps', 'boolean', 'Look up addresses and distance'],
   ['maps.monthlyLimit', '2000', 'maps', 'number', 'Address/distance lookups allowed per month'],
-  ['company.email', 'vinaykumar87674@gmail.com', 'company', 'string', 'Email'],
+  ['company.email', 'justcabsonline@gmail.com', 'company', 'string', 'Email'],
   ['company.address.letterhead',
     'P-8, Building, New Aman CHS Ltd., Ajit Glass Garden Road, Goregaon (W), Mumbai - 400 104',
     'company', 'string', 'Address (letterhead form, used on the website)'],
@@ -157,7 +157,7 @@ const SETTINGS: [string, string, string, string, string][] = [
 
   ['website.heroTitle', 'Your Trusted Travel Partner', 'website', 'string', 'Hero Title'],
   ['website.heroSubtitle', 'Comfortable Journeys. Reliable Service. Transparent Billing.', 'website', 'string', 'Hero Subtitle'],
-  ['website.whatsapp', '9967381555', 'website', 'string', 'WhatsApp Number'],
+  ['website.whatsapp', '8104338080', 'website', 'string', 'WhatsApp Number'],
   // Used to build the "Track this trip" links inside emails. Leave blank while
   // the portal only runs on this machine; set it to the public address (or the
   // ngrok URL) when customers reach the site from outside.
@@ -169,14 +169,14 @@ const SETTINGS: [string, string, string, string, string][] = [
   // is free — the only setup is a Google App Password, which belongs in
   // backend\.env as MAIL_APP_PASSWORD rather than in this table.
   ['email.enabled', 'true', 'email', 'boolean', 'Send emails from the portal'],
-  ['email.fromAddress', 'vinaykumar87674@gmail.com', 'email', 'string', 'Send all email from'],
-  ['email.fromName', 'Gupta Tours & Travels', 'email', 'string', 'Sender name shown to customers'],
-  ['email.replyTo', 'vinaykumar87674@gmail.com', 'email', 'string', 'Reply-to address'],
-  ['email.adminInbox', 'vinaykumar87674@gmail.com', 'email', 'string', 'Where customer enquiries are delivered'],
+  ['email.fromAddress', 'justcabsonline@gmail.com', 'email', 'string', 'Send all email from'],
+  ['email.fromName', 'JustCabs', 'email', 'string', 'Sender name shown to customers'],
+  ['email.replyTo', 'justcabsonline@gmail.com', 'email', 'string', 'Reply-to address'],
+  ['email.adminInbox', 'justcabsonline@gmail.com', 'email', 'string', 'Where customer enquiries are delivered'],
   ['email.host', 'smtp.gmail.com', 'email', 'string', 'SMTP host'],
   ['email.port', '465', 'email', 'number', 'SMTP port'],
   ['email.secure', 'true', 'email', 'boolean', 'Use SSL (port 465)'],
-  ['email.user', 'vinaykumar87674@gmail.com', 'email', 'string', 'SMTP login (the Gmail address)'],
+  ['email.user', 'justcabsonline@gmail.com', 'email', 'string', 'SMTP login (the Gmail address)'],
   ['email.appPassword', '', 'email', 'string', 'Gmail App Password (16 characters, no spaces)'],
 
   // --- Customer sign-in --------------------------------------------------------

@@ -10,7 +10,7 @@ import {
   IconPayments, IconReports, IconSettings, IconUsers, IconAudit,
   IconSearch, IconMenu, IconChevron, IconExternal, IconRoad,
   IconLogout, IconKey, IconPlus, IconCar, IconLayers, IconChat,
-  IconStar, IconBook, IconRoute, IconEvent, IconGlobe,
+  IconStar, IconBook, IconSparkle, IconRoute, IconEvent, IconGlobe,
 } from '../components/icons';
 import { LanguageProvider, LanguageSwitch } from '../lib/i18n';
 import { useSeo } from '../site/Seo';
@@ -43,6 +43,7 @@ const NAV_GROUPS: { title: string | null; items: NavItem[] }[] = [
       { to: '/admin/chats', label: 'Chat history', Icon: IconChat, perms: ['bookings.view'] },
       { to: '/admin/feedback', label: 'Feedback', Icon: IconStar, perms: ['bookings.view'] },
       { to: '/admin/chatbot', label: 'Chatbot Knowledge', Icon: IconBook, perms: ['settings.view'] },
+      { to: '/admin/festival-ads', label: 'Festival ads', Icon: IconSparkle, perms: ['settings.view'] },
     ],
   },
   {

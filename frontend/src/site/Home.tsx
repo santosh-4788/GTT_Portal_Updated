@@ -15,6 +15,7 @@ import { VehiclePhoto } from '../components/VehiclePhoto';
 import { HeroJourney } from '../components/HeroJourney';
 import { FareCalculator } from './FareCalculator';
 import { FestivalTravel } from './FestivalTravel';
+import { FestivalAds } from './FestivalAds';
 import { IconPhone, IconArrowRight, IconCheck, IconPin } from '../components/icons';
 import { useSeo } from './Seo';
 
@@ -200,6 +201,10 @@ export default function Home() {
           Seasonal; renders nothing outside the festival window (festivals.ts). */}
       <FestivalTravel />
 
+      {/* ===================== FESTIVAL & EVENT ADS =====================
+          Written in Admin -> Festival ads; only those live today come back. */}
+      <FestivalAds />
+
       {/* ====================== WHAT DO YOU NEED TODAY? ====================== */}
       <section className="pt-16 sm:pt-20">
         <div className="shell">
@@ -264,7 +269,7 @@ export default function Home() {
               the single tallest thing on the page. */}
           <div className="grid gap-5 max-sm:[&>*:nth-child(n+4)]:hidden sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {FLEET.map((v, i) => (
-              <Reveal key={v.slug} delay={(i % 4) * 70}>
+              <Reveal variant="zoom" key={v.slug} delay={(i % 4) * 70}>
                 <Link
                   to={`/vehicles/${v.slug}`}
                   className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-card transition-shadow duration-300 hover:shadow-lift"
@@ -341,7 +346,7 @@ export default function Home() {
               heading. Four of these cards came to 2,108px. */}
           <div className="grid gap-5 max-sm:[&>*:nth-child(n+3)]:hidden sm:grid-cols-2 lg:grid-cols-4">
             {DESTINATIONS.slice(0, 4).map((d, i) => (
-              <Reveal key={d.slug} delay={(i % 4) * 60}>
+              <Reveal variant="zoom" key={d.slug} delay={(i % 4) * 60}>
                 <DestinationCard d={d} index={i} />
               </Reveal>
             ))}
@@ -431,7 +436,7 @@ export default function Home() {
       {/* ============================== TRUST ============================== */}
       <section className="pt-20 sm:pt-24 lg:pt-28">
         <div className="shell">
-          <Reveal className="grad-soft rounded-[2.25rem] px-6 py-10 sm:px-10 sm:py-12">
+          <Reveal variant="zoom" className="grad-soft rounded-[2.25rem] px-6 py-10 sm:px-10 sm:py-12">
             <div className="grid gap-8 lg:grid-cols-[0.85fr,1.15fr] lg:gap-12">
               <div>
                 <span className="lead">Why it is safe to book</span>
@@ -541,7 +546,7 @@ export default function Home() {
               ['Travel', 'A uniformed chauffeur reports on time, with the vehicle cleaned and ready.'],
               ['Get the invoice', 'A GST invoice in your required format, with toll and parking shown separately.'],
             ].map(([title, body], i) => (
-              <Reveal as="li" key={title} delay={i * 70}>
+              <Reveal as="li" variant="left" key={title} delay={i * 70}>
                 <div className="tile h-full p-6">
                   <span className="grad-brand grid h-9 w-9 place-items-center rounded-xl font-display text-xs font-bold text-white">
                     {String(i + 1).padStart(2, '0')}
@@ -572,7 +577,7 @@ export default function Home() {
           </Reveal>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Reveal className="tile h-full p-6">
+            <Reveal variant="left" className="tile h-full p-6">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-ok-50 text-ok-600"><IconCheck className="h-5 w-5" /></span>
                 <h3 className="font-display text-md font-bold text-ink-900">Included in the quoted fare</h3>
@@ -587,7 +592,7 @@ export default function Home() {
               </ul>
             </Reveal>
 
-            <Reveal delay={80} className="tile h-full p-6">
+            <Reveal variant="right" delay={80} className="tile h-full p-6">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-warn-50 text-lg font-bold text-warn-600">+</span>
                 <h3 className="font-display text-md font-bold text-ink-900">Billed on top, at actuals</h3>
@@ -624,7 +629,7 @@ export default function Home() {
             </Reveal>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {REVIEWS.slice(0, 3).map((r, i) => (
-                <Reveal key={r.id} delay={i * 70}>
+                <Reveal variant="zoom" key={r.id} delay={i * 70}>
                   <article className="tile h-full p-6">
                     <Stars value={r.rating} />
                     <p className="mt-4 text-sm leading-[1.7] text-ink-700">{r.body}</p>
@@ -640,7 +645,7 @@ export default function Home() {
 
       {/* ============================== CLOSING ============================== */}
       <section className="px-5 pb-24 pt-20 sm:px-8 sm:pb-28 sm:pt-24 lg:pt-28">
-        <Reveal className="mx-auto max-w-[76rem]">
+        <Reveal variant="zoom" className="mx-auto max-w-[76rem]">
           <div className="grad-soft relative overflow-hidden rounded-[2.25rem] px-6 py-14 sm:px-12 sm:py-16">
             <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand-200/50 blur-3xl" aria-hidden="true" />
 

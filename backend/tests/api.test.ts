@@ -20,6 +20,9 @@ const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'gtt-test-'));
 process.env.DB_FILE = path.join(TEST_DIR, 'test.db');
 process.env.PORT = '4111';
 process.env.JWT_SECRET = 'test-secret';
+// Never send real email from a test run: with the office's App Password in
+// backend/.env, every enquiry the tests create was mailed to the real inbox.
+process.env.MAIL_APP_PASSWORD = '';
 process.env.NODE_ENV = 'test';
 
 const BASE = 'http://127.0.0.1:4111/api';
@@ -1285,7 +1288,7 @@ describe('Public website endpoints', () => {
     const r = await call('GET', '/public/company', undefined, false);
     assert.equal(r.status, 200);
     assert.equal(r.body.name, 'Gupta Tours & Travels');
-    assert.equal(r.body.mobile, '9967381555');
+    assert.equal(r.body.mobile, '8104338080');
     assert.equal(r.body.gstin, '27ALRPG8019M1ZH');
     // One line, and the site never prints it — a Call button dials it. There
     // is no alternate number any more, in the payload or anywhere else.
@@ -1300,7 +1303,8 @@ describe('Public website endpoints', () => {
     assert.match(html, /href="tel:\+91\d{10}"/);
     // ...but no ten-digit number may appear as readable text. Strip the hrefs,
     // which are the one place the digits are allowed to live.
-    const visible = html.replace(/tel:\+91\d+/g, '');
+    // The WhatsApp link (wa.me/91...) is an address too, never shown as text.
+    const visible = html.replace(/(tel:\+91|wa\.me\/91)\d+/g, '');
     assert.ok(!/\d{10}/.test(visible), 'a phone number is being printed in the email');
   });
 

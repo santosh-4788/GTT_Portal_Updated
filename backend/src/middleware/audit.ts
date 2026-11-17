@@ -45,7 +45,8 @@ export type AuditAction =
   // Events
   | 'EVENT_CREATED' | 'EVENT_UPDATED' | 'EVENT_CANCELLED'
   | 'EVENT_REQUIREMENTS_ADDED' | 'EVENT_REQUIREMENT_UPDATED' | 'EVENT_REQUIREMENT_DELETED'
-  | 'EVENT_TRIPS_GENERATED';
+  | 'EVENT_TRIPS_GENERATED'
+  | 'PROMOTION_CREATED' | 'PROMOTION_UPDATED' | 'PROMOTION_DELETED';
 
 export function clientIp(req: Request): string {
   const fwd = req.headers['x-forwarded-for'];

@@ -80,7 +80,7 @@ export default function TrackLookup() {
               <SoftField label="Trip ID">
                 <input
                   className={`${SOFT_INPUT} font-mono uppercase`} value={tripId} autoFocus
-                  onChange={(e) => setTripId(e.target.value)} placeholder="GTT-EM-2609-0042"
+                  onChange={(e) => setTripId(e.target.value)} placeholder="JC-EM-2611-0042"
                 />
               </SoftField>
               <SoftField label="Last 4 digits">

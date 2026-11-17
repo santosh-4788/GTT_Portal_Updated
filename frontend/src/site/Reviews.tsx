@@ -89,6 +89,12 @@ export default function Reviews() {
               body="Rather than fill this page with testimonials nobody can check, it stays empty until we have reviews customers have actually given us and agreed to publish. If you have travelled with us, we would genuinely like yours."
               action={
                 <>
+                  {COMPANY.googleReviewUrl && (
+                    <a href={COMPANY.googleReviewUrl} target="_blank" rel="noreferrer"
+                      className="btn h-11 rounded-full bg-ink-900 px-6 text-md font-semibold text-white hover:bg-ink-800">
+                      ★ Review us on Google
+                    </a>
+                  )}
                   <a
                     href={whatsappLink('Hello, I would like to leave a review about my trip.')}
                     target="_blank" rel="noreferrer"

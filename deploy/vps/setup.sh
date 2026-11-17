@@ -5,7 +5,7 @@
 #
 #   sudo bash setup.sh <domain> <email> [git-repo-url] [branch]
 #
-#   sudo bash setup.sh guptatours.in vinaykumar87674@gmail.com
+#   sudo bash setup.sh justcabs.in justcabsonline@gmail.com
 #
 # What it does:
 #   - installs Nginx, Certbot, Git, build tools, LibreOffice (invoice PDFs)
@@ -105,11 +105,11 @@ LIBREOFFICE_PATH=/usr/bin/soffice
 
 # Email - paste the Gmail app password (see backend/.env.example)
 MAIL_APP_PASSWORD=
-MAIL_FROM=vinaykumar87674@gmail.com
-MAIL_FROM_NAME=Gupta Tours & Travels
-MAIL_USER=vinaykumar87674@gmail.com
-MAIL_REPLY_TO=vinaykumar87674@gmail.com
-MAIL_ADMIN_INBOX=vinaykumar87674@gmail.com
+MAIL_FROM=justcabsonline@gmail.com
+MAIL_FROM_NAME=JustCabs
+MAIL_USER=justcabsonline@gmail.com
+MAIL_REPLY_TO=justcabsonline@gmail.com
+MAIL_ADMIN_INBOX=justcabsonline@gmail.com
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=465
 MAIL_SECURE=true
@@ -130,7 +130,7 @@ fi
 
 step "Install and build"
 as_app "cd $APP_DIR && npm ci --include=dev --prefix backend && npm ci --include=dev --prefix frontend"
-as_app "cd $APP_DIR && npm run build --prefix backend && npm run build --prefix frontend"
+as_app "cd $APP_DIR && npm run build --prefix backend && VITE_SITE_URL=https://$DOMAIN npm run build --prefix frontend"
 
 step "Database (tables + admin user; existing data is left alone)"
 as_app "cd $APP_DIR/backend && npm run setup"

@@ -5,11 +5,14 @@
  * prints. The source is baked into the ID itself so an operator reading it
  * aloud on the phone already knows where the job came from:
  *
- *   GTT-EM-2609-0042   an email / website enquiry
- *   GTT-WA-2609-0007   a WhatsApp enquiry
- *   GTT-PB-2609-0113   a booking placed by a signed-in customer on the portal
- *   GTT-OF-2609-0031   a walk-in or phone booking entered by the office
- *   GTT-VN-2609-0290   a vendor booking
+ *   JC-EM-2611-0042   an email / website enquiry
+ *   JC-WA-2611-0007   a WhatsApp enquiry
+ *   JC-PB-2611-0113   a booking placed by a signed-in customer on the portal
+ *   JC-OF-2611-0031   a walk-in or phone booking entered by the office
+ *   JC-VN-2611-0290   a vendor booking
+ *
+ * JC (JustCabs) since November 2026. Trips made before then keep their GTT-
+ * IDs; searching and tracking accept both.
  *
  * The counter is per source per month, allocated through `trip_sequences` the
  * same way invoice numbers are allocated, and `bookings.trip_id` carries a
@@ -34,6 +37,9 @@ export const SOURCE_LABEL: Record<InquirySource, string> = {
   WALKIN: 'Walk-in / phone booking',
   VENDOR: 'Vendor booking',
 };
+
+/** The brand prefix on every new Trip ID. */
+export const PREFIX = 'JC';
 
 export const ALL_SOURCES: InquirySource[] = ['EMAIL', 'WHATSAPP', 'PORTAL', 'WALKIN', 'VENDOR'];
 
@@ -66,12 +72,12 @@ export function nextTripId(source: InquirySource, when = new Date()): string {
 
   for (let attempt = 0; attempt < 25; attempt++) {
     const seq = nextSequence(scope);
-    const tripId = `GTT-${CODE[source]}-${yymm}-${String(seq).padStart(4, '0')}`;
+    const tripId = `${PREFIX}-${CODE[source]}-${yymm}-${String(seq).padStart(4, '0')}`;
     const clash = q.get<{ id: number }>('SELECT id FROM bookings WHERE trip_id = @t', { t: tripId });
     if (!clash) return tripId;
   }
 
   // 25 consecutive clashes means the counter is badly out of step. Fall back to
   // something that cannot collide rather than failing the customer's enquiry.
-  return `GTT-${CODE[source]}-${yymm}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
+  return `${PREFIX}-${CODE[source]}-${yymm}-${Date.now().toString(36).toUpperCase().slice(-5)}`;
 }

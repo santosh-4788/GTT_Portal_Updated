@@ -421,7 +421,7 @@ export default function MyTrips() {
               <SiteEmpty
                 emoji="🔍"
                 title="No trip matches that"
-                body="Trip IDs look like GTT-EM-2609-0042. You can also search by destination, vehicle, invoice number or travel date."
+                body="Trip IDs look like JC-EM-2611-0042. You can also search by destination, vehicle, invoice number or travel date."
                 action={
                   <>
                     <button onClick={() => setTerm('')} className="btn h-11 rounded-full bg-ink-900 px-6 text-md text-white hover:bg-ink-800">

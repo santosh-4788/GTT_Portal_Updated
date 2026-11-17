@@ -71,7 +71,7 @@ export interface Trip {
   ref: string;
   /**
    * The office's own reference, allocated by the API the moment the enquiry is
-   * saved — GTT-EM-2609-0042. `ref` is this device's local key and stays as it
+   * saved — JC-EM-2611-0042. `ref` is this device's local key and stays as it
    * was; this is the number the customer quotes and the office searches on.
    * Absent only on the seeded example and on requests that failed to send.
    */
@@ -275,12 +275,12 @@ const patch = (p: Partial<State>) => write({ ...state, ...p });
    Writing
    ========================================================================== */
 
-/** GTT-20260902-4821 — this device's reference for a request. */
+/** JC-20260902-4821 — this device's reference for a request. */
 function newRef(): string {
   const d = new Date();
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
   const tail = String(Math.floor(1000 + Math.random() * 9000));
-  return `GTT-${stamp}-${tail}`;
+  return `JC-${stamp}-${tail}`;
 }
 
 export interface RequestInput {

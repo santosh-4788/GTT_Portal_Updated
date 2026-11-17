@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { seedFestivalPromotions } from '../services/festivalCalendar';
 import fs from 'fs';
 import path from 'path';
 import { config, ensureDirectories } from '../config';
@@ -300,7 +301,37 @@ export function applySchema(): string[] {
   const db = getDb();
   const sql = fs.readFileSync(config.paths.schema, 'utf8');
   db.exec(sql);
-  return applyColumnMigrations(db);
+  const applied = applyColumnMigrations(db);
+  switchBusinessContact(db);
+  try {
+    seedFestivalPromotions(db);
+  } catch (err: any) {
+    console.warn(`[db] could not add the festival calendar: ${err.message}`);
+  }
+  return applied;
+}
+
+/*
+ * November 2026: the business moved to the JustCabs number and mailbox.
+ * Settings still holding the old number or address are switched; anything the
+ * office has since typed into Settings itself is left alone. The sending
+ * account moves too; its App Password lives in backend/.env
+ * (MAIL_APP_PASSWORD), never in the code.
+ */
+function switchBusinessContact(db: ReturnType<typeof getDb>) {
+  const OLD_MOBILE = '9967381555', NEW_MOBILE = '8104338080';
+  const OLD_EMAIL = 'vinaykumar87674@gmail.com', NEW_EMAIL = 'justcabsonline@gmail.com';
+  try {
+    const set = db.prepare('UPDATE settings SET value = ? WHERE key = ? AND value = ?');
+    for (const key of ['company.mobile', 'website.whatsapp']) set.run(NEW_MOBILE, key, OLD_MOBILE);
+    for (const key of ['company.email', 'email.replyTo', 'email.adminInbox', 'email.fromAddress', 'email.user']) {
+      set.run(NEW_EMAIL, key, OLD_EMAIL);
+    }
+    // Emails go out under the JustCabs name; the legal name stays on invoices.
+    set.run('JustCabs', 'email.fromName', 'Gupta Tours & Travels');
+  } catch (err: any) {
+    console.warn(`[db] could not update the business contact: ${err.message}`);
+  }
 }
 
 /** Small helper so route code reads cleanly. */

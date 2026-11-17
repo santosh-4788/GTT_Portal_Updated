@@ -141,9 +141,9 @@ describe('Enquiries become trips', () => {
     });
 
     assert.equal(r.status, 201);
-    assert.match(r.body.tripId, /^GTT-EM-\d{4}-\d{4}$/, 'an email enquiry carries the EM prefix');
-    assert.match(r.body.message, /GTT-EM-/, 'the Trip ID is put in front of the customer');
-    assert.equal(r.body.sentFrom, 'vinaykumar87674@gmail.com');
+    assert.match(r.body.tripId, /^JC-EM-\d{4}-\d{4}$/, 'an email enquiry carries the EM prefix');
+    assert.match(r.body.message, /JC-EM-/, 'the Trip ID is put in front of the customer');
+    assert.equal(r.body.sentFrom, 'justcabsonline@gmail.com');
     state.tripId = r.body.tripId;
   });
 
@@ -161,7 +161,7 @@ describe('Enquiries become trips', () => {
     });
 
     assert.equal(r.status, 201);
-    assert.match(r.body.tripId, /^GTT-WA-\d{4}-\d{4}$/, 'a WhatsApp enquiry carries the WA prefix');
+    assert.match(r.body.tripId, /^JC-WA-\d{4}-\d{4}$/, 'a WhatsApp enquiry carries the WA prefix');
     assert.match(r.body.whatsappText, new RegExp(r.body.tripId), 'the chat text quotes the Trip ID');
     assert.match(r.body.whatsappText, /Pickup: Goregaon West/);
     assert.match(r.body.whatsappText, /Journey date: 2027-02-02/);
@@ -215,7 +215,7 @@ describe('Enquiries become trips', () => {
       pickup: 'Chembur', travelDate: '2027-02-05', source: 'WHATSAPP',
     });
     assert.equal(r.status, 201);
-    assert.match(r.body.tripId, /^GTT-WA-\d{4}-\d{4}$/);
+    assert.match(r.body.tripId, /^JC-WA-\d{4}-\d{4}$/);
   });
 
   test('an email enquiry with an address is filed under the EM prefix', async () => {
@@ -225,7 +225,7 @@ describe('Enquiries become trips', () => {
       pickup: 'Chembur', travelDate: '2027-02-06', source: 'EMAIL',
     });
     assert.equal(r.status, 201);
-    assert.match(r.body.tripId, /^GTT-EM-\d{4}-\d{4}$/);
+    assert.match(r.body.tripId, /^JC-EM-\d{4}-\d{4}$/);
   });
 
   test('Trip IDs are never handed out twice', async () => {
@@ -290,7 +290,7 @@ describe('The office picks the enquiry up', () => {
       passengers: 4,
     });
     assert.equal(r.status, 201);
-    assert.match(r.body.tripId, /^GTT-OF-/, 'a walk-in carries the office prefix');
+    assert.match(r.body.tripId, /^JC-OF-/, 'a walk-in carries the office prefix');
     assert.equal(r.body.data.booking_status, 'CONFIRMED', 'a booking taken on the phone starts confirmed');
   });
 });
@@ -720,7 +720,7 @@ describe('Tracking and email records', () => {
     assert.equal(r.status, 200);
     assert.ok(r.body.data.length >= 5, 'enquiries, trip details and invoices all leave a trace');
     assert.ok(
-      r.body.data.every((e: any) => e.from_address === 'vinaykumar87674@gmail.com'),
+      r.body.data.every((e: any) => e.from_address === 'justcabsonline@gmail.com'),
       'everything goes out from the one business mailbox'
     );
     assert.ok(
@@ -759,7 +759,7 @@ describe('Tracking and email records', () => {
     const r = await admin('GET', '/settings/email/status');
     assert.equal(r.status, 200);
     assert.equal(r.body.enabled, false);
-    assert.equal(r.body.from, 'vinaykumar87674@gmail.com');
+    assert.equal(r.body.from, 'justcabsonline@gmail.com');
     assert.equal(r.body.passwordSet, false);
     assert.match(r.body.reason, /App Password/);
   });
@@ -893,7 +893,7 @@ describe('Nothing that already worked has broken', () => {
       charges: { baseFare: 1800 },
     });
     assert.equal(r.status, 201);
-    assert.match(r.body.tripId, /^GTT-VN-/, 'vendor work is tagged as vendor work');
+    assert.match(r.body.tripId, /^JC-VN-/, 'vendor work is tagged as vendor work');
     assert.equal(r.body.data.inquiry_source, 'VENDOR');
   });
 

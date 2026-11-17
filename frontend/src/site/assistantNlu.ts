@@ -352,9 +352,9 @@ export function readEntities(n: string, raw: string, routes: OutstationRoute[] |
   const model = VEHICLES.find((v) => new RegExp(`\\b${escapeRe(v.name.toLowerCase().replace(/^(toyota|hyundai|kia|force|maruti)\s+/, ''))}\\b`).test(n));
   if (model) e.model = model.slug;
 
-  const trip = /\b(GTT-[A-Z]{2,4}-\d{4}-\d{3,5})\b/i.exec(raw);
+  const trip = /\b((?:JC|GTT)-[A-Z]{2,4}-\d{4}-\d{3,5})\b/i.exec(raw);
   if (trip) e.tripId = trip[1].toUpperCase();
-  const digits = raw.replace(/GTT-[A-Z]{2,4}-\d{4}-\d{3,5}/gi, ' ').match(/(?:^|\D)((?:\+?91[\s-]?)?[6-9]\d{9}|\d{4})(?=\D|$)/);
+  const digits = raw.replace(/(?:JC|GTT)-[A-Z]{2,4}-\d{4}-\d{3,5}/gi, ' ').match(/(?:^|\D)((?:\+?91[\s-]?)?[6-9]\d{9}|\d{4})(?=\D|$)/);
   if (digits) e.digits = digits[1].replace(/\D/g, '').slice(-4);
 
   e.fareWord = /\b(fare|fares|rate|rates|price|prices|pricing|cost|costs|charges?|tariff|fee|amount|how much|kiraya|bhada|bhade)\b/.test(n)

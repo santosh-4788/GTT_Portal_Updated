@@ -2,7 +2,7 @@
  * Outgoing email.
  *
  * WHY IT LOOKS LIKE THIS
- * The business has one mailbox — vinaykumar87674@gmail.com — and no budget for
+ * The business has one mailbox — justcabsonline@gmail.com — and no budget for
  * a transactional email service. Gmail's own SMTP is free, already owned, and
  * good for far more mail than this office will ever send, so that is what this
  * uses: nodemailer over smtp.gmail.com with an App Password.
@@ -32,8 +32,9 @@ import path from 'path';
 import { q } from '../db';
 import { config } from '../config';
 import { ensureLocalFile } from './fileStore';
+import { LOGO_CID } from './emailTemplates';
 
-export const DEFAULT_FROM = 'vinaykumar87674@gmail.com';
+export const DEFAULT_FROM = 'justcabsonline@gmail.com';
 
 export type MailKind =
   | 'INQUIRY_ADMIN'
@@ -107,7 +108,7 @@ export function mailConfig(): MailConfig {
     user,
     password,
     fromAddress,
-    fromName: pick('MAIL_FROM_NAME', 'email.fromName', 'Gupta Tours & Travels'),
+    fromName: pick('MAIL_FROM_NAME', 'email.fromName', 'JustCabs'),
     replyTo: pick('MAIL_REPLY_TO', 'email.replyTo', fromAddress),
     adminInbox: pick('MAIL_ADMIN_INBOX', 'email.adminInbox', fromAddress),
   };
@@ -310,7 +311,13 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
 
   // Resolve the attachment before opening a connection, so a missing file is a
   // clear message rather than a half-sent email.
-  const attachments: { filename: string; path: string }[] = [];
+  const attachments: { filename: string; path: string; cid?: string }[] = [];
+  // The JustCabs logo in the email header, carried inline (cid:) so no image
+  // has to be hosted anywhere. Skipped quietly if the file is ever missing.
+  if (input.html.includes(`cid:${LOGO_CID}`)) {
+    const logo = path.join(config.paths.assets, 'email', 'justcabs-logo.png');
+    if (fs.existsSync(logo)) attachments.push({ filename: 'justcabs-logo.png', path: logo, cid: LOGO_CID });
+  }
   if (input.attachmentPath) {
     const abs = path.join(config.paths.invoices, input.attachmentPath);
     if (!abs.startsWith(config.paths.invoices) || !ensureLocalFile(abs)) {

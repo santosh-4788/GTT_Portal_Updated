@@ -7,13 +7,20 @@ export const COMPANY = {
   legalName: 'Gupta Tours & Travels',
   tagline: 'Corporate Transport, Car Rental and Outstation',
   owner: 'Vinay Gupta',
-  mobile: '9967381555',
+  mobile: '8104338080',
   /** Same line as the mobile — mirrors the website.whatsapp setting. */
-  whatsapp: '9967381555',
-  email: 'vinaykumar87674@gmail.com',
+  whatsapp: '8104338080',
+  email: 'justcabsonline@gmail.com',
   address: 'P-8, Building, New Aman CHS Ltd., Ajit Glass Garden Road, Goregaon (W), Mumbai - 400 104',
   gstin: '27ALRPG8019M1ZH',
   serviceHours: '24×7 Service',
+  /**
+   * The Google Business Profile "write a review" link (Google Business Profile ->
+   * Ask for reviews -> copy the link, e.g. https://g.page/r/XXXX/review). Empty
+   * until the profile is verified; every "Review us on Google" button on the
+   * site stays hidden while it is.
+   */
+  googleReviewUrl: '',
 };
 
 /**

@@ -3,9 +3,9 @@
  *
  * Written as inline-styled tables rather than anything modern, because that is
  * what Gmail, Outlook and the iOS mail app all render the same way. No external
- * CSS, no web fonts, no tracking pixels, no images that have to be hosted
- * somewhere — a customer on a phone with images blocked still reads the whole
- * thing.
+ * CSS, no web fonts, no tracking pixels. The one image, the JustCabs logo,
+ * travels inside the email as an inline attachment (mailer.ts), so nothing has
+ * to be hosted and a customer with images blocked still reads the whole thing.
  *
  * Every template takes plain data and returns { subject, html }. Nothing here
  * touches the database or the transport; that is the mailer's job.
@@ -13,8 +13,14 @@
 import { q } from '../db';
 import { DIRECTION_LABEL } from './airport';
 
-const BRAND = '#0E82B8';
+/* JustCabs logo colours (Nov 2026): navy, logo blue, gold. */
+const BRAND = '#1A8FF0';
 const BRAND_SOFT = '#EAF4FB';
+const NAVY = '#0A1F44';
+const NAVY2 = '#0B2A5C';
+const GOLD = '#E9B949';
+/** The round logo travels inside each email (see mailer.ts), so nothing has to be hosted. */
+export const LOGO_CID = 'jclogo';
 const INK = '#101C2B';
 const MUTED = '#5B6E84';
 const LINE = '#E3E8EF';
@@ -35,11 +41,12 @@ export function companyBlock(): CompanyBlock {
     q.all<{ key: string; value: string }>('SELECT key, value FROM settings').map((r) => [r.key, r.value ?? ''])
   );
   return {
-    name: s['company.name'] || 'Gupta Tours & Travels',
+    // Customers know the business as JustCabs; the legal name stays in the footer.
+    name: s['company.brandName'] || 'JustCabs',
     legalName: s['company.legalName'] || s['company.name'] || 'Gupta Tours & Travels',
     owner: s['company.owner'] || 'Vinay Gupta',
-    mobile: s['company.mobile'] || '9967381555',
-    email: s['email.fromAddress'] || s['company.email'] || 'vinaykumar87674@gmail.com',
+    mobile: s['company.mobile'] || '8104338080',
+    email: s['company.email'] || 'justcabsonline@gmail.com',
     address: s['company.address.letterhead'] || '',
     gstin: s['company.gstin'] || '',
     website: s['website.publicUrl'] || '',
@@ -93,7 +100,7 @@ export function detailTable(rows: Row[]): string {
       (r) => `
       <tr>
         <td style="padding:9px 14px 9px 0;font-size:13px;color:${MUTED};white-space:nowrap;vertical-align:top;border-bottom:1px solid ${LINE};">${esc(r.label)}</td>
-        <td style="padding:9px 0;font-size:14px;color:${r.strong ? BRAND : INK};font-weight:${r.strong ? 700 : 500};vertical-align:top;border-bottom:1px solid ${LINE};">${esc(r.value)}</td>
+        <td style="padding:9px 0;font-size:14px;color:${r.strong ? NAVY : INK};font-weight:${r.strong ? 700 : 500};vertical-align:top;border-bottom:1px solid ${LINE};">${esc(r.value)}</td>
       </tr>`
     )
     .join('');
@@ -101,16 +108,16 @@ export function detailTable(rows: Row[]): string {
 }
 
 export function sectionTitle(text: string): string {
-  return `<p style="margin:26px 0 6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};">${esc(text)}</p>`;
+  return `<p style="margin:26px 0 6px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${BRAND};">${esc(text)}</p>`;
 }
 
 export function tripIdBadge(tripId: string): string {
   return `
   <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:18px 0 4px;">
     <tr>
-      <td style="background:${BRAND_SOFT};border:1px solid #C7E4F5;border-radius:10px;padding:12px 18px;">
-        <span style="display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">Your Trip ID</span>
-        <span style="display:block;margin-top:3px;font-family:Consolas,'Courier New',monospace;font-size:19px;font-weight:700;color:${BRAND};letter-spacing:.02em;">${esc(tripId)}</span>
+      <td style="background:${NAVY};border:1px solid ${GOLD};border-radius:12px;padding:12px 18px;">
+        <span style="display:block;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${GOLD};">Your Trip ID</span>
+        <span style="display:block;margin-top:3px;font-size:20px;font-weight:800;color:#ffffff;letter-spacing:.04em;">${esc(tripId)}</span>
       </td>
     </tr>
   </table>`;
@@ -120,14 +127,14 @@ export function button(label: string, href: string): string {
   if (!href) return '';
   return `
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 6px;">
-    <tr><td style="background:${BRAND};border-radius:999px;">
-      <a href="${esc(href)}" style="display:inline-block;padding:12px 26px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">${esc(label)}</a>
+    <tr><td style="background:${BRAND};background-image:linear-gradient(135deg,#35C0EE,#1A8FF0 55%,#0E5FC0);border-radius:999px;">
+      <a href="${esc(href)}" style="display:inline-block;padding:13px 28px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">${esc(label)}</a>
     </td></tr>
   </table>`;
 }
 
 export function note(text: string): string {
-  return `<p style="margin:18px 0 0;padding:12px 14px;background:#F5F7FA;border-left:3px solid ${BRAND};border-radius:0 8px 8px 0;font-size:13px;line-height:1.6;color:${MUTED};">${text}</p>`;
+  return `<p style="margin:18px 0 0;padding:12px 14px;background:#FFF8E6;border-left:3px solid ${GOLD};border-radius:0 8px 8px 0;font-size:13px;line-height:1.6;color:${MUTED};">${text}</p>`;
 }
 
 /**
@@ -153,35 +160,36 @@ export function layout(args: {
    * the number already in it, and nothing anywhere displays the digits.
    */
   const callLink = c.mobile
-    ? `<a href="tel:+91${esc(c.mobile)}" style="color:${BRAND};text-decoration:none;font-weight:600;">Call us</a>`
+    ? `<a href="tel:+91${esc(c.mobile)}" style="color:#7FD0FF;text-decoration:none;font-weight:700;">Call us</a>`
     : '';
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(args.title)}</title></head>
-<body style="margin:0;padding:0;background:#F5F7FA;">
+<body style="margin:0;padding:0;background:#E9EEF6;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(args.preheader)}</div>
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F5F7FA;padding:24px 12px;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#E9EEF6;padding:24px 12px;">
   <tr><td align="center">
-    <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(16,28,43,.08);font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;width:100%;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(10,31,68,.15);font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
-      <tr><td style="background:${BRAND_SOFT};border-bottom:3px solid ${BRAND};padding:24px 32px;">
-        <p style="margin:0;font-size:18px;font-weight:700;color:${INK};letter-spacing:-.01em;">${esc(c.name)}</p>
-        <p style="margin:3px 0 0;font-size:12px;color:${MUTED};">Corporate Transport · Car Rental · Outstation</p>
+      <tr><td align="center" style="background:${NAVY};background-image:radial-gradient(circle at 50% 40%, #16468F 0%, ${NAVY2} 45%, ${NAVY} 80%);padding:28px 24px 22px;border-bottom:3px solid ${GOLD};">
+        <img src="cid:${LOGO_CID}" width="120" height="120" alt="${esc(c.name)}" style="display:block;width:120px;height:120px;border:0;border-radius:60px;">
+        <p style="margin:12px 0 0;font-size:11px;letter-spacing:3px;color:${GOLD};font-weight:700;">CORPORATE TRANSPORT · CAR RENTAL · OUTSTATION</p>
       </td></tr>
 
       <tr><td style="padding:30px 32px 34px;">
-        <h1 style="margin:0 0 10px;font-size:21px;font-weight:700;color:${INK};letter-spacing:-.02em;line-height:1.3;">${esc(args.title)}</h1>
+        <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;color:${NAVY};letter-spacing:-.02em;line-height:1.3;">${esc(args.title)}</h1>
+        <div style="width:56px;height:3px;background:${GOLD};border-radius:3px;margin:0 0 14px;"></div>
         ${args.body}
       </td></tr>
 
-      <tr><td style="padding:20px 32px 26px;background:#FAFBFC;border-top:1px solid ${LINE};">
-        <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:${INK};">${esc(c.legalName)}</p>
-        ${c.address ? `<p style="margin:0 0 6px;font-size:12px;line-height:1.6;color:${MUTED};">${esc(c.address)}</p>` : ''}
-        <p style="margin:0;font-size:12px;color:${MUTED};">
-          ${callLink ? callLink + ' &nbsp;·&nbsp; ' : ''}<a href="mailto:${esc(c.email)}" style="color:${BRAND};text-decoration:none;">${esc(c.email)}</a>
+      <tr><td style="background:${NAVY};padding:22px 32px 24px;border-top:3px solid ${GOLD};">
+        <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#ffffff;">${esc(c.name)}${c.legalName && c.legalName !== c.name ? ` <span style="color:${GOLD};font-weight:600;">— a brand of ${esc(c.legalName)}</span>` : ''}</p>
+        ${c.address ? `<p style="margin:0 0 8px;font-size:12px;line-height:1.6;color:#9FB6D6;">${esc(c.address)}</p>` : ''}
+        <p style="margin:0;font-size:12px;color:#9FB6D6;">
+          ${callLink ? callLink + ' &nbsp;·&nbsp; ' : ''}${c.mobile ? `<a href="https://wa.me/91${esc(c.mobile)}" style="color:#7FD0FF;text-decoration:none;font-weight:700;">WhatsApp</a> &nbsp;·&nbsp; ` : ''}<a href="mailto:${esc(c.email)}" style="color:#7FD0FF;text-decoration:none;">${esc(c.email)}</a> &nbsp;·&nbsp; <a href="${esc(c.website || 'https://justcabs.in')}" style="color:#7FD0FF;text-decoration:none;">${esc((c.website || 'https://justcabs.in').replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>
         </p>
-        ${c.gstin ? `<p style="margin:6px 0 0;font-size:11px;color:#9DAAB9;">GSTIN ${esc(c.gstin)}</p>` : ''}
+        ${c.gstin ? `<p style="margin:8px 0 0;font-size:11px;color:#6F86A8;">GSTIN ${esc(c.gstin)} · 24×7 · Mumbai</p>` : ''}
       </td></tr>
 
     </table>

@@ -2,7 +2,7 @@
 
 Public travel website **plus** an internal Booking, Vendor Billing and Invoice Management system.
 
-**Owner:** Vinay Gupta · **Phone:** +91 99673 81555 · **GSTIN:** 27ALRPG8019M1ZH
+**Owner:** Vinay Gupta · **Phone:** +91 81043 38080 · **GSTIN:** 27ALRPG8019M1ZH
 **Project root:** `E:\Portal\GuptaToursAndTravels`
 
 ---
@@ -214,7 +214,7 @@ office a ready-written WhatsApp link for the allotment message.
 
 ### Email
 
-Everything the portal sends goes out from **one mailbox** — `vinaykumar87674@gmail.com` — over
+Everything the portal sends goes out from **one mailbox** — `justcabsonline@gmail.com` — over
 Gmail's own free SMTP. Five kinds of message: the enquiry alert to the office, the
 acknowledgement to the customer, the trip details when a car and driver are allotted, the
 invoice, and the account welcome.

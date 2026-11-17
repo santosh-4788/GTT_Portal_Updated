@@ -193,6 +193,18 @@ export default function FeedbackPage() {
                       ))}
                     </dl>
                   )}
+                  {/* Offered to everyone, whatever they rated: Google does not allow
+                      asking only happy customers for public reviews. */}
+                  {COMPANY.googleReviewUrl && (
+                    <div className="mx-auto mt-6 max-w-md rounded-2xl bg-brand-50/70 px-4 py-4">
+                      <p className="text-sm font-semibold text-ink-900">Would you share this on Google too?</p>
+                      <p className="mt-1 text-xs leading-relaxed text-ink-600">It takes a minute and helps other families find a cab they can trust.</p>
+                      <a href={COMPANY.googleReviewUrl} target="_blank" rel="noreferrer"
+                        className="btn mt-3 h-10 rounded-full bg-ink-900 px-5 text-sm font-semibold text-white hover:bg-ink-800">
+                        ★ Review us on Google
+                      </a>
+                    </div>
+                  )}
                   <Link to="/" className="btn-outline mt-6 inline-flex">Back to the website</Link>
                 </Reveal>
               ) : (

@@ -1,3 +1,4 @@
+import { ScrollRoad, BackToTop } from '../components/ScrollFx';
 import { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { COMPANY, whatsappLink } from './siteData';
@@ -481,7 +482,7 @@ export default function SiteLayout() {
   const lifted = scrolled || menu;
 
   return (
-    <div className="page-bg flex min-h-screen flex-col">
+    <div className="site-fx page-bg flex min-h-screen flex-col">
       {/* ============================== HEADER ============================== */}
       <header className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ease-smooth ${lifted ? 'glass' : 'bg-transparent'}`}>
         <div className={`shell flex items-center gap-3 !px-4 transition-all duration-300 min-[360px]:!px-5 sm:!px-8 ${lifted ? 'h-16' : 'h-20'}`}>
@@ -543,6 +544,9 @@ export default function SiteLayout() {
         </div>
 
         {!lifted && <div className="header-fade pointer-events-none h-4 w-full" aria-hidden="true" />}
+
+        {/* Reading progress: a road along the header's lower edge with a cab driving it. */}
+        <ScrollRoad show={scrolled && !menu} />
 
         <div
           className={`overflow-y-auto bg-white/97 backdrop-blur-xl transition-[max-height] duration-300 ease-smooth ${
@@ -756,6 +760,8 @@ export default function SiteLayout() {
           </div>
         </div>
       </footer>
+
+      <BackToTop />
 
       {/* Space for the bottom navigation on phones. */}
       <div className="h-16 lg:hidden" aria-hidden="true" />

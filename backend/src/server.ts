@@ -33,6 +33,7 @@ import customerRoutes from './routes/customer';
 import seoRoutes from './routes/seo';
 import feedbackRoutes from './routes/feedback';
 import chatbotRoutes from './routes/chatbot';
+import promotionRoutes, { publicPromotions } from './routes/promotions';
 import { ensureChatbotKnowledge } from './services/chatbotKnowledge';
 import { ensureRedesignData } from './services/bootstrap';
 import onsheetRoutes from './routes/onsheet';
@@ -54,6 +55,26 @@ if (process.env.VERCEL) {
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+
+/*
+ * One address for Google. www.justcabs.in and justcabs.in served the same
+ * pages, which search engines treat as duplicates and split between. With
+ * PUBLIC_URL set, any other host name that is only "www." + ours is sent to
+ * the real address with a permanent redirect, path and query kept.
+ */
+{
+  let canonical: URL | undefined;
+  try { canonical = process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL) : undefined; } catch { canonical = undefined; }
+  if (canonical) {
+    const target = canonical;
+    app.use((req, res, next) => {
+      if (req.hostname === `www.${target.hostname}`) {
+        return res.redirect(301, `${target.origin}${req.originalUrl}`);
+      }
+      next();
+    });
+  }
+}
 
 app.use(
   helmet({
@@ -142,6 +163,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+app.use('/api/public/promotions', publicPromotions);
 app.use('/api/public', publicRoutes);
 app.use('/api/geo', geoRoutes);
 app.use('/api/auth', authRoutes);
@@ -158,6 +180,7 @@ app.use('/api/fares', fareRoutes);
 app.use('/api/fleet', fleetRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/promotions', promotionRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/invoices', invoiceRoutes);

@@ -112,7 +112,7 @@ router.post('/email/test', requirePermission('settings.update'), async (req, res
   const r = await sendMail({
     kind: 'ACCOUNT',
     to,
-    subject: 'Test message from the Gupta Tours & Travels portal',
+    subject: 'Test message from the JustCabs portal',
     html: layout({
       title: 'Email is working',
       preheader: 'A test message sent from the portal.',

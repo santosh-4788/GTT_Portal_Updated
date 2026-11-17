@@ -52,7 +52,7 @@ Then on the server:
 
 ```
 curl -fsSL https://raw.githubusercontent.com/santosh-4788/GTT_Portal_Updated/main/deploy/vps/setup.sh -o setup.sh
-sudo bash setup.sh yourdomain.in vinaykumar87674@gmail.com
+sudo bash setup.sh yourdomain.in justcabsonline@gmail.com
 ```
 
 (For a private repo, pass the token URL as the 3rd argument. You'll also need

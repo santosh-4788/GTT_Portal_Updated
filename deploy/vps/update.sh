@@ -17,9 +17,15 @@ git pull --ff-only
 # A backup first, so a bad update can always be rolled back.
 bash "$APP_DIR/deploy/vps/backup.sh" || echo "  ! backup failed - continuing"
 
+# Customer replies and website enquiries go to the JustCabs mailbox (Nov 2026).
+sed -i 's/^MAIL_REPLY_TO=vinaykumar87674@gmail.com$/MAIL_REPLY_TO=justcabsonline@gmail.com/; s/^MAIL_ADMIN_INBOX=vinaykumar87674@gmail.com$/MAIL_ADMIN_INBOX=justcabsonline@gmail.com/; s/^MAIL_FROM_NAME=Gupta Tours \& Travels$/MAIL_FROM_NAME=JustCabs/' backend/.env || true
+
 npm ci --include=dev --prefix backend
 npm ci --include=dev --prefix frontend
 npm run build --prefix backend
+# The public address goes into the built pages (canonical links, link previews,
+# Google's business data), taken from PUBLIC_URL in backend/.env.
+export VITE_SITE_URL="$(grep -E '^PUBLIC_URL=' backend/.env | cut -d= -f2- || true)"
 npm run build --prefix frontend
 (cd backend && npm run migrate)
 
